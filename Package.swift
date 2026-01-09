@@ -52,7 +52,7 @@ let package = Package(
         // Capability Inquiry: Discovery, Protocol Negotiation, Profile Configuration
         .target(
             name: "MIDI2CI",
-            dependencies: ["MIDI2Core"],
+            dependencies: ["MIDI2Core", "MIDI2Transport"],
             swiftSettings: [
                 .swiftLanguageMode(.v6),
                 .enableExperimentalFeature("StrictConcurrency")
