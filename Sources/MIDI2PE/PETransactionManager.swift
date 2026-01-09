@@ -30,13 +30,108 @@ public enum PETransactionResult: Sendable {
     case cancelled
 }
 
+/// Configuration for timeout monitoring
+public struct PEMonitoringConfiguration: Sendable {
+    /// Interval between timeout checks (seconds)
+    public let checkInterval: TimeInterval
+    
+    public init(checkInterval: TimeInterval = 1.0) {
+        self.checkInterval = checkInterval
+    }
+    
+    public static let `default` = PEMonitoringConfiguration()
+}
+
+/// Shared running state between Task and Handle
+private final class MonitorRunningState: @unchecked Sendable {
+    private let lock = NSLock()
+    private var _isRunning: Bool = true
+    
+    var isRunning: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return _isRunning
+    }
+    
+    func markStopped() {
+        lock.lock()
+        defer { lock.unlock() }
+        _isRunning = false
+    }
+}
+
+/// Handle for timeout monitoring
+///
+/// The monitoring task runs while this handle is held.
+/// When the handle is deallocated, monitoring stops automatically.
+///
+/// ## Usage
+/// ```swift
+/// class MyMIDIManager {
+///     let transactionManager = PETransactionManager()
+///     var monitorHandle: PEMonitorHandle?  // Hold this!
+///
+///     func start() {
+///         monitorHandle = transactionManager.startMonitoring()
+///     }
+///
+///     func stop() {
+///         monitorHandle = nil  // Monitoring stops
+///     }
+/// }
+/// ```
+public final class PEMonitorHandle: Sendable {
+    private let task: Task<Void, Never>
+    private let stopCallback: @Sendable () async -> Void
+    private let runningState: MonitorRunningState
+    
+    fileprivate init(task: Task<Void, Never>, runningState: MonitorRunningState, stopCallback: @escaping @Sendable () async -> Void) {
+        self.task = task
+        self.runningState = runningState
+        self.stopCallback = stopCallback
+    }
+    
+    deinit {
+        task.cancel()
+        runningState.markStopped()
+        // Note: Can't await in deinit, but cancel() is enough
+    }
+    
+    /// Explicitly stop monitoring
+    public func stop() async {
+        task.cancel()
+        runningState.markStopped()
+        await stopCallback()
+    }
+    
+    /// Check if monitoring is still active
+    public var isActive: Bool {
+        runningState.isRunning && !task.isCancelled
+    }
+}
+
 /// Manages PE transactions with automatic cleanup to prevent Request ID leaks
 ///
 /// Key features:
-/// - Automatic timeout-based cleanup
+/// - **Automatic timeout monitoring** via `startMonitoring()` returning a handle
 /// - Guaranteed Request ID release on completion/error/timeout
 /// - Transaction state monitoring
 /// - Leak detection and warnings
+///
+/// ## Usage
+/// ```swift
+/// let manager = PETransactionManager()
+///
+/// // Start monitoring - HOLD the handle!
+/// let handle = await manager.startMonitoring()
+///
+/// let requestID = await manager.begin(resource: "DeviceInfo", destinationMUID: device)
+/// // ... use requestID ...
+/// // Timeouts are handled automatically while handle is held
+///
+/// // When done, release handle or call stop()
+/// await handle.stop()  // or just let handle go out of scope
+/// ```
 public actor PETransactionManager {
     
     // MARK: - Configuration
@@ -53,16 +148,24 @@ public actor PETransactionManager {
     // MARK: - State
     
     private var requestIDManager = PERequestIDManager()
-    private var activeTransactions: [UInt8: PETransaction] = .init()
-    private var chunkAssemblers: [UInt8: PEChunkAssembler] = .init()
+    private var activeTransactions: [UInt8: PETransaction] = [:]
+    private var chunkAssemblers: [UInt8: PEChunkAssembler] = [:]
     
     /// Logger instance
     private let logger: any MIDI2Logger
     
-    /// Continuations waiting for transaction completion
-    private var completionHandlers: [UInt8: CheckedContinuation<PETransactionResult, Never>] = .init()
+    /// Monitoring configuration
+    private let monitoringConfig: PEMonitoringConfiguration
     
-    // MARK: - Monitoring
+    /// Continuations waiting for transaction completion
+    private var completionHandlers: [UInt8: CheckedContinuation<PETransactionResult, Never>] = [:]
+    
+    // MARK: - Monitoring State
+    
+    /// Weak reference to current monitor handle (for idempotency check)
+    private weak var currentMonitorHandle: PEMonitorHandle?
+    
+    // MARK: - Public Properties
     
     /// Number of active transactions
     public var activeCount: Int {
@@ -79,12 +182,92 @@ public actor PETransactionManager {
         availableIDs < 10
     }
     
+    /// Whether monitoring is currently active
+    public var isMonitoring: Bool {
+        currentMonitorHandle?.isActive ?? false
+    }
+    
     // MARK: - Initialization
     
-    /// Initialize with optional logger
-    /// - Parameter logger: Logger instance (default: NullMIDI2Logger - silent)
-    public init(logger: any MIDI2Logger = NullMIDI2Logger()) {
+    /// Initialize with optional logger and monitoring configuration
+    /// - Parameters:
+    ///   - logger: Logger instance (default: NullMIDI2Logger - silent)
+    ///   - monitoringConfig: Monitoring configuration
+    public init(
+        logger: any MIDI2Logger = NullMIDI2Logger(),
+        monitoringConfig: PEMonitoringConfiguration = .default
+    ) {
         self.logger = logger
+        self.monitoringConfig = monitoringConfig
+    }
+    
+    // MARK: - Monitoring Control
+    
+    /// Start automatic timeout monitoring
+    ///
+    /// Returns a handle that controls the monitoring lifecycle.
+    /// **You must hold this handle** - monitoring stops when the handle is deallocated.
+    ///
+    /// Safe to call multiple times - returns existing handle if already monitoring.
+    ///
+    /// - Returns: Monitor handle (hold this to keep monitoring active)
+    @discardableResult
+    public func startMonitoring() -> PEMonitorHandle {
+        // Idempotent: return existing handle if still active
+        if let existing = currentMonitorHandle, existing.isActive {
+            logger.debug("Monitoring already active, returning existing handle", category: Self.logCategory)
+            return existing
+        }
+        
+        logger.info("Starting timeout monitoring (interval: \(monitoringConfig.checkInterval)s)", category: Self.logCategory)
+        
+        let interval = monitoringConfig.checkInterval
+        
+        // Shared state between Task and Handle
+        let runningState = MonitorRunningState()
+        
+        // Create task with weak self to avoid retain cycle
+        let task = Task { [weak self, runningState] in
+            defer { runningState.markStopped() }  // Mark stopped when loop exits
+            
+            while !Task.isCancelled {
+                // Check if self still exists
+                guard let self = self else {
+                    break
+                }
+                
+                // Perform timeout check (actor-isolated)
+                let timedOut = await self.checkTimeouts()
+                
+                if !timedOut.isEmpty {
+                    self.logger.debug(
+                        "Monitoring: cleaned up \(timedOut.count) timed-out transaction(s)",
+                        category: Self.logCategory
+                    )
+                }
+                
+                // Sleep until next check
+                do {
+                    try await Task.sleep(for: .seconds(interval))
+                } catch {
+                    // Task was cancelled
+                    break
+                }
+            }
+        }
+        
+        let handle = PEMonitorHandle(task: task, runningState: runningState) { [weak self] in
+            await self?.onMonitoringStopped()
+        }
+        
+        currentMonitorHandle = handle
+        return handle
+    }
+    
+    /// Called when monitoring stops (handle deallocated or stop() called)
+    private func onMonitoringStopped() {
+        logger.info("Timeout monitoring stopped", category: Self.logCategory)
+        currentMonitorHandle = nil
     }
     
     // MARK: - Transaction Lifecycle
@@ -174,7 +357,7 @@ public actor PETransactionManager {
     ///   - status: HTTP-style status code
     ///   - message: Error message
     public func completeWithError(requestID: UInt8, status: Int, message: String? = nil) {
-        guard let transaction = activeTransactions[requestID] else {
+        guard activeTransactions[requestID] != nil else {
             logger.warning(
                 "No transaction found for request ID \(requestID)",
                 category: Self.logCategory
@@ -292,6 +475,10 @@ public actor PETransactionManager {
     // MARK: - Timeout Management
     
     /// Check and cleanup timed-out transactions
+    ///
+    /// This is called automatically when monitoring is active.
+    /// You can also call it manually if needed.
+    ///
     /// - Returns: Array of timed-out Request IDs
     @discardableResult
     public func checkTimeouts() -> [UInt8] {
@@ -337,6 +524,7 @@ public actor PETransactionManager {
     public var diagnostics: String {
         var lines: [String] = []
         lines.append("=== PETransactionManager Diagnostics ===")
+        lines.append("Monitoring: \(isMonitoring ? "active" : "stopped")")
         lines.append("Active transactions: \(activeCount)")
         lines.append("Available IDs: \(availableIDs)")
         lines.append("Near exhaustion: \(isNearExhaustion)")

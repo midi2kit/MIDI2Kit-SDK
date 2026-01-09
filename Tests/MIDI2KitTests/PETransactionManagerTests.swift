@@ -211,4 +211,149 @@ struct PETransactionManagerTests {
         #expect(diag.contains("DeviceInfo"))
         #expect(diag.contains("ChCtrlList"))
     }
+    
+    // MARK: - Monitor Handle Tests
+    
+    @Test("startMonitoring returns handle")
+    func startMonitoringReturnsHandle() async {
+        let manager = PETransactionManager()
+        
+        #expect(await manager.isMonitoring == false)
+        
+        let handle = await manager.startMonitoring()
+        
+        #expect(handle.isActive == true)
+        #expect(await manager.isMonitoring == true)
+        
+        await handle.stop()
+        
+        // Give time for async cleanup
+        try? await Task.sleep(for: .milliseconds(10))
+        #expect(await manager.isMonitoring == false)
+    }
+    
+    @Test("startMonitoring is idempotent - returns same handle")
+    func startMonitoringIdempotent() async {
+        let manager = PETransactionManager()
+        
+        let handle1 = await manager.startMonitoring()
+        let handle2 = await manager.startMonitoring()
+        
+        // Should return the same handle (identity check)
+        #expect(handle1 === handle2)
+        #expect(handle1.isActive == true)
+        
+        await handle1.stop()
+    }
+    
+    @Test("Handle deallocation stops monitoring")
+    func handleDeallocationStopsMonitoring() async throws {
+        let manager = PETransactionManager()
+        
+        // Create handle in inner scope
+        do {
+            let handle = await manager.startMonitoring()
+            #expect(handle.isActive == true)
+            #expect(await manager.isMonitoring == true)
+            // handle goes out of scope here
+        }
+        
+        // Give time for deinit and cleanup
+        try await Task.sleep(for: .milliseconds(50))
+        
+        #expect(await manager.isMonitoring == false)
+    }
+    
+    @Test("Automatic timeout cleanup via monitoring")
+    func automaticTimeoutCleanup() async throws {
+        let config = PEMonitoringConfiguration(checkInterval: 0.05)
+        let manager = PETransactionManager(monitoringConfig: config)
+        let muid = MUID.random()
+        
+        // Start monitoring - hold the handle
+        let handle = await manager.startMonitoring()
+        
+        // Create transaction with very short timeout
+        let id = await manager.begin(resource: "DeviceInfo", destinationMUID: muid, timeout: 0.02)
+        #expect(id != nil)
+        #expect(await manager.activeCount == 1)
+        
+        // Wait for monitoring to clean up (timeout 20ms + check interval 50ms + buffer)
+        try await Task.sleep(for: .milliseconds(150))
+        
+        // Transaction should be automatically cleaned up
+        #expect(await manager.activeCount == 0)
+        #expect(await manager.availableIDs == 128)
+        
+        await handle.stop()
+    }
+    
+    @Test("Handle.stop() is idempotent")
+    func handleStopIdempotent() async {
+        let manager = PETransactionManager()
+        let handle = await manager.startMonitoring()
+        
+        // Multiple stops should be safe
+        await handle.stop()
+        await handle.stop()
+        await handle.stop()
+        
+        #expect(handle.isActive == false)
+    }
+    
+    @Test("New handle after previous stopped")
+    func newHandleAfterStopped() async throws {
+        let manager = PETransactionManager()
+        
+        let handle1 = await manager.startMonitoring()
+        await handle1.stop()
+        
+        try await Task.sleep(for: .milliseconds(20))
+        
+        // Should be able to start again with new handle
+        let handle2 = await manager.startMonitoring()
+        
+        #expect(handle1 !== handle2)  // Different handle
+        #expect(handle2.isActive == true)
+        #expect(await manager.isMonitoring == true)
+        
+        await handle2.stop()
+    }
+    
+    @Test("Diagnostics shows monitoring status")
+    func diagnosticsShowsMonitoringStatus() async {
+        let manager = PETransactionManager()
+        
+        var diag = await manager.diagnostics
+        #expect(diag.contains("Monitoring: stopped"))
+        
+        let handle = await manager.startMonitoring()
+        
+        diag = await manager.diagnostics
+        #expect(diag.contains("Monitoring: active"))
+        
+        await handle.stop()
+    }
+    
+    @Test("Manager can be deallocated while monitoring")
+    func managerDeallocationStopsMonitoring() async throws {
+        var handle: PEMonitorHandle?
+        
+        do {
+            // Use short check interval so Task checks weak self quickly
+            let config = PEMonitoringConfiguration(checkInterval: 0.02)
+            let manager = PETransactionManager(monitoringConfig: config)
+            handle = await manager.startMonitoring()
+            #expect(handle?.isActive == true)
+            // manager goes out of scope here
+        }
+        
+        // Wait for Task to complete its sleep and check weak self
+        // (checkInterval 20ms + buffer)
+        try await Task.sleep(for: .milliseconds(100))
+        
+        // Task should have stopped since manager is gone
+        // (weak self in Task causes loop to exit)
+        #expect(handle?.isActive == false)
+    }
 }
