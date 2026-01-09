@@ -11,32 +11,45 @@ import Foundation
 import CoreMIDI
 import MIDI2Core
 
-/// Actor to manage connection state safely
-private actor ConnectionState {
-    var connectedSources: Set<MIDIEndpointRef> = .init()
+/// Thread-safe connection state management (sync + async compatible)
+private final class ConnectionState: @unchecked Sendable {
+    private let lock = NSLock()
+    private var connectedSources: Set<MIDIEndpointRef> = .init()
     
     func isConnected(_ source: MIDIEndpointRef) -> Bool {
-        connectedSources.contains(source)
+        lock.lock()
+        defer { lock.unlock() }
+        return connectedSources.contains(source)
     }
     
     func markConnected(_ source: MIDIEndpointRef) {
+        lock.lock()
+        defer { lock.unlock() }
         connectedSources.insert(source)
     }
     
     func markDisconnected(_ source: MIDIEndpointRef) {
+        lock.lock()
+        defer { lock.unlock() }
         connectedSources.remove(source)
     }
     
     func getConnected() -> Set<MIDIEndpointRef> {
-        connectedSources
+        lock.lock()
+        defer { lock.unlock() }
+        return connectedSources
     }
     
     func clear() {
+        lock.lock()
+        defer { lock.unlock() }
         connectedSources.removeAll()
     }
     
     var count: Int {
-        connectedSources.count
+        lock.lock()
+        defer { lock.unlock() }
+        return connectedSources.count
     }
 }
 
@@ -56,7 +69,7 @@ public final class CoreMIDITransport: MIDITransport, @unchecked Sendable {
     
     private let sysExAssembler = SysExAssembler()
     
-    /// Connection state managed by actor for thread safety
+    /// Connection state (thread-safe, sync accessible for deinit)
     private let connectionState = ConnectionState()
     
     private var receivedContinuation: AsyncStream<MIDIReceivedData>.Continuation?
@@ -90,24 +103,18 @@ public final class CoreMIDITransport: MIDITransport, @unchecked Sendable {
     }
     
     deinit {
-        // Disconnect all synchronously in deinit
-        let connected = _getConnectedSourcesSync()
+        // Disconnect all sources synchronously
+        let connected = connectionState.getConnected()
         for source in connected {
             MIDIPortDisconnectSource(inputPort, source)
         }
+        connectionState.clear()
         
         if client != 0 {
             MIDIClientDispose(client)
         }
         receivedContinuation?.finish()
         setupChangedContinuation?.finish()
-    }
-    
-    // Synchronous helper for deinit only
-    private func _getConnectedSourcesSync() -> Set<MIDIEndpointRef> {
-        // This is a workaround for deinit - in practice the set should be empty or small
-        // We can't await in deinit, so we use a simple approach
-        return .init()  // Safe: CoreMIDI handles cleanup on client dispose
     }
     
     // MARK: - Setup
@@ -217,7 +224,7 @@ public final class CoreMIDITransport: MIDITransport, @unchecked Sendable {
         let sourceRef = MIDIEndpointRef(source.value)
         
         // Skip if already connected
-        guard await !connectionState.isConnected(sourceRef) else {
+        guard !connectionState.isConnected(sourceRef) else {
             return
         }
         
@@ -227,7 +234,7 @@ public final class CoreMIDITransport: MIDITransport, @unchecked Sendable {
             throw MIDITransportError.connectionFailed(status)
         }
         
-        await connectionState.markConnected(sourceRef)
+        connectionState.markConnected(sourceRef)
     }
     
     /// Disconnect from a specific source
@@ -235,7 +242,7 @@ public final class CoreMIDITransport: MIDITransport, @unchecked Sendable {
         let sourceRef = MIDIEndpointRef(source.value)
         
         // Skip if not connected
-        guard await connectionState.isConnected(sourceRef) else {
+        guard connectionState.isConnected(sourceRef) else {
             return
         }
         
@@ -245,7 +252,7 @@ public final class CoreMIDITransport: MIDITransport, @unchecked Sendable {
             throw MIDITransportError.connectionFailed(status)
         }
         
-        await connectionState.markDisconnected(sourceRef)
+        connectionState.markDisconnected(sourceRef)
     }
     
     /// Connect to all available sources (differential - only connects new sources)
@@ -261,13 +268,13 @@ public final class CoreMIDITransport: MIDITransport, @unchecked Sendable {
             }
         }
         
-        let connectedSources = await connectionState.getConnected()
+        let connectedSources = connectionState.getConnected()
         
         // Disconnect removed sources
         let removed = connectedSources.subtracting(currentSources)
         for source in removed {
             MIDIPortDisconnectSource(inputPort, source)
-            await connectionState.markDisconnected(source)
+            connectionState.markDisconnected(source)
         }
         
         // Connect new sources (differential)
@@ -275,7 +282,7 @@ public final class CoreMIDITransport: MIDITransport, @unchecked Sendable {
         for source in newSources {
             let status = MIDIPortConnectSource(inputPort, source, nil)
             if status == noErr {
-                await connectionState.markConnected(source)
+                connectionState.markConnected(source)
             }
         }
     }
@@ -289,24 +296,24 @@ public final class CoreMIDITransport: MIDITransport, @unchecked Sendable {
     
     /// Disconnect all sources
     public func disconnectAllSources() async {
-        let connected = await connectionState.getConnected()
+        let connected = connectionState.getConnected()
         for source in connected {
             MIDIPortDisconnectSource(inputPort, source)
         }
-        await connectionState.clear()
+        connectionState.clear()
     }
     
     /// Number of currently connected sources
     public var connectedSourceCount: Int {
         get async {
-            await connectionState.count
+            connectionState.count
         }
     }
     
     /// Check if a source is connected
     public func isConnected(to source: MIDISourceID) async -> Bool {
         let sourceRef = MIDIEndpointRef(source.value)
-        return await connectionState.isConnected(sourceRef)
+        return connectionState.isConnected(sourceRef)
     }
     
     // MARK: - Private Helpers
@@ -316,8 +323,11 @@ public final class CoreMIDITransport: MIDITransport, @unchecked Sendable {
         let numPackets = packetList.pointee.numPackets
         
         for _ in 0..<numPackets {
-            let bytes = Mirror(reflecting: packet.data).children.map { $0.value as! UInt8 }
-            let data = Array(bytes.prefix(Int(packet.length)))
+            let length = Int(packet.length)
+            // Use withUnsafeBytes instead of Mirror for performance
+            let data: [UInt8] = withUnsafeBytes(of: packet.data) { ptr in
+                Array(ptr.prefix(length))
+            }
             
             Task { [weak self] in
                 await self?.processReceivedData(data)

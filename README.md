@@ -27,11 +27,190 @@ Add to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/YOUR_USERNAME/MIDI2Kit.git", from: "0.1.0")
+    .package(url: "https://github.com/hakaru/MIDI2Kit.git", from: "0.1.0")
 ]
 ```
 
 Or in Xcode: File → Add Package Dependencies → Enter repository URL.
+
+## Minimal Example
+
+A complete, working example that discovers MIDI-CI devices and fetches DeviceInfo via Property Exchange:
+
+```swift
+import MIDI2Kit
+
+@MainActor
+class MIDIController {
+    private var transport: CoreMIDITransport?
+    private let transactionManager = PETransactionManager()
+    private let myMUID = MUID.random()
+    
+    private var discoveredDevices: [MUID: (identity: DeviceIdentity, destination: MIDIDestinationID)] = [:]
+    private var receiveTask: Task<Void, Never>?
+    private var timeoutTask: Task<Void, Never>?
+    
+    func start() async throws {
+        // 1. Create transport and connect to all sources
+        transport = try CoreMIDITransport(clientName: "MyApp")
+        try await transport?.connectToAllSources()
+        
+        // 2. Start receive loop
+        receiveTask = Task { await receiveLoop() }
+        
+        // 3. Start timeout checker
+        timeoutTask = Task { await timeoutLoop() }
+        
+        // 4. Handle setup changes (device connect/disconnect)
+        Task {
+            guard let transport else { return }
+            for await _ in transport.setupChanged {
+                try? await transport.connectToAllSources()
+            }
+        }
+        
+        // 5. Send Discovery Inquiry to all destinations
+        await sendDiscovery()
+    }
+    
+    func stop() {
+        receiveTask?.cancel()
+        timeoutTask?.cancel()
+        transport = nil
+    }
+    
+    // MARK: - Receive Loop
+    
+    private func receiveLoop() async {
+        guard let transport else { return }
+        
+        for await received in transport.received {
+            // Parse as CI message
+            guard let parsed = CIMessageParser.parse(received.data) else {
+                continue  // Not a CI message
+            }
+            
+            switch parsed.messageType {
+            case .discoveryReply:
+                await handleDiscoveryReply(parsed)
+                
+            case .peGetReply, .peSetReply:
+                await handlePEReply(parsed)
+                
+            default:
+                break
+            }
+        }
+    }
+    
+    // MARK: - Timeout Loop
+    
+    private func timeoutLoop() async {
+        while !Task.isCancelled {
+            try? await Task.sleep(for: .milliseconds(500))
+            await transactionManager.checkTimeouts()
+        }
+    }
+    
+    // MARK: - Discovery
+    
+    private func sendDiscovery() async {
+        guard let transport else { return }
+        
+        let message = CIMessageBuilder.discoveryInquiry(
+            sourceMUID: myMUID,
+            categorySupport: .propertyExchange
+        )
+        
+        for dest in await transport.destinations {
+            try? await transport.send(message, to: dest.destinationID)
+        }
+    }
+    
+    private func handleDiscoveryReply(_ parsed: CIMessageParser.ParsedMessage) async {
+        guard let reply = CIMessageParser.parseDiscoveryReply(parsed.payload) else { return }
+        
+        // Find destination for this device
+        guard let transport,
+              let dest = (await transport.destinations).first else { return }
+        
+        discoveredDevices[parsed.sourceMUID] = (reply.identity, dest.destinationID)
+        
+        print("Discovered: \(reply.identity.manufacturerID.name ?? "Unknown") (MUID: \(parsed.sourceMUID))")
+        
+        // If device supports PE, fetch DeviceInfo
+        if reply.categorySupport.contains(.propertyExchange) {
+            await fetchDeviceInfo(from: parsed.sourceMUID, destination: dest.destinationID)
+        }
+    }
+    
+    // MARK: - Property Exchange
+    
+    private func fetchDeviceInfo(from deviceMUID: MUID, destination: MIDIDestinationID) async {
+        guard let transport else { return }
+        
+        // Begin transaction
+        guard let requestID = await transactionManager.begin(
+            resource: "DeviceInfo",
+            destinationMUID: deviceMUID,
+            timeout: 5.0
+        ) else {
+            print("❌ Request ID exhausted")
+            return
+        }
+        
+        // Build PE Get message
+        let header = CIMessageBuilder.resourceRequestHeader(resource: "DeviceInfo")
+        let message = CIMessageBuilder.peGetInquiry(
+            sourceMUID: myMUID,
+            destinationMUID: deviceMUID,
+            requestID: requestID,
+            headerData: header
+        )
+        
+        // Send request
+        do {
+            try await transport.send(message, to: destination)
+        } catch {
+            await transactionManager.cancel(requestID: requestID)
+            return
+        }
+        
+        // Wait for completion
+        let result = await transactionManager.waitForCompletion(requestID: requestID)
+        
+        switch result {
+        case .success(_, let body):
+            if let deviceInfo = try? JSONDecoder().decode(PEDeviceInfo.self, from: body) {
+                print("✅ DeviceInfo: \(deviceInfo.productName ?? "Unknown")")
+            }
+        case .error(let status, let message):
+            print("❌ PE Error: \(status) - \(message ?? "")")
+        case .timeout:
+            print("⏱️ Timeout")
+        case .cancelled:
+            print("🚫 Cancelled")
+        }
+    }
+    
+    private func handlePEReply(_ parsed: CIMessageParser.ParsedMessage) async {
+        guard let reply = CIMessageParser.parsePEReply(parsed.payload) else { return }
+        
+        // Process chunk (auto-completes transaction when all chunks received)
+        _ = await transactionManager.processChunk(
+            requestID: reply.requestID,
+            thisChunk: reply.thisChunk,
+            numChunks: reply.numChunks,
+            headerData: reply.headerData,
+            propertyData: reply.propertyData
+        )
+    }
+}
+
+// Usage
+let controller = MIDIController()
+try await controller.start()
+```
 
 ## Quick Start
 
@@ -115,28 +294,20 @@ let getMessage = CIMessageBuilder.peGetInquiry(
 )
 try await transport.send(getMessage, to: destination)
 
-// Process response chunks
-let result = await transactionManager.processChunk(
-    requestID: requestID,
-    thisChunk: 1,
-    numChunks: 1,
-    headerData: responseHeader,
-    propertyData: responseBody
-)
+// Wait for completion (blocks until response or timeout)
+let result = await transactionManager.waitForCompletion(requestID: requestID)
 
-// Handle result
 switch result {
-case .complete(let header, let body):
+case .success(let header, let body):
     let deviceInfo = try JSONDecoder().decode(PEDeviceInfo.self, from: body)
     print("Device: \(deviceInfo.productName ?? "Unknown")")
-case .incomplete(let received, let total):
-    print("Waiting for chunks: \(received)/\(total)")
+case .error(let status, let message):
+    print("Error \(status): \(message ?? "")")
 case .timeout:
     print("Transaction timed out")
+case .cancelled:
+    print("Transaction cancelled")
 }
-
-// Periodic timeout check (call from timer or run loop)
-await transactionManager.checkTimeouts()
 ```
 
 ## Modules
