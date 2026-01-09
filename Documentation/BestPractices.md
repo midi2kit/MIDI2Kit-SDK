@@ -54,7 +54,39 @@ func getResource(resource: String, from device: MUID) async throws -> Data {
 
 ### Timeout Management
 
-Call `checkTimeouts()` periodically:
+#### Recommended: PEMonitorHandle (Automatic)
+
+Use `startMonitoring()` for automatic timeout cleanup:
+
+```swift
+class MyPEManager {
+    let transactionManager = PETransactionManager()
+    var monitorHandle: PEMonitorHandle?  // MUST hold this!
+    
+    func start() async {
+        // Start monitoring - returns immediately
+        monitorHandle = await transactionManager.startMonitoring()
+    }
+    
+    func stop() async {
+        // Option 1: Explicit stop
+        await monitorHandle?.stop()
+        
+        // Option 2: Just release - monitoring stops automatically
+        // monitorHandle = nil
+    }
+}
+```
+
+**Key Points:**
+- **You MUST hold the handle** - monitoring stops when handle is released
+- Idempotent: calling `startMonitoring()` multiple times returns same handle
+- Handle `deinit` automatically cancels the background Task
+- No retain cycles: Manager can be deallocated while monitoring
+
+#### Alternative: Manual Timeout Checking
+
+If you need custom control, call `checkTimeouts()` periodically:
 
 ```swift
 // Option 1: Timer

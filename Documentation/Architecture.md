@@ -55,6 +55,28 @@ MIDI2Kit ──────┬────────────────�
 | `Mcoded7` | 8-bit ↔ 7-bit SysEx encoding |
 | `CIMessageType` | All MIDI-CI message types |
 | `CategorySupport` | Protocol/Profile/PE/Process flags |
+| `MIDI2Logger` | Configurable logging protocol |
+
+**Logging System**:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     MIDI2Logger                              │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  Protocol: MIDI2Logger                                       │
+│    func log(_ level: MIDI2LogLevel, _ message, category)    │
+│                                                              │
+│  Built-in Implementations:                                   │
+│    ├─ NullMIDI2Logger      (silent, default)                │
+│    ├─ StdoutMIDI2Logger    (development)                    │
+│    ├─ OSLogMIDI2Logger     (production, Apple os.log)       │
+│    └─ CompositeMIDI2Logger (forward to multiple)            │
+│                                                              │
+│  Levels: debug < info < notice < warning < error < fault    │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
 
 **Design Notes**:
 - All types are `Sendable` for Swift 6 concurrency
@@ -103,6 +125,38 @@ App                     MIDI2CI                    Device
 | `PEChunkAssembler` | Assembles multi-chunk responses |
 | `PERequestIDManager` | Manages 7-bit Request IDs (0-127) |
 | `PETransactionManager` | **Critical**: Prevents Request ID leaks |
+| `PEMonitorHandle` | Handle for automatic timeout monitoring |
+
+**Monitoring System**:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                  PEMonitorHandle Pattern                     │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  startMonitoring()                                           │
+│        │                                                     │
+│        ▼                                                     │
+│  ┌───────────────────────────────────────────────────┐      │
+│  │ PEMonitorHandle                                    │      │
+│  │   ├─ Task (background timeout checking)           │      │
+│  │   ├─ MonitorRunningState (shared state)           │      │
+│  │   └─ stopCallback                                 │      │
+│  └───────────────────────────────────────────────────┘      │
+│        │                                                     │
+│        │ Task runs: while !cancelled && manager alive       │
+│        │   → checkTimeouts()                                │
+│        │   → sleep(checkInterval)                           │
+│        │                                                     │
+│        ├─── stop() called ──▶ Task cancelled, state marked  │
+│        │                                                     │
+│        ├─── Handle released ──▶ deinit cancels Task         │
+│        │                                                     │
+│        └─── Manager deallocated ──▶ weak self nil,          │
+│                                      Task exits cleanly     │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
 
 **Transaction Lifecycle**:
 

@@ -141,6 +141,66 @@ public struct CategorySupport: OptionSet, Sendable {
 }
 ```
 
+### MIDI2Logger
+
+Configurable logging system.
+
+```swift
+/// Log levels (severity order)
+public enum MIDI2LogLevel: Int, Comparable, Sendable {
+    case debug = 0
+    case info = 1
+    case notice = 2
+    case warning = 3
+    case error = 4
+    case fault = 5
+}
+
+/// Logger protocol
+public protocol MIDI2Logger: Sendable {
+    var minLevel: MIDI2LogLevel { get }
+    func log(_ level: MIDI2LogLevel, _ message: String, category: String)
+    
+    // Convenience methods
+    func debug(_ message: String, category: String)
+    func info(_ message: String, category: String)
+    func warning(_ message: String, category: String)
+    func error(_ message: String, category: String)
+}
+```
+
+**Built-in Implementations:**
+
+```swift
+/// Silent logger (default)
+public struct NullMIDI2Logger: MIDI2Logger
+
+/// Print to stdout
+public struct StdoutMIDI2Logger: MIDI2Logger {
+    public init(minLevel: MIDI2LogLevel = .debug)
+}
+
+/// Apple's os.log
+public struct OSLogMIDI2Logger: MIDI2Logger {
+    public init(subsystem: String, minLevel: MIDI2LogLevel = .info)
+}
+
+/// Forward to multiple loggers
+public struct CompositeMIDI2Logger: MIDI2Logger {
+    public init(_ loggers: [any MIDI2Logger])
+}
+```
+
+**Usage:**
+```swift
+// Development: verbose logging
+let logger = StdoutMIDI2Logger(minLevel: .debug)
+let manager = PETransactionManager(logger: logger)
+
+// Production: warnings and above
+let logger = OSLogMIDI2Logger(subsystem: "com.myapp.midi", minLevel: .warning)
+```
+
 ---
 
 ## MIDI2CI
@@ -389,6 +449,33 @@ public struct PERequestIDManager: Sendable {
 }
 ```
 
+### PEMonitorHandle
+
+**Handle for automatic timeout monitoring.**
+
+```swift
+public final class PEMonitorHandle: Sendable {
+    /// Check if monitoring is still active
+    public var isActive: Bool
+    
+    /// Explicitly stop monitoring
+    public func stop() async
+    
+    // deinit automatically cancels monitoring
+}
+```
+
+**Usage:**
+```swift
+class MyManager {
+    var handle: PEMonitorHandle?  // MUST hold this!
+    
+    func start() async {
+        handle = await transactionManager.startMonitoring()
+    }
+}
+```
+
 ### PETransactionManager
 
 **Critical component for preventing Request ID leaks.**
@@ -398,7 +485,20 @@ public actor PETransactionManager {
     public static let defaultTimeout: TimeInterval = 5.0
     public static let warningThreshold: Int = 100
     
-    public init()
+    public init(
+        logger: any MIDI2Logger = NullMIDI2Logger(),
+        monitoringConfig: PEMonitoringConfiguration = .default
+    )
+    
+    // Monitoring
+    
+    /// Start automatic timeout monitoring
+    /// Returns handle - hold this to keep monitoring active
+    @discardableResult
+    public func startMonitoring() -> PEMonitorHandle
+    
+    /// Whether monitoring is currently active
+    public var isMonitoring: Bool
     
     // Lifecycle
     
