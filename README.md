@@ -48,7 +48,7 @@ class MIDIController {
     
     private var discoveredDevices: [MUID: (identity: DeviceIdentity, destination: MIDIDestinationID)] = [:]
     private var receiveTask: Task<Void, Never>?
-    private var timeoutTask: Task<Void, Never>?
+    private var monitorHandle: PEMonitorHandle?  // Automatic timeout monitoring
     
     func start() async throws {
         // 1. Create transport and connect to all sources
@@ -58,8 +58,8 @@ class MIDIController {
         // 2. Start receive loop
         receiveTask = Task { await receiveLoop() }
         
-        // 3. Start timeout checker
-        timeoutTask = Task { await timeoutLoop() }
+        // 3. Start automatic timeout monitoring (MUST hold the handle!)
+        monitorHandle = await transactionManager.startMonitoring()
         
         // 4. Handle setup changes (device connect/disconnect)
         Task {
@@ -73,9 +73,9 @@ class MIDIController {
         await sendDiscovery()
     }
     
-    func stop() {
+    func stop() async {
         receiveTask?.cancel()
-        timeoutTask?.cancel()
+        await monitorHandle?.stop()  // Stop monitoring explicitly
         transport = nil
     }
     
@@ -100,15 +100,6 @@ class MIDIController {
             default:
                 break
             }
-        }
-    }
-    
-    // MARK: - Timeout Loop
-    
-    private func timeoutLoop() async {
-        while !Task.isCancelled {
-            try? await Task.sleep(for: .milliseconds(500))
-            await transactionManager.checkTimeouts()
         }
     }
     
@@ -274,6 +265,10 @@ import MIDI2PE
 // Create transaction manager (prevents Request ID leaks)
 let transactionManager = PETransactionManager()
 
+// Start automatic timeout monitoring (recommended)
+// IMPORTANT: Hold the handle - monitoring stops when handle is released
+let monitorHandle = await transactionManager.startMonitoring()
+
 // Begin transaction
 guard let requestID = await transactionManager.begin(
     resource: "DeviceInfo",
@@ -308,6 +303,9 @@ case .timeout:
 case .cancelled:
     print("Transaction cancelled")
 }
+
+// When done with PE operations, release handle or call stop()
+await monitorHandle.stop()  // or just let handle go out of scope
 ```
 
 ## Modules
@@ -373,6 +371,9 @@ import MIDI2PE
 // Transaction manager prevents Request ID leaks
 let manager = PETransactionManager()
 
+// Start automatic timeout monitoring (recommended)
+let handle = await manager.startMonitoring()  // MUST hold this!
+
 // Begin/complete lifecycle
 let id = await manager.begin(resource: "ChCtrlList", destinationMUID: muid)
 // ... send request, receive response ...
@@ -381,11 +382,11 @@ await manager.complete(requestID: id, header: header, body: body)
 // Error handling
 await manager.completeWithError(requestID: id, status: 404)
 
-// Timeout management
-await manager.checkTimeouts()
-
 // Device disconnection cleanup
 await manager.cancelAll(for: deviceMUID)
+
+// Stop monitoring when done
+await handle.stop()
 ```
 
 ### MIDI2Transport
