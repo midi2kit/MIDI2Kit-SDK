@@ -47,11 +47,17 @@ public actor PETransactionManager {
     /// Warning threshold for active transactions
     public static let warningThreshold: Int = 100
     
+    /// Log category
+    private static let logCategory = "PETransaction"
+    
     // MARK: - State
     
     private var requestIDManager = PERequestIDManager()
     private var activeTransactions: [UInt8: PETransaction] = .init()
     private var chunkAssemblers: [UInt8: PEChunkAssembler] = .init()
+    
+    /// Logger instance
+    private let logger: any MIDI2Logger
     
     /// Continuations waiting for transaction completion
     private var completionHandlers: [UInt8: CheckedContinuation<PETransactionResult, Never>] = .init()
@@ -75,7 +81,11 @@ public actor PETransactionManager {
     
     // MARK: - Initialization
     
-    public init() {}
+    /// Initialize with optional logger
+    /// - Parameter logger: Logger instance (default: NullMIDI2Logger - silent)
+    public init(logger: any MIDI2Logger = NullMIDI2Logger()) {
+        self.logger = logger
+    }
     
     // MARK: - Transaction Lifecycle
     
@@ -92,12 +102,18 @@ public actor PETransactionManager {
     ) -> UInt8? {
         // Check for exhaustion
         if isNearExhaustion {
-            print("⚠️ [PETransactionManager] Warning: Only \(availableIDs) Request IDs remaining")
+            logger.warning(
+                "Only \(availableIDs) Request IDs remaining",
+                category: Self.logCategory
+            )
         }
         
         // Acquire ID
         guard let requestID = requestIDManager.acquire() else {
-            print("❌ [PETransactionManager] All 128 Request IDs in use!")
+            logger.error(
+                "All 128 Request IDs in use!",
+                category: Self.logCategory
+            )
             return nil
         }
         
@@ -115,8 +131,16 @@ public actor PETransactionManager {
         
         // Warn if too many active
         if activeCount > Self.warningThreshold {
-            print("⚠️ [PETransactionManager] Warning: \(activeCount) active transactions (possible leak)")
+            logger.warning(
+                "\(activeCount) active transactions (possible leak)",
+                category: Self.logCategory
+            )
         }
+        
+        logger.debug(
+            "Begin transaction \(requestID): \(resource) -> \(destinationMUID)",
+            category: Self.logCategory
+        )
         
         return requestID
     }
@@ -127,10 +151,18 @@ public actor PETransactionManager {
     ///   - header: Response header
     ///   - body: Response body
     public func complete(requestID: UInt8, header: Data, body: Data) {
-        guard activeTransactions[requestID] != nil else {
-            print("⚠️ [PETransactionManager] No transaction found for request ID \(requestID)")
+        guard let transaction = activeTransactions[requestID] else {
+            logger.warning(
+                "No transaction found for request ID \(requestID)",
+                category: Self.logCategory
+            )
             return
         }
+        
+        logger.debug(
+            "Complete transaction \(requestID): \(transaction.resource) (\(body.count) bytes)",
+            category: Self.logCategory
+        )
         
         let result = PETransactionResult.success(header: header, body: body)
         finalizeTransaction(requestID: requestID, result: result)
@@ -142,10 +174,18 @@ public actor PETransactionManager {
     ///   - status: HTTP-style status code
     ///   - message: Error message
     public func completeWithError(requestID: UInt8, status: Int, message: String? = nil) {
-        guard activeTransactions[requestID] != nil else {
-            print("⚠️ [PETransactionManager] No transaction found for request ID \(requestID)")
+        guard let transaction = activeTransactions[requestID] else {
+            logger.warning(
+                "No transaction found for request ID \(requestID)",
+                category: Self.logCategory
+            )
             return
         }
+        
+        logger.notice(
+            "Transaction \(requestID) error: \(status) \(message ?? "")",
+            category: Self.logCategory
+        )
         
         let result = PETransactionResult.error(status: status, message: message)
         finalizeTransaction(requestID: requestID, result: result)
@@ -155,6 +195,12 @@ public actor PETransactionManager {
     /// - Parameter requestID: Request ID
     public func cancel(requestID: UInt8) {
         guard activeTransactions[requestID] != nil else { return }
+        
+        logger.debug(
+            "Cancel transaction \(requestID)",
+            category: Self.logCategory
+        )
+        
         finalizeTransaction(requestID: requestID, result: .cancelled)
     }
     
@@ -165,6 +211,13 @@ public actor PETransactionManager {
             .filter { $0.destinationMUID == muid }
             .map { $0.id }
         
+        if !toCancel.isEmpty {
+            logger.notice(
+                "Cancel \(toCancel.count) transactions for device \(muid)",
+                category: Self.logCategory
+            )
+        }
+        
         for requestID in toCancel {
             cancel(requestID: requestID)
         }
@@ -173,6 +226,14 @@ public actor PETransactionManager {
     /// Cancel all transactions
     public func cancelAll() {
         let allIDs = Array(activeTransactions.keys)
+        
+        if !allIDs.isEmpty {
+            logger.notice(
+                "Cancel all \(allIDs.count) transactions",
+                category: Self.logCategory
+            )
+        }
+        
         for requestID in allIDs {
             cancel(requestID: requestID)
         }
@@ -197,8 +258,17 @@ public actor PETransactionManager {
     ) -> PEChunkResult {
         guard var assembler = chunkAssemblers[requestID],
               let transaction = activeTransactions[requestID] else {
+            logger.warning(
+                "Chunk received for unknown transaction \(requestID)",
+                category: Self.logCategory
+            )
             return .timeout(requestID: requestID, received: 0, total: numChunks, partial: nil)
         }
+        
+        logger.debug(
+            "Chunk \(thisChunk)/\(numChunks) for transaction \(requestID)",
+            category: Self.logCategory
+        )
         
         let result = assembler.addChunk(
             requestID: requestID,
@@ -235,7 +305,11 @@ public actor PETransactionManager {
         }
         
         for requestID in timedOut {
-            print("⏱️ [PETransactionManager] Transaction \(requestID) timed out (resource: \(activeTransactions[requestID]?.resource ?? "?"))")
+            let resource = activeTransactions[requestID]?.resource ?? "?"
+            logger.notice(
+                "Transaction \(requestID) timed out (resource: \(resource))",
+                category: Self.logCategory
+            )
             finalizeTransaction(requestID: requestID, result: .timeout)
         }
         

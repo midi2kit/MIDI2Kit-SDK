@@ -176,6 +176,20 @@ public enum CIMessageParser {
         )
     }
     
+    // MARK: - Invalidate MUID Parser
+    
+    /// Invalidate MUID payload structure
+    public struct InvalidateMUIDPayload: Sendable {
+        public let targetMUID: MUID
+    }
+    
+    /// Parse Invalidate MUID payload
+    public static func parseInvalidateMUID(_ payload: [UInt8]) -> InvalidateMUIDPayload? {
+        guard payload.count >= 4 else { return nil }
+        guard let targetMUID = MUID(from: payload, offset: 0) else { return nil }
+        return InvalidateMUIDPayload(targetMUID: targetMUID)
+    }
+    
     // MARK: - NAK Parser
     
     /// NAK payload structure

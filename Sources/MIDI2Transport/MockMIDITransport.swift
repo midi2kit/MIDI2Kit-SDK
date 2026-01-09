@@ -89,10 +89,35 @@ public actor MockMIDITransport: MIDITransport {
     
     // MARK: - Test Helpers
     
+    /// Set mock destinations
+    public func setMockDestinations(_ destinations: [MIDIDestinationInfo]) {
+        mockDestinations = destinations
+    }
+    
+    /// Add a mock destination
+    public func addDestination(_ destination: MIDIDestinationInfo) {
+        mockDestinations.append(destination)
+    }
+    
+    /// Add a mock source
+    public func addSource(_ source: MIDISourceInfo) {
+        mockSources.append(source)
+    }
+    
+    /// Set mock sources
+    public func setMockSources(_ sources: [MIDISourceInfo]) {
+        mockSources = sources
+    }
+    
     /// Inject a received message (simulates device sending data)
     public func injectReceived(_ data: [UInt8], from source: MIDISourceID? = nil) {
         let received = MIDIReceivedData(data: data, sourceID: source)
         receivedContinuation?.yield(received)
+    }
+    
+    /// Simulate receiving data (alias for injectReceived)
+    public func simulateReceive(_ data: [UInt8], from source: MIDISourceID? = nil) {
+        injectReceived(data, from: source)
     }
     
     /// Inject multiple received messages
