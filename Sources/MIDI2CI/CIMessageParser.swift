@@ -212,11 +212,13 @@ public enum CIMessageParser {
         var nakDetails: [UInt8] = []
         var messageText: String? = nil
         
-        if payload.count > 8 {
-            // NAK details (5 bytes)
+        // NAK details require at least 8 bytes (3 base + 5 details)
+        if payload.count >= 8 {
             nakDetails = Array(payload[3..<8])
-            
-            // Message length and text
+        }
+        
+        // Message length field requires at least 10 bytes
+        if payload.count >= 10 {
             let messageLength = Int(payload[8]) | (Int(payload[9]) << 7)
             if payload.count >= 10 + messageLength {
                 let messageBytes = payload[10..<(10 + messageLength)]
