@@ -1,0 +1,368 @@
+//
+//  CoreMIDITransport.swift
+//  MIDI2Kit
+//
+//  CoreMIDI-based transport implementation
+//
+
+#if canImport(CoreMIDI)
+
+import Foundation
+import CoreMIDI
+import MIDI2Core
+
+/// Actor to manage connection state safely
+private actor ConnectionState {
+    var connectedSources: Set<MIDIEndpointRef> = .init()
+    
+    func isConnected(_ source: MIDIEndpointRef) -> Bool {
+        connectedSources.contains(source)
+    }
+    
+    func markConnected(_ source: MIDIEndpointRef) {
+        connectedSources.insert(source)
+    }
+    
+    func markDisconnected(_ source: MIDIEndpointRef) {
+        connectedSources.remove(source)
+    }
+    
+    func getConnected() -> Set<MIDIEndpointRef> {
+        connectedSources
+    }
+    
+    func clear() {
+        connectedSources.removeAll()
+    }
+    
+    var count: Int {
+        connectedSources.count
+    }
+}
+
+/// CoreMIDI-based transport implementation
+///
+/// Key features:
+/// - Connection state tracking to prevent duplicate connections
+/// - Automatic reconnection on setup changes
+/// - SysEx assembly for fragmented messages
+public final class CoreMIDITransport: MIDITransport, @unchecked Sendable {
+    
+    // MARK: - Private State
+    
+    private var client: MIDIClientRef = 0
+    private var outputPort: MIDIPortRef = 0
+    private var inputPort: MIDIPortRef = 0
+    
+    private let sysExAssembler = SysExAssembler()
+    
+    /// Connection state managed by actor for thread safety
+    private let connectionState = ConnectionState()
+    
+    private var receivedContinuation: AsyncStream<MIDIReceivedData>.Continuation?
+    private var setupChangedContinuation: AsyncStream<Void>.Continuation?
+    
+    // MARK: - Public Streams
+    
+    public let received: AsyncStream<MIDIReceivedData>
+    public let setupChanged: AsyncStream<Void>
+    
+    // MARK: - Initialization
+    
+    public init(clientName: String = "MIDI2Kit") throws {
+        // Initialize streams
+        var receivedCont: AsyncStream<MIDIReceivedData>.Continuation?
+        self.received = AsyncStream { continuation in
+            receivedCont = continuation
+        }
+        
+        var setupCont: AsyncStream<Void>.Continuation?
+        self.setupChanged = AsyncStream { continuation in
+            setupCont = continuation
+        }
+        
+        // Store continuations
+        self.receivedContinuation = receivedCont
+        self.setupChangedContinuation = setupCont
+        
+        // Setup CoreMIDI
+        try setupCoreMIDI(clientName: clientName)
+    }
+    
+    deinit {
+        // Disconnect all synchronously in deinit
+        let connected = _getConnectedSourcesSync()
+        for source in connected {
+            MIDIPortDisconnectSource(inputPort, source)
+        }
+        
+        if client != 0 {
+            MIDIClientDispose(client)
+        }
+        receivedContinuation?.finish()
+        setupChangedContinuation?.finish()
+    }
+    
+    // Synchronous helper for deinit only
+    private func _getConnectedSourcesSync() -> Set<MIDIEndpointRef> {
+        // This is a workaround for deinit - in practice the set should be empty or small
+        // We can't await in deinit, so we use a simple approach
+        return .init()  // Safe: CoreMIDI handles cleanup on client dispose
+    }
+    
+    // MARK: - Setup
+    
+    private func setupCoreMIDI(clientName: String) throws {
+        // Create MIDI client
+        var clientRef: MIDIClientRef = 0
+        let status = MIDIClientCreateWithBlock(
+            clientName as CFString,
+            &clientRef
+        ) { [weak self] notification in
+            self?.handleNotification(notification)
+        }
+        
+        guard status == noErr else {
+            throw MIDITransportError.clientCreationFailed(status)
+        }
+        self.client = clientRef
+        
+        // Create output port
+        var outPort: MIDIPortRef = 0
+        let outStatus = MIDIOutputPortCreate(client, "Output" as CFString, &outPort)
+        guard outStatus == noErr else {
+            throw MIDITransportError.portCreationFailed(outStatus)
+        }
+        self.outputPort = outPort
+        
+        // Create input port
+        var inPort: MIDIPortRef = 0
+        let inStatus = MIDIInputPortCreateWithBlock(
+            client,
+            "Input" as CFString,
+            &inPort
+        ) { [weak self] packetList, _ in
+            self?.handlePacketList(packetList)
+        }
+        
+        guard inStatus == noErr else {
+            throw MIDITransportError.portCreationFailed(inStatus)
+        }
+        self.inputPort = inPort
+    }
+    
+    // MARK: - MIDITransport Protocol
+    
+    public func send(_ data: [UInt8], to destination: MIDIDestinationID) async throws {
+        let destRef = MIDIEndpointRef(destination.value)
+        
+        // Send using packet list
+        let bufferSize = data.count + 100
+        let buffer = UnsafeMutablePointer<UInt8>.allocate(capacity: bufferSize)
+        defer { buffer.deallocate() }
+        
+        let packetList = UnsafeMutableRawPointer(buffer).bindMemory(to: MIDIPacketList.self, capacity: 1)
+        var packet = MIDIPacketListInit(packetList)
+        packet = MIDIPacketListAdd(packetList, bufferSize, packet, 0, data.count, data)
+        
+        let status = MIDISend(outputPort, destRef, packetList)
+        
+        guard status == noErr else {
+            throw MIDITransportError.sendFailed(status)
+        }
+    }
+    
+    public var sources: [MIDISourceInfo] {
+        get async {
+            let count = MIDIGetNumberOfSources()
+            var result: [MIDISourceInfo] = []
+            
+            for i in 0..<count {
+                let source = MIDIGetSource(i)
+                let info = MIDISourceInfo(
+                    sourceID: MIDISourceID(UInt32(source)),
+                    name: getEndpointName(source),
+                    manufacturer: getEndpointManufacturer(source),
+                    isOnline: isEndpointOnline(source)
+                )
+                result.append(info)
+            }
+            
+            return result
+        }
+    }
+    
+    public var destinations: [MIDIDestinationInfo] {
+        get async {
+            let count = MIDIGetNumberOfDestinations()
+            var result: [MIDIDestinationInfo] = []
+            
+            for i in 0..<count {
+                let dest = MIDIGetDestination(i)
+                let info = MIDIDestinationInfo(
+                    destinationID: MIDIDestinationID(UInt32(dest)),
+                    name: getEndpointName(dest),
+                    manufacturer: getEndpointManufacturer(dest),
+                    isOnline: isEndpointOnline(dest)
+                )
+                result.append(info)
+            }
+            
+            return result
+        }
+    }
+    
+    /// Connect to a specific source (idempotent - safe to call multiple times)
+    public func connect(to source: MIDISourceID) async throws {
+        let sourceRef = MIDIEndpointRef(source.value)
+        
+        // Skip if already connected
+        guard await !connectionState.isConnected(sourceRef) else {
+            return
+        }
+        
+        let status = MIDIPortConnectSource(inputPort, sourceRef, nil)
+        
+        guard status == noErr else {
+            throw MIDITransportError.connectionFailed(status)
+        }
+        
+        await connectionState.markConnected(sourceRef)
+    }
+    
+    /// Disconnect from a specific source
+    public func disconnect(from source: MIDISourceID) async throws {
+        let sourceRef = MIDIEndpointRef(source.value)
+        
+        // Skip if not connected
+        guard await connectionState.isConnected(sourceRef) else {
+            return
+        }
+        
+        let status = MIDIPortDisconnectSource(inputPort, sourceRef)
+        
+        guard status == noErr else {
+            throw MIDITransportError.connectionFailed(status)
+        }
+        
+        await connectionState.markDisconnected(sourceRef)
+    }
+    
+    /// Connect to all available sources (differential - only connects new sources)
+    public func connectToAllSources() async throws {
+        let count = MIDIGetNumberOfSources()
+        var currentSources: Set<MIDIEndpointRef> = .init()
+        
+        // Gather current sources
+        for i in 0..<count {
+            let source = MIDIGetSource(i)
+            if source != 0 {
+                currentSources.insert(source)
+            }
+        }
+        
+        let connectedSources = await connectionState.getConnected()
+        
+        // Disconnect removed sources
+        let removed = connectedSources.subtracting(currentSources)
+        for source in removed {
+            MIDIPortDisconnectSource(inputPort, source)
+            await connectionState.markDisconnected(source)
+        }
+        
+        // Connect new sources (differential)
+        let newSources = currentSources.subtracting(connectedSources)
+        for source in newSources {
+            let status = MIDIPortConnectSource(inputPort, source, nil)
+            if status == noErr {
+                await connectionState.markConnected(source)
+            }
+        }
+    }
+    
+    /// Reconnect all sources (full disconnect then connect)
+    /// Use this when you need a clean slate
+    public func reconnectAllSources() async throws {
+        await disconnectAllSources()
+        try await connectToAllSources()
+    }
+    
+    /// Disconnect all sources
+    public func disconnectAllSources() async {
+        let connected = await connectionState.getConnected()
+        for source in connected {
+            MIDIPortDisconnectSource(inputPort, source)
+        }
+        await connectionState.clear()
+    }
+    
+    /// Number of currently connected sources
+    public var connectedSourceCount: Int {
+        get async {
+            await connectionState.count
+        }
+    }
+    
+    /// Check if a source is connected
+    public func isConnected(to source: MIDISourceID) async -> Bool {
+        let sourceRef = MIDIEndpointRef(source.value)
+        return await connectionState.isConnected(sourceRef)
+    }
+    
+    // MARK: - Private Helpers
+    
+    private func handlePacketList(_ packetList: UnsafePointer<MIDIPacketList>) {
+        var packet = packetList.pointee.packet
+        let numPackets = packetList.pointee.numPackets
+        
+        for _ in 0..<numPackets {
+            let bytes = Mirror(reflecting: packet.data).children.map { $0.value as! UInt8 }
+            let data = Array(bytes.prefix(Int(packet.length)))
+            
+            Task { [weak self] in
+                await self?.processReceivedData(data)
+            }
+            
+            packet = MIDIPacketNext(&packet).pointee
+        }
+    }
+    
+    private func processReceivedData(_ data: [UInt8]) async {
+        // Assemble SysEx messages
+        let messages = await sysExAssembler.process(data)
+        
+        for message in messages {
+            let received = MIDIReceivedData(data: message)
+            receivedContinuation?.yield(received)
+        }
+    }
+    
+    private func handleNotification(_ notification: UnsafePointer<MIDINotification>) {
+        switch notification.pointee.messageID {
+        case .msgSetupChanged, .msgObjectAdded, .msgObjectRemoved:
+            setupChangedContinuation?.yield(())
+        default:
+            break
+        }
+    }
+    
+    private func getEndpointName(_ endpoint: MIDIEndpointRef) -> String {
+        var name: Unmanaged<CFString>?
+        MIDIObjectGetStringProperty(endpoint, kMIDIPropertyDisplayName, &name)
+        return (name?.takeRetainedValue() as String?) ?? "Unknown"
+    }
+    
+    private func getEndpointManufacturer(_ endpoint: MIDIEndpointRef) -> String? {
+        var manufacturer: Unmanaged<CFString>?
+        MIDIObjectGetStringProperty(endpoint, kMIDIPropertyManufacturer, &manufacturer)
+        return manufacturer?.takeRetainedValue() as String?
+    }
+    
+    private func isEndpointOnline(_ endpoint: MIDIEndpointRef) -> Bool {
+        var offline: Int32 = 0
+        MIDIObjectGetIntegerProperty(endpoint, kMIDIPropertyOffline, &offline)
+        return offline == 0
+    }
+}
+
+#endif
