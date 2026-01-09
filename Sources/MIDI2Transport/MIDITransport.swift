@@ -115,4 +115,5 @@ public enum MIDITransportError: Error, Sendable {
     case connectionFailed(Int32)
     case destinationNotFound(UInt32)
     case sourceNotFound(UInt32)
+    case packetListFull
 }

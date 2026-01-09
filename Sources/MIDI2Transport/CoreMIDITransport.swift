@@ -163,14 +163,20 @@ public final class CoreMIDITransport: MIDITransport, @unchecked Sendable {
     public func send(_ data: [UInt8], to destination: MIDIDestinationID) async throws {
         let destRef = MIDIEndpointRef(destination.value)
         
-        // Send using packet list
-        let bufferSize = data.count + 100
+        // Calculate buffer size:
+        // MIDIPacketList header (4 bytes) + MIDIPacket header (10 bytes) + data + padding
+        let bufferSize = 1024 + data.count
         let buffer = UnsafeMutablePointer<UInt8>.allocate(capacity: bufferSize)
         defer { buffer.deallocate() }
         
         let packetList = UnsafeMutableRawPointer(buffer).bindMemory(to: MIDIPacketList.self, capacity: 1)
-        var packet = MIDIPacketListInit(packetList)
-        packet = MIDIPacketListAdd(packetList, bufferSize, packet, 0, data.count, data)
+        let packet = MIDIPacketListInit(packetList)
+        _ = MIDIPacketListAdd(packetList, bufferSize, packet, 0, data.count, data)
+        
+        // Check if packet was added successfully
+        guard packetList.pointee.numPackets > 0 else {
+            throw MIDITransportError.packetListFull
+        }
         
         let status = MIDISend(outputPort, destRef, packetList)
         
