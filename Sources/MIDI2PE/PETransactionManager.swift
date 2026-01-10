@@ -45,6 +45,17 @@ public struct PETransaction: Sendable, Identifiable {
     }
 }
 
+// MARK: - Device Inflight State
+
+/// Per-device in-flight request tracking
+private struct DeviceInflightState {
+    /// Current number of in-flight requests to this device
+    var currentInflight: Int = 0
+    
+    /// Waiters queued when inflight limit is reached
+    var waiters: [CheckedContinuation<Void, Never>] = []
+}
+
 // MARK: - PETransactionManager
 
 /// Manages PE transaction lifecycle
@@ -53,18 +64,25 @@ public struct PETransaction: Sendable, Identifiable {
 /// - **Request ID allocation/release** via PERequestIDManager
 /// - **Chunk assembly** via PEChunkAssembler
 /// - **Transaction state tracking** for diagnostics
+/// - **Per-device inflight limiting** to prevent overwhelming slow devices
 ///
 /// It does NOT handle:
 /// - Timeout scheduling (handled by PEManager)
 /// - Continuation management (handled by PEManager)
 /// - Response delivery (handled by PEManager)
 ///
+/// ## Per-Device Inflight Limiting
+///
+/// Some MIDI devices cannot handle many concurrent requests. The `maxInflightPerDevice`
+/// parameter limits how many requests can be in-flight to any single device at once.
+/// Excess requests wait in a FIFO queue until earlier requests complete.
+///
 /// ## Usage
 ///
 /// ```swift
-/// let manager = PETransactionManager()
+/// let manager = PETransactionManager(maxInflightPerDevice: 2)
 ///
-/// // Begin transaction - allocates Request ID
+/// // Begin transaction - allocates Request ID (may wait if device is busy)
 /// guard let requestID = await manager.begin(
 ///     resource: "DeviceInfo",
 ///     destinationMUID: device,
@@ -89,6 +107,12 @@ public actor PETransactionManager {
     
     // MARK: - Configuration
     
+    /// Maximum concurrent in-flight requests per device
+    ///
+    /// Setting this to a low value (1-4) improves stability with devices
+    /// that have weak MIDI-CI implementations.
+    public let maxInflightPerDevice: Int
+    
     /// Warning threshold for active transactions (possible leak indicator)
     public static let warningThreshold: Int = 100
     
@@ -110,6 +134,9 @@ public actor PETransactionManager {
     /// Chunk assemblers by Request ID
     private var chunkAssemblers: [UInt8: PEChunkAssembler] = [:]
     
+    /// Per-device inflight state
+    private var deviceInflightState: [MUID: DeviceInflightState] = [:]
+    
     // MARK: - Public Properties
     
     /// Number of active transactions
@@ -129,9 +156,15 @@ public actor PETransactionManager {
     
     // MARK: - Initialization
     
-    /// Initialize with optional logger
-    /// - Parameter logger: Logger instance (default: NullMIDI2Logger - silent)
-    public init(logger: any MIDI2Logger = NullMIDI2Logger()) {
+    /// Initialize with optional logger and inflight limit
+    /// - Parameters:
+    ///   - maxInflightPerDevice: Maximum concurrent requests per device (default: 2)
+    ///   - logger: Logger instance (default: NullMIDI2Logger - silent)
+    public init(
+        maxInflightPerDevice: Int = 2,
+        logger: any MIDI2Logger = NullMIDI2Logger()
+    ) {
+        self.maxInflightPerDevice = max(1, maxInflightPerDevice)
         self.logger = logger
     }
     
@@ -140,6 +173,8 @@ public actor PETransactionManager {
     /// Begin a new PE transaction
     ///
     /// Allocates a Request ID and creates transaction tracking state.
+    /// If the device already has `maxInflightPerDevice` requests in flight,
+    /// this method will suspend until a slot becomes available.
     ///
     /// - Parameters:
     ///   - resource: Resource being requested
@@ -150,7 +185,10 @@ public actor PETransactionManager {
         resource: String,
         destinationMUID: MUID,
         timeout: TimeInterval = 5.0
-    ) -> UInt8? {
+    ) async -> UInt8? {
+        // Wait for device slot if at capacity
+        await waitForDeviceSlot(destinationMUID)
+        
         // Warn if near exhaustion
         if isNearExhaustion {
             logger.warning(
@@ -165,6 +203,8 @@ public actor PETransactionManager {
                 "Request ID exhausted: all 128 IDs in use",
                 category: Self.logCategory
             )
+            // Release the device slot we just acquired
+            releaseDeviceSlot(destinationMUID)
             return nil
         }
         
@@ -188,12 +228,59 @@ public actor PETransactionManager {
             )
         }
         
+        let currentInflight = deviceInflightState[destinationMUID]?.currentInflight ?? 0
         logger.debug(
-            "Begin [\(requestID)] \(resource) -> \(destinationMUID)",
+            "Begin [\(requestID)] \(resource) -> \(destinationMUID) (inflight: \(currentInflight)/\(maxInflightPerDevice))",
             category: Self.logCategory
         )
         
         return requestID
+    }
+    
+    /// Wait for a device slot to become available
+    private func waitForDeviceSlot(_ muid: MUID) async {
+        var state = deviceInflightState[muid] ?? DeviceInflightState()
+        
+        // If under limit, increment and proceed
+        if state.currentInflight < maxInflightPerDevice {
+            state.currentInflight += 1
+            deviceInflightState[muid] = state
+            return
+        }
+        
+        // At capacity - wait in queue
+        logger.debug(
+            "Device \(muid) at capacity (\(state.currentInflight)/\(maxInflightPerDevice)), queueing...",
+            category: Self.logCategory
+        )
+        
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            var state = deviceInflightState[muid] ?? DeviceInflightState()
+            state.waiters.append(continuation)
+            deviceInflightState[muid] = state
+        }
+        
+        // When we're resumed, our slot is already accounted for
+    }
+    
+    /// Release a device slot and resume next waiter if any
+    private func releaseDeviceSlot(_ muid: MUID) {
+        guard var state = deviceInflightState[muid] else { return }
+        
+        if !state.waiters.isEmpty {
+            // Resume next waiter (they take our slot)
+            let next = state.waiters.removeFirst()
+            deviceInflightState[muid] = state
+            next.resume()
+        } else {
+            // No waiters - decrement count
+            state.currentInflight = max(0, state.currentInflight - 1)
+            if state.currentInflight == 0 {
+                deviceInflightState.removeValue(forKey: muid)
+            } else {
+                deviceInflightState[muid] = state
+            }
+        }
     }
     
     /// Cancel a transaction and release its Request ID
@@ -202,13 +289,16 @@ public actor PETransactionManager {
     ///
     /// - Parameter requestID: Request ID to cancel
     public func cancel(requestID: UInt8) {
-        guard activeTransactions.removeValue(forKey: requestID) != nil else {
+        guard let transaction = activeTransactions.removeValue(forKey: requestID) else {
             // Already cancelled or never existed - this is fine
             return
         }
         
         chunkAssemblers.removeValue(forKey: requestID)
         requestIDManager.release(requestID)
+        
+        // Release device slot
+        releaseDeviceSlot(transaction.destinationMUID)
         
         logger.debug(
             "Cancel [\(requestID)]",
@@ -230,6 +320,16 @@ public actor PETransactionManager {
         
         for requestID in toCancel {
             cancel(requestID: requestID)
+        }
+        
+        // Also cancel any waiters for this device
+        if var state = deviceInflightState[muid] {
+            for waiter in state.waiters {
+                waiter.resume()  // Resume them so they can fail gracefully
+            }
+            state.waiters.removeAll()
+            state.currentInflight = 0
+            deviceInflightState.removeValue(forKey: muid)
         }
         
         if !toCancel.isEmpty {
@@ -255,6 +355,14 @@ public actor PETransactionManager {
         for requestID in allIDs {
             cancel(requestID: requestID)
         }
+        
+        // Resume all waiters
+        for (_, state) in deviceInflightState {
+            for waiter in state.waiters {
+                waiter.resume()
+            }
+        }
+        deviceInflightState.removeAll()
         
         if count > 0 {
             logger.notice(
@@ -342,17 +450,39 @@ public actor PETransactionManager {
         activeTransactions[requestID] != nil
     }
     
+    /// Get current inflight count for a device
+    /// - Parameter muid: Device MUID
+    /// - Returns: Number of in-flight requests
+    public func inflightCount(for muid: MUID) -> Int {
+        deviceInflightState[muid]?.currentInflight ?? 0
+    }
+    
+    /// Get number of waiters for a device
+    /// - Parameter muid: Device MUID
+    /// - Returns: Number of queued requests waiting
+    public func waiterCount(for muid: MUID) -> Int {
+        deviceInflightState[muid]?.waiters.count ?? 0
+    }
+    
     // MARK: - Diagnostics
     
     /// Get diagnostic information
     public var diagnostics: String {
         var lines: [String] = []
         lines.append("=== PETransactionManager ===")
+        lines.append("Max inflight per device: \(maxInflightPerDevice)")
         lines.append("Active transactions: \(activeCount)")
         lines.append("Available IDs: \(availableIDs)")
         
         if isNearExhaustion {
             lines.append("⚠️ Near ID exhaustion!")
+        }
+        
+        if !deviceInflightState.isEmpty {
+            lines.append("Device states:")
+            for (muid, state) in deviceInflightState {
+                lines.append("  \(muid): inflight=\(state.currentInflight), waiting=\(state.waiters.count)")
+            }
         }
         
         if !activeTransactions.isEmpty {

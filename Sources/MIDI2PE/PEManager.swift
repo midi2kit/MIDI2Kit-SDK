@@ -236,16 +236,21 @@ public actor PEManager {
     /// - Parameters:
     ///   - transport: MIDI transport for sending/receiving
     ///   - sourceMUID: Our MUID (for message filtering)
+    ///   - maxInflightPerDevice: Maximum concurrent requests per device (default: 2)
     ///   - logger: Optional logger (default: silent)
     public init(
         transport: any MIDITransport,
         sourceMUID: MUID,
+        maxInflightPerDevice: Int = 2,
         logger: any MIDI2Logger = NullMIDI2Logger()
     ) {
         self.transport = transport
         self.sourceMUID = sourceMUID
         self.logger = logger
-        self.transactionManager = PETransactionManager(logger: logger)
+        self.transactionManager = PETransactionManager(
+            maxInflightPerDevice: maxInflightPerDevice,
+            logger: logger
+        )
     }
     
     deinit {

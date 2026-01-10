@@ -102,7 +102,8 @@ struct PETransactionManagerTests {
     
     @Test("Cancel all")
     func cancelAll() async {
-        let manager = PETransactionManager()
+        // Use higher inflight limit for this test
+        let manager = PETransactionManager(maxInflightPerDevice: 10)
         let muid = MUID.random()
         
         for i in 0..<10 {
@@ -122,7 +123,8 @@ struct PETransactionManagerTests {
     
     @Test("Exhaustion returns nil")
     func exhaustionReturnsNil() async {
-        let manager = PETransactionManager()
+        // Use high inflight limit so we can exhaust all 128 IDs
+        let manager = PETransactionManager(maxInflightPerDevice: 128)
         let muid = MUID.random()
         
         // Exhaust all 128 IDs
@@ -139,7 +141,8 @@ struct PETransactionManagerTests {
     
     @Test("Near exhaustion warning threshold")
     func nearExhaustionWarning() async {
-        let manager = PETransactionManager()
+        // Use high inflight limit for this test
+        let manager = PETransactionManager(maxInflightPerDevice: 128)
         let muid = MUID.random()
         
         // Use 120 IDs (leaving 8)
@@ -153,7 +156,8 @@ struct PETransactionManagerTests {
     
     @Test("Not near exhaustion with sufficient IDs")
     func notNearExhaustion() async {
-        let manager = PETransactionManager()
+        // Use high inflight limit for this test
+        let manager = PETransactionManager(maxInflightPerDevice: 128)
         let muid = MUID.random()
         
         // Use 100 IDs (leaving 28)
@@ -369,7 +373,8 @@ struct PETransactionManagerTests {
     
     @Test("Diagnostics shows near exhaustion warning")
     func diagnosticsShowsExhaustionWarning() async {
-        let manager = PETransactionManager()
+        // Use high inflight limit for this test
+        let manager = PETransactionManager(maxInflightPerDevice: 128)
         let muid = MUID.random()
         
         // Use 125 IDs (leaving 3)
@@ -448,5 +453,140 @@ extension PEChunkResult: Equatable {
         default:
             return false
         }
+    }
+}
+
+// MARK: - Per-Device Inflight Limiting Tests
+
+@Suite("Per-Device Inflight Limiting Tests")
+struct InflightLimitingTests {
+    
+    @Test("Default maxInflightPerDevice is 2")
+    func defaultMaxInflight() async {
+        let manager = PETransactionManager()
+        #expect(manager.maxInflightPerDevice == 2)
+    }
+    
+    @Test("Custom maxInflightPerDevice is respected")
+    func customMaxInflight() async {
+        let manager = PETransactionManager(maxInflightPerDevice: 4)
+        #expect(manager.maxInflightPerDevice == 4)
+    }
+    
+    @Test("MaxInflightPerDevice minimum is 1")
+    func maxInflightMinimum() async {
+        let manager = PETransactionManager(maxInflightPerDevice: 0)
+        #expect(manager.maxInflightPerDevice == 1)
+        
+        let manager2 = PETransactionManager(maxInflightPerDevice: -5)
+        #expect(manager2.maxInflightPerDevice == 1)
+    }
+    
+    @Test("Inflight count tracks active transactions")
+    func inflightCountTracksActive() async {
+        let manager = PETransactionManager(maxInflightPerDevice: 4)
+        let muid = MUID.random()
+        
+        #expect(await manager.inflightCount(for: muid) == 0)
+        
+        let id1 = await manager.begin(resource: "Test1", destinationMUID: muid)
+        #expect(await manager.inflightCount(for: muid) == 1)
+        
+        let id2 = await manager.begin(resource: "Test2", destinationMUID: muid)
+        #expect(await manager.inflightCount(for: muid) == 2)
+        
+        await manager.cancel(requestID: id1!)
+        #expect(await manager.inflightCount(for: muid) == 1)
+        
+        await manager.cancel(requestID: id2!)
+        #expect(await manager.inflightCount(for: muid) == 0)
+    }
+    
+    @Test("Different devices have independent inflight counts")
+    func independentInflightCounts() async {
+        let manager = PETransactionManager(maxInflightPerDevice: 2)
+        let device1 = MUID.random()
+        let device2 = MUID.random()
+        
+        // Use 2 slots on device1
+        _ = await manager.begin(resource: "Test", destinationMUID: device1)
+        _ = await manager.begin(resource: "Test", destinationMUID: device1)
+        
+        #expect(await manager.inflightCount(for: device1) == 2)
+        #expect(await manager.inflightCount(for: device2) == 0)
+        
+        // device2 should still be able to begin immediately
+        _ = await manager.begin(resource: "Test", destinationMUID: device2)
+        
+        #expect(await manager.inflightCount(for: device1) == 2)
+        #expect(await manager.inflightCount(for: device2) == 1)
+    }
+    
+    @Test("Cancel all for device clears inflight state")
+    func cancelAllClearsInflightState() async {
+        let manager = PETransactionManager(maxInflightPerDevice: 4)
+        let muid = MUID.random()
+        
+        _ = await manager.begin(resource: "Test1", destinationMUID: muid)
+        _ = await manager.begin(resource: "Test2", destinationMUID: muid)
+        _ = await manager.begin(resource: "Test3", destinationMUID: muid)
+        
+        #expect(await manager.inflightCount(for: muid) == 3)
+        
+        await manager.cancelAll(for: muid)
+        
+        #expect(await manager.inflightCount(for: muid) == 0)
+        #expect(await manager.waiterCount(for: muid) == 0)
+    }
+    
+    @Test("Diagnostics shows device states")
+    func diagnosticsShowsDeviceStates() async {
+        let manager = PETransactionManager(maxInflightPerDevice: 3)
+        let muid = MUID.random()
+        
+        _ = await manager.begin(resource: "Test", destinationMUID: muid)
+        _ = await manager.begin(resource: "Test", destinationMUID: muid)
+        
+        let diag = await manager.diagnostics
+        
+        #expect(diag.contains("Max inflight per device: 3"))
+        #expect(diag.contains("Device states:"))
+        #expect(diag.contains("inflight=2"))
+    }
+    
+    @Test("Waiter queued when at capacity and resumed on cancel")
+    func waiterQueuedAndResumed() async {
+        let manager = PETransactionManager(maxInflightPerDevice: 1)
+        let muid = MUID.random()
+        
+        // Use the only slot
+        let id1 = await manager.begin(resource: "First", destinationMUID: muid)
+        #expect(id1 != nil)
+        #expect(await manager.inflightCount(for: muid) == 1)
+        
+        // Start a task that will wait for a slot
+        let waitingTask = Task {
+            let id2 = await manager.begin(resource: "Second", destinationMUID: muid)
+            return id2
+        }
+        
+        // Give the waiting task time to queue up
+        try? await Task.sleep(for: .milliseconds(50))
+        
+        // Verify waiter is queued
+        #expect(await manager.waiterCount(for: muid) == 1)
+        
+        // Cancel first request - should release slot and resume waiter
+        await manager.cancel(requestID: id1!)
+        
+        // Wait for the waiting task to complete
+        let id2 = await waitingTask.value
+        
+        #expect(id2 != nil)
+        #expect(await manager.inflightCount(for: muid) == 1)
+        #expect(await manager.waiterCount(for: muid) == 0)
+        
+        // Clean up
+        await manager.cancel(requestID: id2!)
     }
 }
