@@ -17,7 +17,7 @@ struct CIManagerTests {
         let transport = MockMIDITransport()
         let manager = CIManager(transport: transport)
         
-        let muid = await manager.muid
+        let muid = manager.muid
         #expect(!muid.isBroadcast)
         #expect(muid != MUID.reserved)
     }
@@ -28,8 +28,8 @@ struct CIManagerTests {
         let manager1 = CIManager(transport: transport)
         let manager2 = CIManager(transport: transport)
         
-        let muid1 = await manager1.muid
-        let muid2 = await manager2.muid
+        let muid1 = manager1.muid
+        let muid2 = manager2.muid
         
         // Different managers should have different MUIDs (with very high probability)
         #expect(muid1 != muid2)
@@ -55,10 +55,10 @@ struct CIManagerTests {
         ))
         
         let manager = CIManager(transport: transport)
-        let managerMUID = await manager.muid
+        let managerMUID = manager.muid
         
-        // Start discovery
-        await manager.startDiscovery()
+        // Start manager (begins receiving) and discovery
+        try await manager.start()
         
         // Simulate receiving a Discovery Reply
         let deviceMUID = MUID(rawValue: 0xABCDEF0)!
@@ -84,7 +84,7 @@ struct CIManagerTests {
         #expect(devices.count == 1)
         #expect(devices.first?.muid == deviceMUID)
         
-        await manager.stopDiscovery()
+        await manager.stop()
     }
     
     @Test("CIManager removes device on InvalidateMUID")
@@ -96,9 +96,9 @@ struct CIManagerTests {
         ))
         
         let manager = CIManager(transport: transport)
-        let managerMUID = await manager.muid
+        let managerMUID = manager.muid
         
-        await manager.startDiscovery()
+        try await manager.start()
         
         // First, discover a device
         let deviceMUID = MUID(rawValue: 0xABCDEF0)!
@@ -129,7 +129,7 @@ struct CIManagerTests {
         devices = await manager.discoveredDevices
         #expect(devices.count == 0)
         
-        await manager.stopDiscovery()
+        await manager.stop()
     }
     
     @Test("CIManager can clear all devices")
@@ -141,9 +141,9 @@ struct CIManagerTests {
         ))
         
         let manager = CIManager(transport: transport)
-        let managerMUID = await manager.muid
+        let managerMUID = manager.muid
         
-        await manager.startDiscovery()
+        try await manager.start()
         
         // Discover two devices
         for i in 1...2 {
@@ -167,7 +167,7 @@ struct CIManagerTests {
         devices = await manager.discoveredDevices
         #expect(devices.count == 0)
         
-        await manager.stopDiscovery()
+        await manager.stop()
     }
     
     @Test("CIManager gets device by MUID")
@@ -179,9 +179,9 @@ struct CIManagerTests {
         ))
         
         let manager = CIManager(transport: transport)
-        let managerMUID = await manager.muid
+        let managerMUID = manager.muid
         
-        await manager.startDiscovery()
+        try await manager.start()
         
         let deviceMUID = MUID(rawValue: 0xABCDEF0)!
         let identity = DeviceIdentity(
@@ -211,6 +211,6 @@ struct CIManagerTests {
         let notFound = await manager.device(for: MUID(rawValue: 0xFFFFFF)!)
         #expect(notFound == nil)
         
-        await manager.stopDiscovery()
+        await manager.stop()
     }
 }
