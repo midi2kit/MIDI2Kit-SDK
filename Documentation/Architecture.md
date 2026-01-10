@@ -18,10 +18,10 @@ MIDI2Kit is a modular Swift library for MIDI 2.0, MIDI-CI, and Property Exchange
 │ • Device  │ │   Builder │ │   Types   │ │   Integration   │
 │   Identity│ │ • Message │ │ • Chunk   │ │ • Connection    │
 │ • Mcoded7 │ │   Parser  │ │   Assembly│ │   Management    │
-│ • Consts  │ │ • Device  │ │ • Trans-  │ │ • SysEx         │
-│           │ │   Info    │ │   action  │ │   Assembly      │
-└───────────┘ └───────────┘ │   Manager │ └─────────────────┘
-                            └───────────┘
+│ • Consts  │ │ • CI      │ │ • Trans-  │ │ • SysEx         │
+│ • Logger  │ │   Manager │ │   action  │ │   Assembly      │
+│           │ │           │ │   Manager │ │                 │
+└───────────┘ └───────────┘ └───────────┘ └─────────────────┘
 ```
 
 ## Module Dependencies
@@ -56,6 +56,7 @@ MIDI2Kit ──────┬────────────────�
 | `CIMessageType` | All MIDI-CI message types |
 | `CategorySupport` | Protocol/Profile/PE/Process flags |
 | `MIDI2Logger` | Configurable logging protocol |
+| `MIDI2LogUtils` | Safe formatting utilities |
 
 **Logging System**:
 
@@ -76,6 +77,33 @@ MIDI2Kit ──────┬────────────────�
 │  Levels: debug < info < notice < warning < error < fault    │
 │                                                              │
 └─────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────┐
+│                     MIDI2LogUtils                            │
+├─────────────────────────────────────────────────────────────┤
+│  Safe Formatting (prevents log bloat & sensitive data leak) │
+│                                                              │
+│  hexPreview(data, limit: 32)                                │
+│    → "F0 7E 7F... (32 of 128 bytes)"                        │
+│                                                              │
+│  transactionInfo(requestID, resource, muid)                 │
+│    → "[42] DeviceInfo -> 0x12345678"                        │
+│                                                              │
+│  chunkProgress(received, total)                             │
+│    → "3/5 chunks"                                           │
+│                                                              │
+│  responseSummary(status, headerSize, bodySize)              │
+│    → "status=200, header=45B, body=1024B"                   │
+│                                                              │
+│  timeoutInfo(elapsedSeconds, receivedChunks, totalChunks)   │
+│    → "timeout after 5.0s (received 2/4 chunks)"             │
+│                                                              │
+│  Extensions: Data.logPreview, [UInt8].logPreview            │
+│                                                              │
+│  Guidelines:                                                 │
+│    ✅ Log: requestID, MUID, chunk progress, status, size    │
+│    ❌ Avoid: Full SysEx dumps, complete bodies, raw binary  │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 **Design Notes**:
@@ -85,15 +113,39 @@ MIDI2Kit ──────┬────────────────�
 
 ### MIDI2CI
 
-**Purpose**: MIDI Capability Inquiry message building and parsing.
+**Purpose**: MIDI Capability Inquiry message building, parsing, and device management.
 
 **Key Types**:
 
 | Type | Description |
 |------|-------------|
+| `CIManager` | Central manager for CI devices and MUID lifecycle |
 | `DiscoveredDevice` | Device found via Discovery |
 | `CIMessageBuilder` | Builds CI SysEx messages |
 | `CIMessageParser` | Parses CI SysEx messages |
+
+**CIManager**:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      CIManager (actor)                       │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  Responsibilities:                                           │
+│    • Generate and manage local MUID                         │
+│    • Track discovered devices                               │
+│    • Handle device invalidation                             │
+│    • Provide device lookup by MUID                          │
+│                                                              │
+│  Key Methods:                                                │
+│    generateMUID() → MUID                                    │
+│    device(for: MUID) → DiscoveredDevice?                    │
+│    handleDiscoveryReply(payload:) → DiscoveredDevice        │
+│    handleInvalidateMUID(payload:)                           │
+│    clearAllDevices()                                        │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
 
 **Message Flow**:
 
@@ -123,13 +175,45 @@ App                     MIDI2CI                    Device
 | `PEDeviceInfo` | Device information from DeviceInfo resource |
 | `PEControllerDef` | Controller definition from ChCtrlList |
 | `PEChunkAssembler` | Assembles multi-chunk responses |
+| `PEChunkResult` | Result of chunk processing |
 | `PERequestIDManager` | Manages 7-bit Request IDs (0-127) |
 | `PETransactionManager` | **Critical**: Prevents Request ID leaks |
 | `PEMonitorHandle` | Handle for automatic timeout monitoring |
+| `PEMonitoringConfiguration` | Configuration for monitoring behavior |
+
+**Chunk Processing Results**:
+
+```swift
+public enum PEChunkResult {
+    case incomplete(received: Int, total: Int)
+    case complete(header: Data, body: Data)
+    case timeout(requestID: UInt8, received: Int, total: Int, partial: Data?)
+    case unknownRequestID(requestID: UInt8)  // Distinct from timeout!
+}
+```
+
+> **Important**: `unknownRequestID` vs `timeout`:
+> - `timeout`: Transaction existed but didn't complete in time
+> - `unknownRequestID`: No active transaction found
+>   - Late response (transaction already completed)
+>   - Duplicate response
+>   - Response for cancelled transaction
+>   - Misrouted message / ID collision
 
 **Monitoring System**:
 
 ```
+┌─────────────────────────────────────────────────────────────┐
+│                PEMonitoringConfiguration                     │
+├─────────────────────────────────────────────────────────────┤
+│  checkInterval: TimeInterval (default: 1.0s)                │
+│  autoStart: Bool (default: false)                           │
+│                                                              │
+│  Presets:                                                    │
+│    .default         → manual startMonitoring() required     │
+│    .autoStartEnabled → monitoring starts on first begin()   │
+└─────────────────────────────────────────────────────────────┘
+
 ┌─────────────────────────────────────────────────────────────┐
 │                  PEMonitorHandle Pattern                     │
 ├─────────────────────────────────────────────────────────────┤
@@ -154,6 +238,12 @@ App                     MIDI2CI                    Device
 │        │                                                     │
 │        └─── Manager deallocated ──▶ weak self nil,          │
 │                                      Task exits cleanly     │
+│                                                              │
+│  Auto-Start Mode (autoStart: true):                         │
+│    • No need to call startMonitoring()                      │
+│    • Monitoring starts automatically on first begin()       │
+│    • Manager holds internal strong reference to handle      │
+│    • Use stopMonitoring() to stop                           │
 │                                                              │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -209,7 +299,7 @@ Request IDs are 7-bit (0-127). Without proper lifecycle management:
 | `CoreMIDITransport` | CoreMIDI implementation |
 | `MockMIDITransport` | Testing without hardware |
 | `SysExAssembler` | Assembles fragmented SysEx |
-| `ConnectionState` | Actor managing connected sources |
+| `ConnectionState` | Thread-safe connection tracking |
 
 **Connection Management**:
 
@@ -219,7 +309,7 @@ Request IDs are 7-bit (0-127). Without proper lifecycle management:
 ├─────────────────────────────────────────────────────────────┤
 │                                                              │
 │  ┌──────────────────────────────────────────┐               │
-│  │         ConnectionState (actor)           │               │
+│  │     ConnectionState (thread-safe)         │               │
 │  │  ┌────────────────────────────────────┐  │               │
 │  │  │ connectedSources: Set<Endpoint>    │  │               │
 │  │  └────────────────────────────────────┘  │               │
@@ -245,23 +335,27 @@ MIDI2Kit uses Swift 6 strict concurrency:
 
 | Component | Isolation |
 |-----------|-----------|
+| `CIManager` | `actor` |
 | `PETransactionManager` | `actor` |
-| `ConnectionState` | `private actor` |
 | `SysExAssembler` | `actor` |
 | `MockMIDITransport` | `actor` |
 | Data types | `Sendable struct/enum` |
-| `CoreMIDITransport` | `@unchecked Sendable` (uses internal actor) |
+| `CoreMIDITransport` | `@unchecked Sendable` (uses internal locking) |
+| `ConnectionState` | `@unchecked Sendable` (NSLock for sync access) |
 
 ## Error Handling
 
 ```swift
-public enum MIDITransportError: Error {
+public enum MIDITransportError: Error, CustomStringConvertible {
+    case notInitialized
     case clientCreationFailed(Int32)
     case portCreationFailed(Int32)
     case sendFailed(Int32)
     case connectionFailed(Int32)
     case destinationNotFound(UInt32)
     case sourceNotFound(UInt32)
+    case packetListAddFailed(dataSize: Int, bufferSize: Int)  // MIDIPacketListAdd returned nil
+    case packetListEmpty  // Unexpected empty packet list
 }
 
 public enum PETransactionResult {
@@ -269,6 +363,13 @@ public enum PETransactionResult {
     case error(status: Int, message: String?)
     case timeout
     case cancelled
+}
+
+public enum PEChunkResult: CustomStringConvertible {
+    case incomplete(received: Int, total: Int)
+    case complete(header: Data, body: Data)
+    case timeout(requestID: UInt8, received: Int, total: Int, partial: Data?)
+    case unknownRequestID(requestID: UInt8)
 }
 ```
 
@@ -312,8 +413,8 @@ Complete PE Get flow:
 | Layer | Test Approach |
 |-------|---------------|
 | MIDI2Core | Unit tests for encoding/decoding |
-| MIDI2CI | Unit tests for message building/parsing |
-| MIDI2PE | Unit tests for transaction lifecycle |
+| MIDI2CI | Unit tests for message building/parsing, CIManager lifecycle |
+| MIDI2PE | Unit tests for transaction lifecycle, chunk assembly |
 | MIDI2Transport | MockMIDITransport for integration tests |
 
 Mock transport enables testing without hardware:
@@ -328,3 +429,8 @@ await mock.injectReceived(discoveryReplyBytes)
 let sent = await mock.sentMessages
 XCTAssert(await mock.wasSent(ciMessageType: 0x70))
 ```
+
+## Version History
+
+- **2025-01-10**: Added `unknownRequestID` to `PEChunkResult`, `autoStart` monitoring option, `MIDI2LogUtils`, improved `MIDITransportError` with explicit `packetListAddFailed`
+- **2025-01-09**: Unified `CIManager` implementations (MIDI2CI + MIDI2Kit → single implementation)
