@@ -556,10 +556,24 @@ public actor PETransactionManager {
     // MARK: - Async/Await Support
     
     /// Wait for transaction completion
+    ///
+    /// Only one caller can wait for a given requestID at a time.
+    /// If already waiting, returns `.cancelled` immediately.
+    ///
     /// - Parameter requestID: Request ID
     /// - Returns: Transaction result
     public func waitForCompletion(requestID: UInt8) async -> PETransactionResult {
+        // Check if transaction exists
         guard activeTransactions[requestID] != nil else {
+            return .cancelled
+        }
+        
+        // Prevent double-wait: if already waiting, return cancelled
+        if completionHandlers[requestID] != nil {
+            logger.warning(
+                "Duplicate waitForCompletion for requestID \(requestID) - returning cancelled",
+                category: Self.logCategory
+            )
             return .cancelled
         }
         

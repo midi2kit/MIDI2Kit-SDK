@@ -356,4 +356,127 @@ struct PETransactionManagerTests {
         // (weak self in Task causes loop to exit)
         #expect(handle?.isActive == false)
     }
+    
+    // MARK: - waitForCompletion Tests
+    
+    @Test("waitForCompletion returns result on complete")
+    func waitForCompletionReturnsResultOnComplete() async {
+        let manager = PETransactionManager()
+        let muid = MUID.random()
+        
+        let id = await manager.begin(resource: "DeviceInfo", destinationMUID: muid)
+        #expect(id != nil)
+        
+        // Start waiting in background
+        let waitTask = Task {
+            await manager.waitForCompletion(requestID: id!)
+        }
+        
+        // Give time for wait to register
+        try? await Task.sleep(for: .milliseconds(10))
+        
+        // Complete the transaction
+        await manager.complete(requestID: id!, header: Data(), body: Data("test".utf8))
+        
+        // Wait should return success
+        let result = await waitTask.value
+        if case .success(_, let body) = result {
+            #expect(body == Data("test".utf8))
+        } else {
+            Issue.record("Expected success result, got \(result)")
+        }
+    }
+    
+    @Test("waitForCompletion returns cancelled for unknown requestID")
+    func waitForCompletionReturnsCancelledForUnknownID() async {
+        let manager = PETransactionManager()
+        
+        // Wait for non-existent request
+        let result = await manager.waitForCompletion(requestID: 99)
+        
+        if case .cancelled = result {
+            // Expected
+        } else {
+            Issue.record("Expected cancelled, got \(result)")
+        }
+    }
+    
+    @Test("waitForCompletion duplicate call returns cancelled")
+    func waitForCompletionDuplicateCallReturnsCancelled() async {
+        let manager = PETransactionManager()
+        let muid = MUID.random()
+        
+        let id = await manager.begin(resource: "DeviceInfo", destinationMUID: muid)
+        #expect(id != nil)
+        
+        // First waiter
+        let waiter1 = Task {
+            await manager.waitForCompletion(requestID: id!)
+        }
+        
+        // Give time for first wait to register
+        try? await Task.sleep(for: .milliseconds(10))
+        
+        // Second waiter (should return cancelled immediately)
+        let result2 = await manager.waitForCompletion(requestID: id!)
+        
+        // Second call should return cancelled
+        if case .cancelled = result2 {
+            // Expected - duplicate wait returns cancelled
+        } else {
+            Issue.record("Expected cancelled for duplicate wait, got \(result2)")
+        }
+        
+        // Complete the transaction for first waiter
+        await manager.complete(requestID: id!, header: Data(), body: Data())
+        
+        // First waiter should get success
+        let result1 = await waiter1.value
+        if case .success = result1 {
+            // Expected
+        } else {
+            Issue.record("Expected success for first waiter, got \(result1)")
+        }
+    }
+    
+    @Test("waitForCompletion does not leak continuation on duplicate call")
+    func waitForCompletionDoesNotLeakContinuationOnDuplicate() async {
+        let manager = PETransactionManager()
+        let muid = MUID.random()
+        
+        let id = await manager.begin(resource: "DeviceInfo", destinationMUID: muid)
+        #expect(id != nil)
+        
+        // First waiter
+        let waiter1 = Task {
+            await manager.waitForCompletion(requestID: id!)
+        }
+        
+        try? await Task.sleep(for: .milliseconds(10))
+        
+        // Multiple duplicate calls - all should return cancelled immediately
+        for _ in 0..<5 {
+            let result = await manager.waitForCompletion(requestID: id!)
+            if case .cancelled = result {
+                // Expected
+            } else {
+                Issue.record("Expected cancelled for duplicate wait")
+            }
+        }
+        
+        // Complete transaction
+        await manager.complete(requestID: id!, header: Data(), body: Data())
+        
+        // First waiter should complete normally
+        let result1 = await waiter1.value
+        if case .success = result1 {
+            // Expected
+        } else {
+            Issue.record("First waiter should get success")
+        }
+        
+        // Verify clean state
+        #expect(await manager.activeCount == 0)
+        #expect(await manager.availableIDs == 128)
+    }
 }
