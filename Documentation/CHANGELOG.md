@@ -1,6 +1,102 @@
 # MIDI2Kit Changelog
 
-## 2026-01-10
+## 2026-01-10 (Session 3)
+
+### Fixed
+
+#### PEManager.stopReceiving() - RequestID Leak & Unsafe Mutation
+- **RequestID leak**: Now calls `transactionManager.cancelAll()` to release all Request IDs on stop
+- **Unsafe dictionary mutation**: Fixed iterating `pendingContinuations` while mutating
+  ```swift
+  // Before (unsafe)
+  for (requestID, continuation) in pendingContinuations {
+      pendingContinuations.removeValue(forKey: requestID)  // ❌
+  }
+  
+  // After (safe)
+  for continuation in pendingContinuations.values {
+      continuation.resume(throwing: PEError.cancelled)
+  }
+  pendingContinuations.removeAll()
+  ```
+
+#### CoreMIDITransport.handlePacketList() - Packet Order for SysEx Assembly
+- **Problem**: Each packet spawned separate Task → order not guaranteed → SysEx corruption
+- **Fix**: Collect all packets first, then process sequentially in single Task
+  ```swift
+  // Before (order not guaranteed)
+  for packet in packets {
+      Task { await processReceivedData(data) }  // ❌ Race condition
+  }
+  
+  // After (order guaranteed)
+  var allPacketData: [[UInt8]] = []
+  for packet in packets { allPacketData.append(data) }
+  Task {
+      for data in allPacketData { await processReceivedData(data) }  // ✅
+  }
+  ```
+
+#### PETransactionManager.waitForCompletion() - Double-Call Continuation Overwrite
+- **Problem**: Multiple calls for same requestID would overwrite previous continuation
+- **Fix**: Return `.cancelled` immediately if already waiting
+  ```swift
+  if completionHandlers[requestID] != nil {
+      return .cancelled  // Prevent overwrite
+  }
+  ```
+
+#### CoreMIDITransport - sourceID Always nil
+- **Problem**: `MIDIReceivedData.sourceID` was never populated
+- **Fix**: Pass source as `connRefCon` in `MIDIPortConnectSource`, extract in callback
+  ```swift
+  // Connect with source ref as connRefCon
+  let connRefCon = UnsafeMutableRawPointer(bitPattern: UInt(sourceRef))
+  MIDIPortConnectSource(inputPort, sourceRef, connRefCon)
+  
+  // Extract in callback
+  MIDIInputPortCreateWithBlock(...) { packetList, srcConnRefCon in
+      let sourceRef = MIDIEndpointRef(UInt(bitPattern: srcConnRefCon))
+      ...
+  }
+  ```
+
+### Changed
+
+#### PEManager - Unified Timeout Management
+- **Problem**: Dual timeout management (PETransactionManager.startMonitoring + per-request Task)
+- **Fix**: Removed `monitorHandle`, centralized timeout in `PEManager.timeoutTasks`
+- Responsibilities now clearly separated:
+  - `PETransactionManager`: RequestID lifecycle, chunk assembly
+  - `PEManager`: Response delivery, timeout-to-continuation mapping
+
+### Added
+
+#### SysExAssemblerTests (18 tests)
+- Complete SysEx in single/multiple packets
+- Fragmented SysEx across 2-3 packets
+- Order sensitivity tests demonstrating corruption on wrong order
+- Corruption handling (F0 before F7)
+- Large SysEx message assembly (1000+ bytes)
+
+#### PETransactionManager waitForCompletion Tests (4 tests)
+- Returns result on complete
+- Returns cancelled for unknown requestID
+- Duplicate call returns cancelled
+- Does not leak continuation on duplicate call
+
+### Test Coverage
+
+- **121 tests total**, all passing (up from 95)
+- Previously disabled "GET times out when no reply" test now enabled and passing
+- SysExAssembler Tests: 14 tests
+- CoreMIDITransport Packet Order Tests: 4 tests
+- PETransactionManager Tests: 24 tests (up from 11)
+- PEManager Tests: 13 tests (up from 7)
+
+---
+
+## 2026-01-10 (Session 1 & 2)
 
 ### Added
 
@@ -58,14 +154,3 @@ let manager = PETransactionManager(logger: logger)
 
 - `PEMonitoringConfiguration.autoStart` removed - use `startMonitoring()` explicitly
 - `PEMonitoringConfiguration.checkInterval` is now `let` (immutable)
-
-### Test Coverage
-
-- **86 tests total**, all passing
-- PETransactionManager: 15 tests (including 9 monitor handle lifecycle tests)
-- CIMessageParser: 24 tests
-- CIManager: 6 tests
-- Mcoded7: 10 tests
-- MUID: 10 tests
-- PEChunkAssembler: 7 tests
-- PERequestIDManager: 14 tests

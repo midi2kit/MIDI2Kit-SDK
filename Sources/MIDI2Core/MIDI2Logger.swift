@@ -6,7 +6,10 @@
 //
 
 import Foundation
+
+#if canImport(os)
 import os.log
+#endif
 
 // MARK: - Log Level
 
@@ -200,9 +203,14 @@ public final class StdoutMIDI2Logger: MIDI2Logger, @unchecked Sendable {
     }
 }
 
-// MARK: - OSLog Logger (Production)
+// MARK: - OSLog Logger (Production - Apple platforms only)
+
+#if canImport(os)
 
 /// Logger that uses Apple's OSLog system
+///
+/// - Note: This logger is only available on Apple platforms (iOS, macOS, tvOS, watchOS).
+///         On other platforms, use `StdoutMIDI2Logger` instead.
 public final class OSLogMIDI2Logger: MIDI2Logger, @unchecked Sendable {
     public let minimumLevel: MIDI2LogLevel
     private let subsystem: String
@@ -257,6 +265,8 @@ extension MIDI2LogLevel {
         }
     }
 }
+
+#endif
 
 // MARK: - Composite Logger
 

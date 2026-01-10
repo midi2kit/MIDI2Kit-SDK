@@ -7,8 +7,39 @@
 
 import Foundation
 
-/// MIDI Source ID wrapper
+// MARK: - Endpoint Identifiers
+
+/// MIDI Source endpoint identifier
+///
+/// This wraps a CoreMIDI `MIDIEndpointRef` value, which is a **session-scoped**
+/// handle to a MIDI source endpoint.
+///
+/// ## Important Notes
+///
+/// - **Not a persistent ID**: The underlying value is a `MIDIEndpointRef` (runtime handle),
+///   not a `kMIDIPropertyUniqueID`. It may change across:
+///   - System reboots
+///   - MIDI device reconnection
+///   - Audio/MIDI setup changes
+///
+/// - **Valid only within current session**: Do not persist this value to disk or
+///   use it to identify devices across app launches.
+///
+/// - **For persistent device identification**, use:
+///   - `MIDISourceInfo.name` + manufacturer (human-readable)
+///   - CoreMIDI's `kMIDIPropertyUniqueID` property (Int32, stable across sessions)
+///
+/// ## CoreMIDI Relationship
+///
+/// ```swift
+/// // This value corresponds to:
+/// let endpointRef: MIDIEndpointRef = MIDIGetSource(index)
+/// let sourceID = MIDISourceID(endpointRef)  // wraps the ref
+/// ```
 public struct MIDISourceID: Sendable, Hashable {
+    /// The CoreMIDI `MIDIEndpointRef` value.
+    ///
+    /// - Warning: This is a session-scoped handle, not a persistent unique ID.
     public let value: UInt32
     
     public init(_ value: UInt32) {
@@ -16,8 +47,37 @@ public struct MIDISourceID: Sendable, Hashable {
     }
 }
 
-/// MIDI Destination ID wrapper
+/// MIDI Destination endpoint identifier
+///
+/// This wraps a CoreMIDI `MIDIEndpointRef` value, which is a **session-scoped**
+/// handle to a MIDI destination endpoint.
+///
+/// ## Important Notes
+///
+/// - **Not a persistent ID**: The underlying value is a `MIDIEndpointRef` (runtime handle),
+///   not a `kMIDIPropertyUniqueID`. It may change across:
+///   - System reboots
+///   - MIDI device reconnection
+///   - Audio/MIDI setup changes
+///
+/// - **Valid only within current session**: Do not persist this value to disk or
+///   use it to identify devices across app launches.
+///
+/// - **For persistent device identification**, use:
+///   - `MIDIDestinationInfo.name` + manufacturer (human-readable)
+///   - CoreMIDI's `kMIDIPropertyUniqueID` property (Int32, stable across sessions)
+///
+/// ## CoreMIDI Relationship
+///
+/// ```swift
+/// // This value corresponds to:
+/// let endpointRef: MIDIEndpointRef = MIDIGetDestination(index)
+/// let destID = MIDIDestinationID(endpointRef)  // wraps the ref
+/// ```
 public struct MIDIDestinationID: Sendable, Hashable {
+    /// The CoreMIDI `MIDIEndpointRef` value.
+    ///
+    /// - Warning: This is a session-scoped handle, not a persistent unique ID.
     public let value: UInt32
     
     public init(_ value: UInt32) {
@@ -25,8 +85,17 @@ public struct MIDIDestinationID: Sendable, Hashable {
     }
 }
 
-/// Represents a MIDI source endpoint
+// MARK: - Endpoint Information
+
+/// Represents a MIDI source endpoint with metadata
+///
+/// ## Persistence
+///
+/// The `sourceID` is a session-scoped handle and should not be persisted.
+/// For identifying devices across sessions, use `uniqueID` (stable) or
+/// `name` + `manufacturer` (human-readable).
 public struct MIDISourceInfo: Sendable, Identifiable, Hashable {
+    /// Session-scoped identifier (not persistent)
     public var id: UInt32 { sourceID.value }
     
     public let sourceID: MIDISourceID
@@ -34,16 +103,38 @@ public struct MIDISourceInfo: Sendable, Identifiable, Hashable {
     public let manufacturer: String?
     public let isOnline: Bool
     
-    public init(sourceID: MIDISourceID, name: String, manufacturer: String? = nil, isOnline: Bool = true) {
+    /// Persistent unique ID from CoreMIDI (`kMIDIPropertyUniqueID`)
+    ///
+    /// This value survives reboots and device reconnections. Use this
+    /// for persistent device identification across app launches.
+    ///
+    /// - Note: May be `nil` for virtual endpoints or if the property is unavailable.
+    public let uniqueID: Int32?
+    
+    public init(
+        sourceID: MIDISourceID,
+        name: String,
+        manufacturer: String? = nil,
+        isOnline: Bool = true,
+        uniqueID: Int32? = nil
+    ) {
         self.sourceID = sourceID
         self.name = name
         self.manufacturer = manufacturer
         self.isOnline = isOnline
+        self.uniqueID = uniqueID
     }
 }
 
-/// Represents a MIDI destination endpoint
+/// Represents a MIDI destination endpoint with metadata
+///
+/// ## Persistence
+///
+/// The `destinationID` is a session-scoped handle and should not be persisted.
+/// For identifying devices across sessions, use `uniqueID` (stable) or
+/// `name` + `manufacturer` (human-readable).
 public struct MIDIDestinationInfo: Sendable, Identifiable, Hashable {
+    /// Session-scoped identifier (not persistent)
     public var id: UInt32 { destinationID.value }
     
     public let destinationID: MIDIDestinationID
@@ -51,11 +142,26 @@ public struct MIDIDestinationInfo: Sendable, Identifiable, Hashable {
     public let manufacturer: String?
     public let isOnline: Bool
     
-    public init(destinationID: MIDIDestinationID, name: String, manufacturer: String? = nil, isOnline: Bool = true) {
+    /// Persistent unique ID from CoreMIDI (`kMIDIPropertyUniqueID`)
+    ///
+    /// This value survives reboots and device reconnections. Use this
+    /// for persistent device identification across app launches.
+    ///
+    /// - Note: May be `nil` for virtual endpoints or if the property is unavailable.
+    public let uniqueID: Int32?
+    
+    public init(
+        destinationID: MIDIDestinationID,
+        name: String,
+        manufacturer: String? = nil,
+        isOnline: Bool = true,
+        uniqueID: Int32? = nil
+    ) {
         self.destinationID = destinationID
         self.name = name
         self.manufacturer = manufacturer
         self.isOnline = isOnline
+        self.uniqueID = uniqueID
     }
 }
 

@@ -169,7 +169,8 @@ extension MockMIDITransport {
                 sourceID: MIDISourceID(1),
                 name: "KORG Module Pro",
                 manufacturer: "KORG",
-                isOnline: true
+                isOnline: true,
+                uniqueID: 0x4B4F5247  // "KORG" in hex (example persistent ID)
             )
         ]
         mockDestinations = [
@@ -177,7 +178,8 @@ extension MockMIDITransport {
                 destinationID: MIDIDestinationID(1),
                 name: "KORG Module Pro",
                 manufacturer: "KORG",
-                isOnline: true
+                isOnline: true,
+                uniqueID: 0x4B4F5248  // Different from source (example)
             )
         ]
     }

@@ -272,6 +272,136 @@ public enum CIMessageParser {
             thisChunk: payload.thisChunk
         )
     }
+    
+    // MARK: - PE Subscribe Reply Parser
+    
+    /// Subscribe Reply payload structure
+    public struct SubscribeReplyPayload: Sendable {
+        public let requestID: UInt8
+        public let headerData: Data
+        public let status: Int?
+        public let subscribeId: String?
+    }
+    
+    /// Parse PE Subscribe Reply payload
+    public static func parseSubscribeReply(_ payload: [UInt8]) -> SubscribeReplyPayload? {
+        // Same format as PE Reply
+        guard let peReply = parsePEReply(payload) else { return nil }
+        
+        // Parse header JSON for status and subscribeId
+        var status: Int? = nil
+        var subscribeId: String? = nil
+        
+        if !peReply.headerData.isEmpty,
+           let json = try? JSONSerialization.jsonObject(with: peReply.headerData) as? [String: Any] {
+            status = json["status"] as? Int
+            subscribeId = json["subscribeId"] as? String
+        }
+        
+        return SubscribeReplyPayload(
+            requestID: peReply.requestID,
+            headerData: peReply.headerData,
+            status: status,
+            subscribeId: subscribeId
+        )
+    }
+    
+    // MARK: - PE Notify Parser
+    
+    /// Notify payload structure
+    public struct NotifyPayload: Sendable {
+        public let requestID: UInt8
+        public let headerData: Data
+        public let propertyData: Data
+        public let numChunks: Int
+        public let thisChunk: Int
+        public let subscribeId: String?
+        public let resource: String?
+    }
+    
+    /// Parse PE Notify payload
+    public static func parseNotify(_ payload: [UInt8]) -> NotifyPayload? {
+        // Same format as PE Reply
+        guard let peReply = parsePEReply(payload) else { return nil }
+        
+        // Parse header JSON for subscribeId and resource
+        var subscribeId: String? = nil
+        var resource: String? = nil
+        
+        if !peReply.headerData.isEmpty,
+           let json = try? JSONSerialization.jsonObject(with: peReply.headerData) as? [String: Any] {
+            subscribeId = json["subscribeId"] as? String
+            resource = json["resource"] as? String
+        }
+        
+        return NotifyPayload(
+            requestID: peReply.requestID,
+            headerData: peReply.headerData,
+            propertyData: peReply.propertyData,
+            numChunks: peReply.numChunks,
+            thisChunk: peReply.thisChunk,
+            subscribeId: subscribeId,
+            resource: resource
+        )
+    }
+    
+    /// Full Notify structure (including MUIDs)
+    public struct FullNotify: Sendable {
+        public let sourceMUID: MUID
+        public let destinationMUID: MUID
+        public let requestID: UInt8
+        public let headerData: Data
+        public let propertyData: Data
+        public let numChunks: Int
+        public let thisChunk: Int
+        public let subscribeId: String?
+        public let resource: String?
+    }
+    
+    /// Parse complete PE Notify SysEx message
+    public static func parseFullNotify(_ data: [UInt8]) -> FullNotify? {
+        guard let parsed = parse(data) else { return nil }
+        guard parsed.messageType == .peNotify else { return nil }
+        guard let payload = parseNotify(parsed.payload) else { return nil }
+        
+        return FullNotify(
+            sourceMUID: parsed.sourceMUID,
+            destinationMUID: parsed.destinationMUID,
+            requestID: payload.requestID,
+            headerData: payload.headerData,
+            propertyData: payload.propertyData,
+            numChunks: payload.numChunks,
+            thisChunk: payload.thisChunk,
+            subscribeId: payload.subscribeId,
+            resource: payload.resource
+        )
+    }
+    
+    /// Full Subscribe Reply structure
+    public struct FullSubscribeReply: Sendable {
+        public let sourceMUID: MUID
+        public let destinationMUID: MUID
+        public let requestID: UInt8
+        public let headerData: Data
+        public let status: Int?
+        public let subscribeId: String?
+    }
+    
+    /// Parse complete PE Subscribe Reply SysEx message
+    public static func parseFullSubscribeReply(_ data: [UInt8]) -> FullSubscribeReply? {
+        guard let parsed = parse(data) else { return nil }
+        guard parsed.messageType == .peSubscribeReply else { return nil }
+        guard let payload = parseSubscribeReply(parsed.payload) else { return nil }
+        
+        return FullSubscribeReply(
+            sourceMUID: parsed.sourceMUID,
+            destinationMUID: parsed.destinationMUID,
+            requestID: payload.requestID,
+            headerData: payload.headerData,
+            status: payload.status,
+            subscribeId: payload.subscribeId
+        )
+    }
 }
 
 // MARK: - Convenience Extensions

@@ -276,4 +276,64 @@ public enum CIMessageBuilder {
         let json = "{\"resource\":\"\(resource)\",\"offset\":\(offset),\"limit\":\(limit)}"
         return Data(json.utf8)
     }
+    
+    // MARK: - Property Exchange Subscribe
+    
+    /// Build PE Subscribe Inquiry message
+    public static func peSubscribeInquiry(
+        sourceMUID: MUID,
+        destinationMUID: MUID,
+        requestID: UInt8,
+        headerData: Data
+    ) -> [UInt8] {
+        var message: [UInt8] = [
+            MIDICIConstants.sysExStart,
+            MIDICIConstants.sysExNonRealtime,
+            0x7F,
+            MIDICIConstants.ciSubID1,
+            CIMessageType.peSubscribe.rawValue,
+            MIDICIConstants.ciVersion1_2
+        ]
+        
+        message.append(contentsOf: sourceMUID.bytes)
+        message.append(contentsOf: destinationMUID.bytes)
+        
+        // Request ID (7-bit)
+        message.append(requestID & 0x7F)
+        
+        // Header size (14-bit, LSB first)
+        let headerSize = headerData.count
+        message.append(UInt8(headerSize & 0x7F))
+        message.append(UInt8((headerSize >> 7) & 0x7F))
+        
+        // Number of chunks (1 for inquiry)
+        message.append(0x01)
+        message.append(0x00)
+        
+        // This chunk (1)
+        message.append(0x01)
+        message.append(0x00)
+        
+        // Property data size (0 for subscribe inquiry)
+        message.append(0x00)
+        message.append(0x00)
+        
+        // Header data
+        message.append(contentsOf: headerData)
+        
+        message.append(MIDICIConstants.sysExEnd)
+        return message
+    }
+    
+    /// Build JSON header for subscribe start
+    public static func subscribeStartHeader(resource: String) -> Data {
+        let json = "{\"resource\":\"\(resource)\",\"command\":\"start\"}"
+        return Data(json.utf8)
+    }
+    
+    /// Build JSON header for subscribe end (unsubscribe)
+    public static func subscribeEndHeader(resource: String, subscribeId: String) -> Data {
+        let json = "{\"resource\":\"\(resource)\",\"command\":\"end\",\"subscribeId\":\"\(subscribeId)\"}"
+        return Data(json.utf8)
+    }
 }

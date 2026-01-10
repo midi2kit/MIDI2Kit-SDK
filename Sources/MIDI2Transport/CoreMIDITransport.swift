@@ -207,7 +207,8 @@ public final class CoreMIDITransport: MIDITransport, @unchecked Sendable {
                     sourceID: MIDISourceID(UInt32(source)),
                     name: getEndpointName(source),
                     manufacturer: getEndpointManufacturer(source),
-                    isOnline: isEndpointOnline(source)
+                    isOnline: isEndpointOnline(source),
+                    uniqueID: getEndpointUniqueID(source)
                 )
                 result.append(info)
             }
@@ -227,7 +228,8 @@ public final class CoreMIDITransport: MIDITransport, @unchecked Sendable {
                     destinationID: MIDIDestinationID(UInt32(dest)),
                     name: getEndpointName(dest),
                     manufacturer: getEndpointManufacturer(dest),
-                    isOnline: isEndpointOnline(dest)
+                    isOnline: isEndpointOnline(dest),
+                    uniqueID: getEndpointUniqueID(dest)
                 )
                 result.append(info)
             }
@@ -407,6 +409,24 @@ public final class CoreMIDITransport: MIDITransport, @unchecked Sendable {
         var offline: Int32 = 0
         MIDIObjectGetIntegerProperty(endpoint, kMIDIPropertyOffline, &offline)
         return offline == 0
+    }
+    
+    /// Get the persistent unique ID for an endpoint
+    ///
+    /// - Parameter endpoint: The MIDI endpoint reference
+    /// - Returns: The unique ID, or `nil` if unavailable
+    ///
+    /// - Note: `kMIDIPropertyUniqueID` returns 0 for some virtual endpoints.
+    ///         We treat 0 as "unavailable" and return `nil`.
+    private func getEndpointUniqueID(_ endpoint: MIDIEndpointRef) -> Int32? {
+        var uniqueID: Int32 = 0
+        let status = MIDIObjectGetIntegerProperty(endpoint, kMIDIPropertyUniqueID, &uniqueID)
+        
+        // Return nil if property unavailable or if uniqueID is 0 (invalid/unset)
+        guard status == noErr, uniqueID != 0 else {
+            return nil
+        }
+        return uniqueID
     }
 }
 
