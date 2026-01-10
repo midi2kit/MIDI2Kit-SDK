@@ -189,11 +189,14 @@ public actor PEManager {
         }
         timeoutTasks.removeAll()
         
-        // Cancel all pending transactions
+        // Cancel all pending transactions (resume continuations with error)
         for (requestID, continuation) in pendingContinuations {
             continuation.resume(throwing: PEError.cancelled)
             pendingContinuations.removeValue(forKey: requestID)
         }
+        
+        // Cancel all active transactions and release Request IDs
+        await transactionManager.cancelAll()
         
         logger.info("PEManager stopped", category: Self.logCategory)
     }

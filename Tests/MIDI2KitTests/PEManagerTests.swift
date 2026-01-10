@@ -201,6 +201,112 @@ struct PEManagerTests {
         getTask.cancel()
         await manager.stopReceiving()
     }
+    
+    // MARK: - Request ID Leak Tests
+    
+    @Test("stopReceiving releases all Request IDs")
+    func stopReceivingReleasesAllRequestIDs() async throws {
+        let transport = MockMIDITransport()
+        let manager = PEManager(
+            transport: transport,
+            sourceMUID: sourceMUID
+        )
+        
+        await manager.startReceiving()
+        
+        // Start multiple GET requests (they will be pending)
+        let tasks = (0..<5).map { i in
+            Task {
+                try await manager.get(
+                    resource: "Resource\(i)",
+                    from: deviceMUID,
+                    via: destinationID,
+                    timeout: Duration.seconds(10)  // Long timeout
+                )
+            }
+        }
+        
+        // Wait for requests to be sent
+        try await Task.sleep(for: .milliseconds(50))
+        
+        // Verify requests are pending
+        let diagBefore = await manager.diagnostics
+        #expect(diagBefore.contains("Pending requests: 5"))
+        #expect(diagBefore.contains("Active transactions: 5"))
+        
+        // Stop receiving - should release all Request IDs
+        await manager.stopReceiving()
+        
+        // Verify all tasks were cancelled
+        for task in tasks {
+            do {
+                _ = try await task.value
+                Issue.record("Expected cancellation error")
+            } catch let error as PEError {
+                if case .cancelled = error {
+                    // Expected
+                } else {
+                    Issue.record("Expected cancelled, got \(error)")
+                }
+            }
+        }
+        
+        // Verify all Request IDs are released
+        let diagAfter = await manager.diagnostics
+        #expect(diagAfter.contains("Available IDs: 128"))
+        #expect(diagAfter.contains("Active transactions: 0"))
+    }
+    
+    @Test("Request IDs can be reused after stopReceiving")
+    func requestIDsCanBeReusedAfterStop() async throws {
+        let transport = MockMIDITransport()
+        let manager = PEManager(
+            transport: transport,
+            sourceMUID: sourceMUID
+        )
+        
+        // First cycle: start requests and stop
+        await manager.startReceiving()
+        
+        let task1 = Task {
+            try await manager.get(
+                resource: "DeviceInfo",
+                from: deviceMUID,
+                via: destinationID,
+                timeout: Duration.seconds(10)
+            )
+        }
+        
+        try await Task.sleep(for: .milliseconds(30))
+        await manager.stopReceiving()
+        
+        // Wait for cancellation
+        _ = try? await task1.value
+        
+        // Clear sent messages
+        await transport.clearSentMessages()
+        
+        // Second cycle: should work normally
+        await manager.startReceiving()
+        
+        let task2 = Task {
+            try await manager.get(
+                resource: "ResourceList",
+                from: deviceMUID,
+                via: destinationID,
+                timeout: Duration.milliseconds(100)
+            )
+        }
+        
+        try await Task.sleep(for: .milliseconds(30))
+        
+        // Verify new request was sent
+        let sent = await transport.sentMessages
+        #expect(sent.count == 1)
+        
+        task2.cancel()
+        await manager.stopReceiving()
+    }
 }
 
 // MARK: - PEResponse Tests
