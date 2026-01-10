@@ -489,11 +489,13 @@ public actor PETransactionManager {
     ) -> PEChunkResult {
         guard var assembler = chunkAssemblers[requestID],
               let transaction = activeTransactions[requestID] else {
+            // Distinct from timeout: transaction doesn't exist
+            // Could be: late response, cancelled, misrouted, or ID collision
             logger.warning(
-                "Chunk received for unknown transaction \(requestID)",
+                "Chunk for unknown requestID \(requestID) (possible late/duplicate response)",
                 category: Self.logCategory
             )
-            return .timeout(requestID: requestID, received: 0, total: numChunks, partial: nil)
+            return .unknownRequestID(requestID: requestID)
         }
         
         logger.debug(

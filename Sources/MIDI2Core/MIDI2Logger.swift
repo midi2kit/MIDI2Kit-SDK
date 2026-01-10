@@ -285,3 +285,124 @@ public final class CompositeMIDI2Logger: MIDI2Logger, @unchecked Sendable {
     }
 }
 
+// MARK: - Logging Utilities
+
+/// Utilities for safe, structured logging
+///
+/// ## Logging Guidelines
+///
+/// ### What to Log (Structured Data)
+/// - Request ID, MUID, resource name
+/// - Chunk progress (thisChunk/numChunks)
+/// - Status codes, timeout types
+/// - Data size (not content)
+/// - First N bytes as hex (limited preview)
+///
+/// ### What NOT to Log
+/// - Full SysEx dumps (size, performance, sensitive)
+/// - Complete message bodies
+/// - Raw binary data without limits
+///
+/// ### Log Levels
+/// - `debug`: Development only, detailed flow (chunk received, state changes)
+/// - `info`: Lifecycle events (start/stop monitoring, connection changes)
+/// - `notice`: Notable events (timeout, transaction complete)
+/// - `warning`: Recoverable issues (unknown requestID, near exhaustion)
+/// - `error`: Operation failures (ID exhausted, send failed)
+/// - `fault`: Critical issues (data corruption, invariant violations)
+public enum MIDI2LogUtils {
+    
+    /// Maximum bytes to include in hex preview (default: 32)
+    public static let defaultHexPreviewLimit = 32
+    
+    /// Format data as limited hex string for safe logging
+    ///
+    /// - Parameters:
+    ///   - data: Data to format
+    ///   - limit: Maximum bytes to show (default: 32)
+    /// - Returns: Hex string with truncation indicator if needed
+    ///
+    /// Example output: "F0 7E 7F 0D 34 01..." (32 of 128 bytes)
+    public static func hexPreview(_ data: Data, limit: Int = defaultHexPreviewLimit) -> String {
+        hexPreview(Array(data), limit: limit)
+    }
+    
+    /// Format byte array as limited hex string for safe logging
+    ///
+    /// - Parameters:
+    ///   - bytes: Bytes to format
+    ///   - limit: Maximum bytes to show (default: 32)
+    /// - Returns: Hex string with truncation indicator if needed
+    public static func hexPreview(_ bytes: [UInt8], limit: Int = defaultHexPreviewLimit) -> String {
+        guard !bytes.isEmpty else { return "(empty)" }
+        
+        let preview = bytes.prefix(limit)
+        let hex = preview.map { String(format: "%02X", $0) }.joined(separator: " ")
+        
+        if bytes.count > limit {
+            return "\(hex)... (\(limit) of \(bytes.count) bytes)"
+        } else {
+            return "\(hex) (\(bytes.count) bytes)"
+        }
+    }
+    
+    /// Format MUID for logging (hex representation)
+    public static func formatMUID(_ muid: UInt32) -> String {
+        String(format: "0x%08X", muid)
+    }
+    
+    /// Format chunk progress for logging
+    ///
+    /// Example output: "3/5 chunks"
+    public static func chunkProgress(received: Int, total: Int) -> String {
+        "\(received)/\(total) chunks"
+    }
+    
+    /// Format transaction info for structured logging
+    ///
+    /// Example output: "[42] DeviceInfo -> 0x12345678"
+    public static func transactionInfo(requestID: UInt8, resource: String, destinationMUID: UInt32) -> String {
+        "[\(requestID)] \(resource) -> \(formatMUID(destinationMUID))"
+    }
+    
+    /// Format PE response summary for logging
+    ///
+    /// Example output: "status=200, header=45B, body=1024B"
+    public static func responseSummary(status: Int, headerSize: Int, bodySize: Int) -> String {
+        "status=\(status), header=\(headerSize)B, body=\(bodySize)B"
+    }
+    
+    /// Format timeout event for logging
+    ///
+    /// Example output: "timeout after 5.0s (received 2/4 chunks)"
+    public static func timeoutInfo(elapsedSeconds: TimeInterval, receivedChunks: Int, totalChunks: Int) -> String {
+        let elapsed = String(format: "%.1f", elapsedSeconds)
+        return "timeout after \(elapsed)s (received \(receivedChunks)/\(totalChunks) chunks)"
+    }
+}
+
+// MARK: - Convenience Extensions
+
+extension Data {
+    /// Safe hex preview for logging (limited to 32 bytes by default)
+    public var logPreview: String {
+        MIDI2LogUtils.hexPreview(self)
+    }
+    
+    /// Safe hex preview with custom limit
+    public func logPreview(limit: Int) -> String {
+        MIDI2LogUtils.hexPreview(self, limit: limit)
+    }
+}
+
+extension Array where Element == UInt8 {
+    /// Safe hex preview for logging (limited to 32 bytes by default)
+    public var logPreview: String {
+        MIDI2LogUtils.hexPreview(self)
+    }
+    
+    /// Safe hex preview with custom limit
+    public func logPreview(limit: Int) -> String {
+        MIDI2LogUtils.hexPreview(self, limit: limit)
+    }
+}

@@ -17,6 +17,31 @@ public enum PEChunkResult: Sendable {
     
     /// Timed out waiting for chunks
     case timeout(requestID: UInt8, received: Int, total: Int, partial: Data?)
+    
+    /// Request ID not found in active transactions
+    ///
+    /// This is distinct from timeout - indicates one of:
+    /// - Duplicate/late response for already-completed transaction
+    /// - Response for cancelled transaction
+    /// - Misrouted message (ID collision)
+    /// - Message received before transaction started
+    case unknownRequestID(requestID: UInt8)
+}
+
+extension PEChunkResult: CustomStringConvertible {
+    public var description: String {
+        switch self {
+        case .incomplete(let received, let total):
+            return "incomplete(\(received)/\(total))"
+        case .complete(let header, let body):
+            return "complete(header: \(header.count)B, body: \(body.count)B)"
+        case .timeout(let requestID, let received, let total, let partial):
+            let partialInfo = partial.map { "\($0.count)B partial" } ?? "no partial"
+            return "timeout(id: \(requestID), \(received)/\(total), \(partialInfo))"
+        case .unknownRequestID(let requestID):
+            return "unknownRequestID(\(requestID))"
+        }
+    }
 }
 
 /// Pending chunk assembly state
