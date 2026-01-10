@@ -2,193 +2,113 @@
 //  PETransactionManager.swift
 //  MIDI2Kit
 //
-//  Manages PE transaction lifecycle to prevent Request ID leaks
+//  Manages PE transaction lifecycle: Request ID allocation, chunk assembly, and transaction tracking.
+//
+//  ## Responsibility Separation
+//
+//  - **PETransactionManager**: Request ID lifecycle, chunk assembly, transaction state tracking
+//  - **PEManager**: Timeout management, continuation handling, response delivery
+//
+//  This separation ensures:
+//  1. Single source of truth for Request ID allocation/release
+//  2. Single source of truth for timeout-to-continuation mapping
+//  3. No duplicate monitoring or completion handling logic
 //
 
 import Foundation
 import MIDI2Core
 
+// MARK: - PE Transaction
+
 /// PE Transaction state
+///
+/// Tracks an in-flight Property Exchange request.
 public struct PETransaction: Sendable, Identifiable {
-    public let id: UInt8  // Request ID
+    /// Request ID (0-127)
+    public let id: UInt8
+    
+    /// Resource being requested
     public let resource: String
+    
+    /// Target device MUID
     public let destinationMUID: MUID
+    
+    /// When the transaction started
     public let startTime: Date
+    
+    /// Transaction timeout (for diagnostics only - actual timeout enforced by PEManager)
     public let timeout: TimeInterval
     
-    /// Check if transaction has timed out
-    public func isTimedOut(at now: Date = Date()) -> Bool {
-        now.timeIntervalSince(startTime) > timeout
+    /// Calculate elapsed time
+    public func elapsed(at now: Date = Date()) -> TimeInterval {
+        now.timeIntervalSince(startTime)
     }
 }
 
-/// Transaction completion result
-public enum PETransactionResult: Sendable {
-    case success(header: Data, body: Data)
-    case error(status: Int, message: String?)
-    case timeout
-    case cancelled
-}
+// MARK: - PETransactionManager
 
-/// Configuration for timeout monitoring
-public struct PEMonitoringConfiguration: Sendable {
-    /// Interval between timeout checks (seconds)
-    public let checkInterval: TimeInterval
-    
-    /// If true, monitoring starts automatically on first `begin()` call
-    ///
-    /// When enabled, you don't need to manually call `startMonitoring()` or hold a handle.
-    /// The manager keeps an internal strong reference to the monitoring task.
-    ///
-    /// Default: `false` (explicit `startMonitoring()` required)
-    public let autoStart: Bool
-    
-    public init(checkInterval: TimeInterval = 1.0, autoStart: Bool = false) {
-        self.checkInterval = checkInterval
-        self.autoStart = autoStart
-    }
-    
-    public static let `default` = PEMonitoringConfiguration()
-    
-    /// Configuration with auto-start enabled
-    public static let autoStartEnabled = PEMonitoringConfiguration(autoStart: true)
-}
-
-/// Shared running state between Task and Handle
-private final class MonitorRunningState: @unchecked Sendable {
-    private let lock = NSLock()
-    private var _isRunning: Bool = true
-    
-    var isRunning: Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        return _isRunning
-    }
-    
-    func markStopped() {
-        lock.lock()
-        defer { lock.unlock() }
-        _isRunning = false
-    }
-}
-
-/// Handle for timeout monitoring
+/// Manages PE transaction lifecycle
 ///
-/// The monitoring task runs while this handle is held.
-/// When the handle is deallocated, monitoring stops automatically.
+/// This actor handles:
+/// - **Request ID allocation/release** via PERequestIDManager
+/// - **Chunk assembly** via PEChunkAssembler
+/// - **Transaction state tracking** for diagnostics
+///
+/// It does NOT handle:
+/// - Timeout scheduling (handled by PEManager)
+/// - Continuation management (handled by PEManager)
+/// - Response delivery (handled by PEManager)
 ///
 /// ## Usage
-/// ```swift
-/// class MyMIDIManager {
-///     let transactionManager = PETransactionManager()
-///     var monitorHandle: PEMonitorHandle?  // Hold this!
 ///
-///     func start() {
-///         monitorHandle = transactionManager.startMonitoring()
-///     }
-///
-///     func stop() {
-///         monitorHandle = nil  // Monitoring stops
-///     }
-/// }
-/// ```
-public final class PEMonitorHandle: Sendable {
-    private let task: Task<Void, Never>
-    private let stopCallback: @Sendable () async -> Void
-    private let runningState: MonitorRunningState
-    
-    fileprivate init(task: Task<Void, Never>, runningState: MonitorRunningState, stopCallback: @escaping @Sendable () async -> Void) {
-        self.task = task
-        self.runningState = runningState
-        self.stopCallback = stopCallback
-    }
-    
-    deinit {
-        task.cancel()
-        runningState.markStopped()
-        // Note: Can't await in deinit, but cancel() is enough
-    }
-    
-    /// Explicitly stop monitoring
-    public func stop() async {
-        task.cancel()
-        runningState.markStopped()
-        await stopCallback()
-    }
-    
-    /// Check if monitoring is still active
-    public var isActive: Bool {
-        runningState.isRunning && !task.isCancelled
-    }
-}
-
-/// Manages PE transactions with automatic cleanup to prevent Request ID leaks
-///
-/// Key features:
-/// - **Automatic timeout monitoring** via `startMonitoring()` returning a handle
-/// - **Auto-start option** for convenience (no handle management needed)
-/// - Guaranteed Request ID release on completion/error/timeout
-/// - Transaction state monitoring
-/// - Leak detection and warnings
-///
-/// ## Usage (Explicit Monitoring - Recommended)
 /// ```swift
 /// let manager = PETransactionManager()
 ///
-/// // Start monitoring - HOLD the handle!
-/// let handle = await manager.startMonitoring()
+/// // Begin transaction - allocates Request ID
+/// guard let requestID = await manager.begin(
+///     resource: "DeviceInfo",
+///     destinationMUID: device,
+///     timeout: 5.0
+/// ) else {
+///     throw PEError.requestIDExhausted
+/// }
 ///
-/// let requestID = await manager.begin(resource: "DeviceInfo", destinationMUID: device)
-/// // ... use requestID ...
-///
-/// // When done, release handle or call stop()
-/// await handle.stop()
-/// ```
-///
-/// ## Usage (Auto-Start - Convenient but less control)
-/// ```swift
-/// let manager = PETransactionManager(
-///     monitoringConfig: .autoStartEnabled
+/// // Process incoming chunks
+/// let result = await manager.processChunk(
+///     requestID: requestID,
+///     thisChunk: 1,
+///     numChunks: 3,
+///     headerData: headerData,
+///     propertyData: propertyData
 /// )
 ///
-/// // No need to call startMonitoring() - starts automatically on first begin()
-/// let requestID = await manager.begin(resource: "DeviceInfo", destinationMUID: device)
+/// // On completion/error/timeout, cancel to release Request ID
+/// await manager.cancel(requestID: requestID)
 /// ```
 public actor PETransactionManager {
     
     // MARK: - Configuration
     
-    /// Default transaction timeout (seconds)
-    public static let defaultTimeout: TimeInterval = 5.0
-    
-    /// Warning threshold for active transactions
+    /// Warning threshold for active transactions (possible leak indicator)
     public static let warningThreshold: Int = 100
     
     /// Log category
     private static let logCategory = "PETransaction"
     
-    // MARK: - State
+    // MARK: - Dependencies
     
-    private var requestIDManager = PERequestIDManager()
-    private var activeTransactions: [UInt8: PETransaction] = [:]
-    private var chunkAssemblers: [UInt8: PEChunkAssembler] = [:]
-    
-    /// Logger instance
     private let logger: any MIDI2Logger
     
-    /// Monitoring configuration
-    private let monitoringConfig: PEMonitoringConfiguration
+    // MARK: - State
     
-    /// Continuations waiting for transaction completion
-    private var completionHandlers: [UInt8: CheckedContinuation<PETransactionResult, Never>] = [:]
+    /// Request ID manager
+    private var requestIDManager = PERequestIDManager()
     
-    // MARK: - Monitoring State
+    /// Active transactions by Request ID
+    private var activeTransactions: [UInt8: PETransaction] = [:]
     
-    /// Weak reference to current monitor handle (for idempotency check)
-    private weak var currentMonitorHandle: PEMonitorHandle?
-    
-    /// Strong reference for auto-started monitoring (keeps monitoring alive)
-    private var autoStartedMonitorHandle: PEMonitorHandle?
+    /// Chunk assemblers by Request ID
+    private var chunkAssemblers: [UInt8: PEChunkAssembler] = [:]
     
     // MARK: - Public Properties
     
@@ -197,152 +117,52 @@ public actor PETransactionManager {
         activeTransactions.count
     }
     
-    /// Available Request IDs
+    /// Number of available Request IDs
     public var availableIDs: Int {
         requestIDManager.availableCount
     }
     
-    /// Check if approaching ID exhaustion
+    /// Check if approaching ID exhaustion (< 10 available)
     public var isNearExhaustion: Bool {
         availableIDs < 10
     }
     
-    /// Whether monitoring is currently active
-    public var isMonitoring: Bool {
-        currentMonitorHandle?.isActive ?? false
-    }
-    
     // MARK: - Initialization
     
-    /// Initialize with optional logger and monitoring configuration
-    /// - Parameters:
-    ///   - logger: Logger instance (default: NullMIDI2Logger - silent)
-    ///   - monitoringConfig: Monitoring configuration (use `.autoStartEnabled` for auto-start)
-    public init(
-        logger: any MIDI2Logger = NullMIDI2Logger(),
-        monitoringConfig: PEMonitoringConfiguration = .default
-    ) {
+    /// Initialize with optional logger
+    /// - Parameter logger: Logger instance (default: NullMIDI2Logger - silent)
+    public init(logger: any MIDI2Logger = NullMIDI2Logger()) {
         self.logger = logger
-        self.monitoringConfig = monitoringConfig
-    }
-    
-    // MARK: - Monitoring Control
-    
-    /// Start automatic timeout monitoring
-    ///
-    /// Returns a handle that controls the monitoring lifecycle.
-    /// **You must hold this handle** - monitoring stops when the handle is deallocated.
-    ///
-    /// Safe to call multiple times - returns existing handle if already monitoring.
-    ///
-    /// - Returns: Monitor handle (hold this to keep monitoring active)
-    @discardableResult
-    public func startMonitoring() -> PEMonitorHandle {
-        // Idempotent: return existing handle if still active
-        if let existing = currentMonitorHandle, existing.isActive {
-            logger.debug("Monitoring already active, returning existing handle", category: Self.logCategory)
-            return existing
-        }
-        
-        logger.info("Starting timeout monitoring (interval: \(monitoringConfig.checkInterval)s)", category: Self.logCategory)
-        
-        let interval = monitoringConfig.checkInterval
-        
-        // Shared state between Task and Handle
-        let runningState = MonitorRunningState()
-        
-        // Create task with weak self to avoid retain cycle
-        let task = Task { [weak self, runningState] in
-            defer { runningState.markStopped() }  // Mark stopped when loop exits
-            
-            while !Task.isCancelled {
-                // Check if self still exists
-                guard let self = self else {
-                    break
-                }
-                
-                // Perform timeout check (actor-isolated)
-                let timedOut = await self.checkTimeouts()
-                
-                if !timedOut.isEmpty {
-                    self.logger.debug(
-                        "Monitoring: cleaned up \(timedOut.count) timed-out transaction(s)",
-                        category: Self.logCategory
-                    )
-                }
-                
-                // Sleep until next check
-                do {
-                    try await Task.sleep(for: .seconds(interval))
-                } catch {
-                    // Task was cancelled
-                    break
-                }
-            }
-        }
-        
-        let handle = PEMonitorHandle(task: task, runningState: runningState) { [weak self] in
-            await self?.onMonitoringStopped()
-        }
-        
-        currentMonitorHandle = handle
-        return handle
-    }
-    
-    /// Stop monitoring (for auto-started monitoring)
-    ///
-    /// If monitoring was auto-started, this stops it.
-    /// If monitoring was started manually via `startMonitoring()`, 
-    /// you should use the handle's `stop()` method instead.
-    public func stopMonitoring() async {
-        if let handle = autoStartedMonitorHandle {
-            await handle.stop()
-            autoStartedMonitorHandle = nil
-        }
-    }
-    
-    /// Called when monitoring stops (handle deallocated or stop() called)
-    private func onMonitoringStopped() {
-        logger.info("Timeout monitoring stopped", category: Self.logCategory)
-        currentMonitorHandle = nil
-        autoStartedMonitorHandle = nil
     }
     
     // MARK: - Transaction Lifecycle
     
     /// Begin a new PE transaction
     ///
-    /// If `autoStart` is enabled in the monitoring configuration,
-    /// this method will automatically start monitoring on the first call.
+    /// Allocates a Request ID and creates transaction tracking state.
     ///
     /// - Parameters:
     ///   - resource: Resource being requested
     ///   - destinationMUID: Target device MUID
-    ///   - timeout: Transaction timeout (default: 5s)
-    /// - Returns: Request ID, or nil if exhausted
+    ///   - timeout: Transaction timeout (for chunk assembler inter-chunk timeout)
+    /// - Returns: Allocated Request ID, or nil if all 128 IDs are in use
     public func begin(
         resource: String,
         destinationMUID: MUID,
-        timeout: TimeInterval = defaultTimeout
+        timeout: TimeInterval = 5.0
     ) -> UInt8? {
-        // Auto-start monitoring if configured and not already running
-        if monitoringConfig.autoStart && !isMonitoring {
-            logger.info("Auto-starting timeout monitoring", category: Self.logCategory)
-            autoStartedMonitorHandle = startMonitoring()
-        }
-        
-        // Check for exhaustion
+        // Warn if near exhaustion
         if isNearExhaustion {
             logger.warning(
-                "Only \(availableIDs) Request IDs remaining",
+                "Request ID near exhaustion: only \(availableIDs) remaining",
                 category: Self.logCategory
             )
         }
         
-        // Acquire ID
+        // Acquire Request ID
         guard let requestID = requestIDManager.acquire() else {
             logger.error(
-                "All 128 Request IDs in use!",
+                "Request ID exhausted: all 128 IDs in use",
                 category: Self.logCategory
             )
             return nil
@@ -360,125 +180,104 @@ public actor PETransactionManager {
         activeTransactions[requestID] = transaction
         chunkAssemblers[requestID] = PEChunkAssembler(timeout: timeout)
         
-        // Warn if too many active
+        // Warn if too many active (possible leak)
         if activeCount > Self.warningThreshold {
             logger.warning(
-                "\(activeCount) active transactions (possible leak)",
+                "High transaction count: \(activeCount) active (possible leak)",
                 category: Self.logCategory
             )
         }
         
         logger.debug(
-            "Begin transaction \(requestID): \(resource) -> \(destinationMUID)",
+            "Begin [\(requestID)] \(resource) -> \(destinationMUID)",
             category: Self.logCategory
         )
         
         return requestID
     }
     
-    /// Complete a transaction successfully
-    /// - Parameters:
-    ///   - requestID: Request ID
-    ///   - header: Response header
-    ///   - body: Response body
-    public func complete(requestID: UInt8, header: Data, body: Data) {
-        guard let transaction = activeTransactions[requestID] else {
-            logger.warning(
-                "No transaction found for request ID \(requestID)",
-                category: Self.logCategory
-            )
-            return
-        }
-        
-        logger.debug(
-            "Complete transaction \(requestID): \(transaction.resource) (\(body.count) bytes)",
-            category: Self.logCategory
-        )
-        
-        let result = PETransactionResult.success(header: header, body: body)
-        finalizeTransaction(requestID: requestID, result: result)
-    }
-    
-    /// Complete a transaction with error
-    /// - Parameters:
-    ///   - requestID: Request ID
-    ///   - status: HTTP-style status code
-    ///   - message: Error message
-    public func completeWithError(requestID: UInt8, status: Int, message: String? = nil) {
-        guard activeTransactions[requestID] != nil else {
-            logger.warning(
-                "No transaction found for request ID \(requestID)",
-                category: Self.logCategory
-            )
-            return
-        }
-        
-        logger.notice(
-            "Transaction \(requestID) error: \(status) \(message ?? "")",
-            category: Self.logCategory
-        )
-        
-        let result = PETransactionResult.error(status: status, message: message)
-        finalizeTransaction(requestID: requestID, result: result)
-    }
-    
-    /// Cancel a transaction
-    /// - Parameter requestID: Request ID
+    /// Cancel a transaction and release its Request ID
+    ///
+    /// Safe to call multiple times or with unknown Request ID.
+    ///
+    /// - Parameter requestID: Request ID to cancel
     public func cancel(requestID: UInt8) {
-        guard activeTransactions[requestID] != nil else { return }
+        guard activeTransactions.removeValue(forKey: requestID) != nil else {
+            // Already cancelled or never existed - this is fine
+            return
+        }
+        
+        chunkAssemblers.removeValue(forKey: requestID)
+        requestIDManager.release(requestID)
         
         logger.debug(
-            "Cancel transaction \(requestID)",
+            "Cancel [\(requestID)]",
             category: Self.logCategory
         )
-        
-        finalizeTransaction(requestID: requestID, result: .cancelled)
     }
     
-    /// Cancel all transactions for a device (e.g., device disconnected)
+    /// Cancel all transactions for a specific device
+    ///
+    /// Useful when a device disconnects.
+    ///
     /// - Parameter muid: Device MUID
-    public func cancelAll(for muid: MUID) {
+    /// - Returns: Number of cancelled transactions
+    @discardableResult
+    public func cancelAll(for muid: MUID) -> Int {
         let toCancel = activeTransactions.values
             .filter { $0.destinationMUID == muid }
             .map { $0.id }
         
-        if !toCancel.isEmpty {
-            logger.notice(
-                "Cancel \(toCancel.count) transactions for device \(muid)",
-                category: Self.logCategory
-            )
-        }
-        
         for requestID in toCancel {
             cancel(requestID: requestID)
         }
-    }
-    
-    /// Cancel all transactions
-    public func cancelAll() {
-        let allIDs = Array(activeTransactions.keys)
         
-        if !allIDs.isEmpty {
+        if !toCancel.isEmpty {
             logger.notice(
-                "Cancel all \(allIDs.count) transactions",
+                "Cancelled \(toCancel.count) transactions for device \(muid)",
                 category: Self.logCategory
             )
         }
+        
+        return toCancel.count
+    }
+    
+    /// Cancel all active transactions
+    ///
+    /// Useful when stopping the manager.
+    ///
+    /// - Returns: Number of cancelled transactions
+    @discardableResult
+    public func cancelAll() -> Int {
+        let count = activeTransactions.count
+        let allIDs = Array(activeTransactions.keys)
         
         for requestID in allIDs {
             cancel(requestID: requestID)
         }
+        
+        if count > 0 {
+            logger.notice(
+                "Cancelled all \(count) transactions",
+                category: Self.logCategory
+            )
+        }
+        
+        return count
     }
     
-    // MARK: - Chunk Handling
+    // MARK: - Chunk Processing
     
     /// Process a received chunk
+    ///
+    /// Assembles multi-chunk responses. Returns `.complete` when all chunks are received.
+    ///
     /// - Parameters:
-    ///   - requestID: Request ID
-    ///   - thisChunk: Chunk number (1-based)
-    ///   - numChunks: Total chunks
-    ///   - headerData: Header data
-    ///   - propertyData: Property data
+    ///   - requestID: Request ID from the response
+    ///   - thisChunk: Current chunk number (1-based)
+    ///   - numChunks: Total number of chunks
+    ///   - headerData: Header data from this chunk
+    ///   - propertyData: Property data from this chunk
     /// - Returns: Assembly result
     public func processChunk(
         requestID: UInt8,
@@ -487,22 +286,22 @@ public actor PETransactionManager {
         headerData: Data,
         propertyData: Data
     ) -> PEChunkResult {
+        // Check if transaction exists
         guard var assembler = chunkAssemblers[requestID],
               let transaction = activeTransactions[requestID] else {
-            // Distinct from timeout: transaction doesn't exist
-            // Could be: late response, cancelled, misrouted, or ID collision
-            logger.warning(
-                "Chunk for unknown requestID \(requestID) (possible late/duplicate response)",
+            logger.debug(
+                "Chunk for unknown [\(requestID)] (late/cancelled response)",
                 category: Self.logCategory
             )
             return .unknownRequestID(requestID: requestID)
         }
         
         logger.debug(
-            "Chunk \(thisChunk)/\(numChunks) for transaction \(requestID)",
+            "Chunk [\(requestID)] \(thisChunk)/\(numChunks)",
             category: Self.logCategory
         )
         
+        // Process chunk through assembler
         let result = assembler.addChunk(
             requestID: requestID,
             thisChunk: thisChunk,
@@ -512,74 +311,35 @@ public actor PETransactionManager {
             resource: transaction.resource
         )
         
+        // Update assembler state
         chunkAssemblers[requestID] = assembler
         
-        // Auto-complete on chunk assembly complete
-        if case .complete(let header, let body) = result {
-            complete(requestID: requestID, header: header, body: body)
+        // On complete, clean up transaction state
+        // Note: Request ID release is handled by caller (PEManager) after processing the response
+        if case .complete = result {
+            logger.debug(
+                "Complete [\(requestID)] \(transaction.resource)",
+                category: Self.logCategory
+            )
         }
         
         return result
     }
     
-    // MARK: - Timeout Management
+    // MARK: - Query
     
-    /// Check and cleanup timed-out transactions
-    ///
-    /// This is called automatically when monitoring is active.
-    /// You can also call it manually if needed.
-    ///
-    /// - Returns: Array of timed-out Request IDs
-    @discardableResult
-    public func checkTimeouts() -> [UInt8] {
-        let now = Date()
-        var timedOut: [UInt8] = []
-        
-        for (requestID, transaction) in activeTransactions {
-            if transaction.isTimedOut(at: now) {
-                timedOut.append(requestID)
-            }
-        }
-        
-        for requestID in timedOut {
-            let resource = activeTransactions[requestID]?.resource ?? "?"
-            logger.notice(
-                "Transaction \(requestID) timed out (resource: \(resource))",
-                category: Self.logCategory
-            )
-            finalizeTransaction(requestID: requestID, result: .timeout)
-        }
-        
-        return timedOut
+    /// Get transaction info for a Request ID
+    /// - Parameter requestID: Request ID
+    /// - Returns: Transaction info if exists
+    public func transaction(for requestID: UInt8) -> PETransaction? {
+        activeTransactions[requestID]
     }
     
-    // MARK: - Async/Await Support
-    
-    /// Wait for transaction completion
-    ///
-    /// Only one caller can wait for a given requestID at a time.
-    /// If already waiting, returns `.cancelled` immediately.
-    ///
+    /// Check if a Request ID has an active transaction
     /// - Parameter requestID: Request ID
-    /// - Returns: Transaction result
-    public func waitForCompletion(requestID: UInt8) async -> PETransactionResult {
-        // Check if transaction exists
-        guard activeTransactions[requestID] != nil else {
-            return .cancelled
-        }
-        
-        // Prevent double-wait: if already waiting, return cancelled
-        if completionHandlers[requestID] != nil {
-            logger.warning(
-                "Duplicate waitForCompletion for requestID \(requestID) - returning cancelled",
-                category: Self.logCategory
-            )
-            return .cancelled
-        }
-        
-        return await withCheckedContinuation { continuation in
-            completionHandlers[requestID] = continuation
-        }
+    /// - Returns: true if transaction exists
+    public func hasTransaction(for requestID: UInt8) -> Bool {
+        activeTransactions[requestID] != nil
     }
     
     // MARK: - Diagnostics
@@ -587,37 +347,22 @@ public actor PETransactionManager {
     /// Get diagnostic information
     public var diagnostics: String {
         var lines: [String] = []
-        lines.append("=== PETransactionManager Diagnostics ===")
-        lines.append("Monitoring: \(isMonitoring ? "active" : "stopped")")
-        lines.append("Auto-start: \(monitoringConfig.autoStart ? "enabled" : "disabled")")
+        lines.append("=== PETransactionManager ===")
         lines.append("Active transactions: \(activeCount)")
         lines.append("Available IDs: \(availableIDs)")
-        lines.append("Near exhaustion: \(isNearExhaustion)")
+        
+        if isNearExhaustion {
+            lines.append("⚠️ Near ID exhaustion!")
+        }
         
         if !activeTransactions.isEmpty {
-            lines.append("Active:")
+            lines.append("Transactions:")
             for (id, tx) in activeTransactions.sorted(by: { $0.key < $1.key }) {
-                let age = Date().timeIntervalSince(tx.startTime)
-                lines.append("  [\(id)] \(tx.resource) -> \(tx.destinationMUID) (age: \(String(format: "%.1f", age))s)")
+                let elapsed = tx.elapsed()
+                lines.append("  [\(id)] \(tx.resource) -> \(tx.destinationMUID) (\(String(format: "%.1f", elapsed))s)")
             }
         }
         
         return lines.joined(separator: "\n")
-    }
-    
-    // MARK: - Private
-    
-    private func finalizeTransaction(requestID: UInt8, result: PETransactionResult) {
-        // Remove from tracking
-        activeTransactions.removeValue(forKey: requestID)
-        chunkAssemblers.removeValue(forKey: requestID)
-        
-        // Release Request ID (CRITICAL - prevents leak)
-        requestIDManager.release(requestID)
-        
-        // Resume waiting continuation
-        if let continuation = completionHandlers.removeValue(forKey: requestID) {
-            continuation.resume(returning: result)
-        }
     }
 }
