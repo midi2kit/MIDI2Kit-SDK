@@ -59,6 +59,7 @@ private final class ConnectionState: @unchecked Sendable {
 /// - Connection state tracking to prevent duplicate connections
 /// - Automatic reconnection on setup changes
 /// - SysEx assembly for fragmented messages
+/// - Source ID tracking for received messages
 public final class CoreMIDITransport: MIDITransport, @unchecked Sendable {
     
     // MARK: - Private State
@@ -142,14 +143,21 @@ public final class CoreMIDITransport: MIDITransport, @unchecked Sendable {
         }
         self.outputPort = outPort
         
-        // Create input port
+        // Create input port with source tracking via connRefCon
         var inPort: MIDIPortRef = 0
         let inStatus = MIDIInputPortCreateWithBlock(
             client,
             "Input" as CFString,
             &inPort
-        ) { [weak self] packetList, _ in
-            self?.handlePacketList(packetList)
+        ) { [weak self] packetList, srcConnRefCon in
+            // Extract source from connRefCon (passed via MIDIPortConnectSource)
+            let sourceRef: MIDIEndpointRef?
+            if let refCon = srcConnRefCon {
+                sourceRef = MIDIEndpointRef(UInt(bitPattern: refCon))
+            } else {
+                sourceRef = nil
+            }
+            self?.handlePacketList(packetList, from: sourceRef)
         }
         
         guard inStatus == noErr else {
@@ -237,7 +245,9 @@ public final class CoreMIDITransport: MIDITransport, @unchecked Sendable {
             return
         }
         
-        let status = MIDIPortConnectSource(inputPort, sourceRef, nil)
+        // Pass source ref as connRefCon so we can identify it in the callback
+        let connRefCon = UnsafeMutableRawPointer(bitPattern: UInt(sourceRef))
+        let status = MIDIPortConnectSource(inputPort, sourceRef, connRefCon)
         
         guard status == noErr else {
             throw MIDITransportError.connectionFailed(status)
@@ -286,10 +296,11 @@ public final class CoreMIDITransport: MIDITransport, @unchecked Sendable {
             connectionState.markDisconnected(source)
         }
         
-        // Connect new sources (differential)
+        // Connect new sources (differential) with connRefCon
         let newSources = currentSources.subtracting(connectedSources)
         for source in newSources {
-            let status = MIDIPortConnectSource(inputPort, source, nil)
+            let connRefCon = UnsafeMutableRawPointer(bitPattern: UInt(source))
+            let status = MIDIPortConnectSource(inputPort, source, connRefCon)
             if status == noErr {
                 connectionState.markConnected(source)
             }
@@ -327,9 +338,17 @@ public final class CoreMIDITransport: MIDITransport, @unchecked Sendable {
     
     // MARK: - Private Helpers
     
-    private func handlePacketList(_ packetList: UnsafePointer<MIDIPacketList>) {
+    private func handlePacketList(_ packetList: UnsafePointer<MIDIPacketList>, from sourceRef: MIDIEndpointRef?) {
         var packet = packetList.pointee.packet
         let numPackets = packetList.pointee.numPackets
+        
+        // Convert sourceRef to MIDISourceID
+        let sourceID: MIDISourceID?
+        if let ref = sourceRef, ref != 0 {
+            sourceID = MIDISourceID(UInt32(ref))
+        } else {
+            sourceID = nil
+        }
         
         // Collect all packet data first to preserve order
         var allPacketData: [[UInt8]] = []
@@ -346,19 +365,19 @@ public final class CoreMIDITransport: MIDITransport, @unchecked Sendable {
         }
         
         // Process all packets in a single Task to guarantee order
-        Task { [weak self, allPacketData] in
+        Task { [weak self, allPacketData, sourceID] in
             for data in allPacketData {
-                await self?.processReceivedData(data)
+                await self?.processReceivedData(data, from: sourceID)
             }
         }
     }
     
-    private func processReceivedData(_ data: [UInt8]) async {
+    private func processReceivedData(_ data: [UInt8], from sourceID: MIDISourceID?) async {
         // Assemble SysEx messages
         let messages = await sysExAssembler.process(data)
         
         for message in messages {
-            let received = MIDIReceivedData(data: message)
+            let received = MIDIReceivedData(data: message, sourceID: sourceID)
             receivedContinuation?.yield(received)
         }
     }
