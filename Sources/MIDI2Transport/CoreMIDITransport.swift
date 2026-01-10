@@ -331,18 +331,25 @@ public final class CoreMIDITransport: MIDITransport, @unchecked Sendable {
         var packet = packetList.pointee.packet
         let numPackets = packetList.pointee.numPackets
         
+        // Collect all packet data first to preserve order
+        var allPacketData: [[UInt8]] = []
+        allPacketData.reserveCapacity(Int(numPackets))
+        
         for _ in 0..<numPackets {
             let length = Int(packet.length)
             // Use withUnsafeBytes instead of Mirror for performance
             let data: [UInt8] = withUnsafeBytes(of: packet.data) { ptr in
                 Array(ptr.prefix(length))
             }
-            
-            Task { [weak self] in
+            allPacketData.append(data)
+            packet = MIDIPacketNext(&packet).pointee
+        }
+        
+        // Process all packets in a single Task to guarantee order
+        Task { [weak self, allPacketData] in
+            for data in allPacketData {
                 await self?.processReceivedData(data)
             }
-            
-            packet = MIDIPacketNext(&packet).pointee
         }
     }
     
