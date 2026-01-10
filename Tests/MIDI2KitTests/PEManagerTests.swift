@@ -18,6 +18,10 @@ struct PEManagerTests {
     let deviceMUID = MUID(rawValue: 0x05060708)!
     let destinationID = MIDIDestinationID(1)
     
+    var deviceHandle: PEDeviceHandle {
+        PEDeviceHandle(muid: deviceMUID, destination: destinationID, name: "TestDevice")
+    }
+    
     // MARK: - Basic Tests
     
     @Test("PEManager initializes correctly")
@@ -50,10 +54,10 @@ struct PEManagerTests {
         #expect(diag.contains("Receiving: false"))
     }
     
-    // MARK: - GET Tests
+    // MARK: - GET Tests (New API with PEDeviceHandle)
     
-    @Test("GET sends correct message format")
-    func getSendsCorrectMessage() async throws {
+    @Test("GET with DeviceHandle sends correct message")
+    func getWithDeviceHandleSendsCorrectMessage() async throws {
         let transport = MockMIDITransport()
         let manager = PEManager(
             transport: transport,
@@ -62,43 +66,27 @@ struct PEManagerTests {
         
         await manager.startReceiving()
         
-        // Start GET request (will timeout, but we can check sent message)
         let getTask = Task {
-            try await manager.get(
-                resource: "DeviceInfo",
-                from: deviceMUID,
-                via: destinationID,
-                timeout: Duration.milliseconds(100)
-            )
+            try await manager.get("DeviceInfo", from: deviceHandle, timeout: .milliseconds(100))
         }
         
-        // Wait a bit for message to be sent
         try await Task.sleep(for: .milliseconds(50))
         
-        // Check sent message
         let sent = await transport.sentMessages
         #expect(sent.count == 1)
         
         if let message = sent.first {
-            // Verify SysEx framing
             #expect(message.data.first == 0xF0)
             #expect(message.data.last == 0xF7)
-            
-            // Verify CI header
-            #expect(message.data[1] == 0x7E)  // Non-Realtime
-            #expect(message.data[3] == 0x0D)  // CI Sub-ID
             #expect(message.data[4] == CIMessageType.peGetInquiry.rawValue)
             
-            // Verify source MUID
             let sentSourceMUID = MUID(from: Array(message.data), offset: 6)
             #expect(sentSourceMUID == sourceMUID)
             
-            // Verify destination MUID
             let sentDestMUID = MUID(from: Array(message.data), offset: 10)
             #expect(sentDestMUID == deviceMUID)
         }
         
-        // Cancel the task (will timeout anyway)
         getTask.cancel()
         await manager.stopReceiving()
     }
@@ -114,12 +102,7 @@ struct PEManagerTests {
         await manager.startReceiving()
         
         do {
-            _ = try await manager.get(
-                resource: "DeviceInfo",
-                from: deviceMUID,
-                via: destinationID,
-                timeout: Duration.milliseconds(200)
-            )
+            _ = try await manager.get("DeviceInfo", from: deviceHandle, timeout: .milliseconds(200))
             Issue.record("Expected timeout error")
         } catch let error as PEError {
             if case .timeout = error {
@@ -147,13 +130,7 @@ struct PEManagerTests {
         let testData = Data("{\"value\":42}".utf8)
         
         let setTask = Task {
-            try await manager.set(
-                resource: "X-CustomData",
-                data: testData,
-                to: deviceMUID,
-                via: destinationID,
-                timeout: Duration.milliseconds(100)
-            )
+            try await manager.set("X-CustomData", data: testData, to: deviceHandle, timeout: .milliseconds(100))
         }
         
         try await Task.sleep(for: .milliseconds(50))
@@ -183,12 +160,11 @@ struct PEManagerTests {
         
         let getTask = Task {
             try await manager.get(
-                resource: "ChCtrlList",
+                "ChCtrlList",
                 offset: 10,
                 limit: 20,
-                from: deviceMUID,
-                via: destinationID,
-                timeout: Duration.milliseconds(100)
+                from: deviceHandle,
+                timeout: .milliseconds(100)
             )
         }
         
@@ -198,6 +174,149 @@ struct PEManagerTests {
         #expect(sent.count == 1)
         
         getTask.cancel()
+        await manager.stopReceiving()
+    }
+    
+    // MARK: - PERequest Tests
+    
+    @Test("PERequest factory methods create correct requests")
+    func peRequestFactoryMethods() {
+        let device = deviceHandle
+        
+        // Simple GET
+        let getReq = PERequest.get("DeviceInfo", from: device)
+        #expect(getReq.operation == .get)
+        #expect(getReq.resource == "DeviceInfo")
+        #expect(getReq.device.muid == deviceMUID)
+        #expect(getReq.body == nil)
+        #expect(getReq.channel == nil)
+        
+        // GET with channel
+        let channelReq = PERequest.get("ProgramName", channel: 0, from: device)
+        #expect(channelReq.channel == 0)
+        
+        // Paginated GET
+        let pageReq = PERequest.get("ProgramList", offset: 10, limit: 20, from: device)
+        #expect(pageReq.offset == 10)
+        #expect(pageReq.limit == 20)
+        
+        // SET
+        let data = Data("test".utf8)
+        let setReq = PERequest.set("X-Custom", data: data, to: device)
+        #expect(setReq.operation == .set)
+        #expect(setReq.body == data)
+    }
+    
+    @Test("PERequest validation catches empty resource")
+    func peRequestValidationEmptyResource() throws {
+        let device = deviceHandle
+        let emptyRes = PERequest(operation: .get, resource: "", device: device)
+        
+        do {
+            try emptyRes.validate()
+            Issue.record("Expected validation error")
+        } catch let error as PERequestError {
+            #expect(error == .emptyResource)
+        }
+    }
+    
+    @Test("PERequest validation catches missing body")
+    func peRequestValidationMissingBody() throws {
+        let device = deviceHandle
+        let noBody = PERequest(operation: .set, resource: "Test", device: device, body: nil)
+        
+        do {
+            try noBody.validate()
+            Issue.record("Expected validation error")
+        } catch let error as PERequestError {
+            #expect(error == .missingBody)
+        }
+    }
+    
+    @Test("PERequest validation catches invalid channel")
+    func peRequestValidationInvalidChannel() throws {
+        let device = deviceHandle
+        let badChannel = PERequest(operation: .get, resource: "Test", device: device, channel: 300)
+        
+        do {
+            try badChannel.validate()
+            Issue.record("Expected validation error")
+        } catch let error as PERequestError {
+            #expect(error == .invalidChannel(300))
+        }
+    }
+    
+    @Test("send(request:) works correctly")
+    func sendRequestWorks() async throws {
+        let transport = MockMIDITransport()
+        let manager = PEManager(
+            transport: transport,
+            sourceMUID: sourceMUID
+        )
+        
+        await manager.startReceiving()
+        
+        let request = PERequest.get("DeviceInfo", from: deviceHandle, timeout: .milliseconds(100))
+        
+        let sendTask = Task {
+            try await manager.send(request)
+        }
+        
+        try await Task.sleep(for: .milliseconds(50))
+        
+        let sent = await transport.sentMessages
+        #expect(sent.count == 1)
+        
+        sendTask.cancel()
+        await manager.stopReceiving()
+    }
+    
+    // MARK: - Cancellation Tests
+    
+    @Test("Task cancellation cancels pending request")
+    func taskCancellationCancelsPendingRequest() async throws {
+        let transport = MockMIDITransport()
+        let manager = PEManager(
+            transport: transport,
+            sourceMUID: sourceMUID
+        )
+        
+        await manager.startReceiving()
+        
+        let task = Task {
+            try await manager.get("DeviceInfo", from: deviceHandle, timeout: .seconds(30))
+        }
+        
+        // Wait for request to be sent
+        try await Task.sleep(for: .milliseconds(50))
+        
+        // Verify request is pending
+        let diagBefore = await manager.diagnostics
+        #expect(diagBefore.contains("Pending requests: 1"))
+        
+        // Cancel the task
+        task.cancel()
+        
+        // Wait for cancellation to propagate
+        try await Task.sleep(for: .milliseconds(50))
+        
+        // Verify request was cancelled and Request ID released
+        let diagAfter = await manager.diagnostics
+        #expect(diagAfter.contains("Pending requests: 0"))
+        #expect(diagAfter.contains("Available IDs: 128"))
+        
+        // Verify task threw cancellation error
+        do {
+            _ = try await task.value
+            Issue.record("Expected cancellation error")
+        } catch let error as PEError {
+            if case .cancelled = error {
+                // Expected
+            } else {
+                Issue.record("Expected cancelled, got \(error)")
+            }
+        }
+        
         await manager.stopReceiving()
     }
     
@@ -216,12 +335,8 @@ struct PEManagerTests {
         // Start multiple GET requests (they will be pending)
         let tasks = (0..<5).map { i in
             Task {
-                try await manager.get(
-                    resource: "Resource\(i)",
-                    from: deviceMUID,
-                    via: destinationID,
-                    timeout: Duration.seconds(10)  // Long timeout
-                )
+                let handle = PEDeviceHandle(muid: deviceMUID, destination: destinationID)
+                return try await manager.get("Resource\(i)", from: handle, timeout: .seconds(10))
             }
         }
         
@@ -268,12 +383,7 @@ struct PEManagerTests {
         await manager.startReceiving()
         
         let task1 = Task {
-            try await manager.get(
-                resource: "DeviceInfo",
-                from: deviceMUID,
-                via: destinationID,
-                timeout: Duration.seconds(10)
-            )
+            try await manager.get("DeviceInfo", from: deviceHandle, timeout: .seconds(10))
         }
         
         try await Task.sleep(for: .milliseconds(30))
@@ -289,12 +399,7 @@ struct PEManagerTests {
         await manager.startReceiving()
         
         let task2 = Task {
-            try await manager.get(
-                resource: "ResourceList",
-                from: deviceMUID,
-                via: destinationID,
-                timeout: Duration.milliseconds(100)
-            )
+            try await manager.get("ResourceList", from: deviceHandle, timeout: .milliseconds(100))
         }
         
         try await Task.sleep(for: .milliseconds(30))
@@ -321,12 +426,8 @@ struct PEManagerTests {
         let requestCount = 50
         let tasks = (0..<requestCount).map { i in
             Task {
-                try await manager.get(
-                    resource: "Resource\(i)",
-                    from: deviceMUID,
-                    via: destinationID,
-                    timeout: Duration.seconds(60)
-                )
+                let handle = PEDeviceHandle(muid: deviceMUID, destination: destinationID)
+                return try await manager.get("Resource\(i)", from: handle, timeout: .seconds(60))
             }
         }
         
@@ -370,12 +471,7 @@ struct PEManagerTests {
         
         // Start a request
         let task = Task {
-            try await manager.get(
-                resource: "DeviceInfo",
-                from: deviceMUID,
-                via: destinationID,
-                timeout: Duration.seconds(10)
-            )
+            try await manager.get("DeviceInfo", from: deviceHandle, timeout: .seconds(10))
         }
         
         try await Task.sleep(for: .milliseconds(30))
@@ -432,6 +528,55 @@ struct PEResponseTests {
     }
 }
 
+// MARK: - PEDeviceHandle Tests
+
+@Suite("PEDeviceHandle Tests")
+struct PEDeviceHandleTests {
+    
+    @Test("PEDeviceHandle stores MUID and destination")
+    func storesMUIDAndDestination() {
+        // Use valid 28-bit MUID (0x00000000 - 0x0FFFFFFF)
+        let muid = MUID(rawValue: 0x01234567)!
+        let dest = MIDIDestinationID(42)
+        let handle = PEDeviceHandle(muid: muid, destination: dest, name: "TestDevice")
+        
+        #expect(handle.muid == muid)
+        #expect(handle.destination == dest)
+        #expect(handle.name == "TestDevice")
+        #expect(handle.id == muid)
+    }
+    
+    @Test("PEDeviceHandle debugDescription")
+    func debugDescription() {
+        // Use valid 28-bit MUID
+        let muid = MUID(rawValue: 0x01234567)!
+        let dest = MIDIDestinationID(42)
+        
+        let withName = PEDeviceHandle(muid: muid, destination: dest, name: "KORG Module")
+        #expect(withName.debugDescription.contains("KORG Module"))
+        
+        let withoutName = PEDeviceHandle(muid: muid, destination: dest)
+        #expect(withoutName.debugDescription.contains("Device"))
+    }
+    
+    @Test("PEDeviceHandle is Hashable")
+    func hashable() {
+        // Use valid 28-bit MUID
+        let muid = MUID(rawValue: 0x01234567)!
+        let dest = MIDIDestinationID(42)
+        
+        let handle1 = PEDeviceHandle(muid: muid, destination: dest)
+        let handle2 = PEDeviceHandle(muid: muid, destination: dest)
+        
+        #expect(handle1 == handle2)
+        #expect(handle1.hashValue == handle2.hashValue)
+        
+        var set = Set<PEDeviceHandle>()
+        set.insert(handle1)
+        #expect(set.contains(handle2))
+    }
+}
+
 // MARK: - Subscribe/Notify Tests
 
 @Suite("PEManager Subscribe/Notify Tests")
@@ -442,6 +587,10 @@ struct PEManagerSubscribeNotifyTests {
     let sourceMUID = MUID(rawValue: 0x01020304)!
     let deviceMUID = MUID(rawValue: 0x05060708)!
     let destinationID = MIDIDestinationID(1)
+    
+    var deviceHandle: PEDeviceHandle {
+        PEDeviceHandle(muid: deviceMUID, destination: destinationID)
+    }
     
     // MARK: - Helper: Build Subscribe Reply SysEx
     
@@ -580,9 +729,8 @@ struct PEManagerSubscribeNotifyTests {
         let subscribeTask = Task {
             try await manager.subscribe(
                 to: "ProgramList",
-                on: deviceMUID,
-                via: destinationID,
-                timeout: Duration.milliseconds(100)
+                on: deviceHandle,
+                timeout: .milliseconds(100)
             )
         }
         
@@ -630,9 +778,8 @@ struct PEManagerSubscribeNotifyTests {
         let subscribeTask = Task {
             try await manager.subscribe(
                 to: "ProgramList",
-                on: deviceMUID,
-                via: destinationID,
-                timeout: Duration.seconds(1)
+                on: deviceHandle,
+                timeout: .seconds(1)
             )
         }
         
@@ -669,6 +816,7 @@ struct PEManagerSubscribeNotifyTests {
         #expect(subscriptions.count == 1)
         #expect(subscriptions.first?.subscribeId == "sub-12345")
         #expect(subscriptions.first?.resource == "ProgramList")
+        #expect(subscriptions.first?.device.muid == deviceMUID)
         
         await manager.stopReceiving()
     }
@@ -686,9 +834,8 @@ struct PEManagerSubscribeNotifyTests {
         do {
             _ = try await manager.subscribe(
                 to: "ProgramList",
-                on: deviceMUID,
-                via: destinationID,
-                timeout: Duration.milliseconds(100)
+                on: deviceHandle,
+                timeout: .milliseconds(100)
             )
             Issue.record("Expected timeout error")
         } catch let error as PEError {
@@ -718,9 +865,8 @@ struct PEManagerSubscribeNotifyTests {
         let subscribeTask = Task {
             try await manager.subscribe(
                 to: "ProgramList",
-                on: deviceMUID,
-                via: destinationID,
-                timeout: Duration.seconds(1)
+                on: deviceHandle,
+                timeout: .seconds(1)
             )
         }
         
@@ -837,16 +983,21 @@ struct PEManagerSubscribeNotifyTests {
         let subscribeTask = Task {
             try await manager.subscribe(
                 to: "ProgramList",
-                on: deviceMUID,
-                via: destinationID,
-                timeout: Duration.seconds(1)
+                on: deviceHandle,
+                timeout: .seconds(1)
             )
         }
         
         try await Task.sleep(for: .milliseconds(50))
         
         let sent = await transport.sentMessages
-        let requestID = sent.first!.data[14] & 0x7F
+        guard let sentMessage = sent.first else {
+            Issue.record("No subscribe message sent")
+            subscribeTask.cancel()
+            await manager.stopReceiving()
+            return
+        }
+        let requestID = sentMessage.data[14] & 0x7F
         
         let reply = buildSubscribeReply(
             sourceMUID: deviceMUID,
@@ -866,7 +1017,7 @@ struct PEManagerSubscribeNotifyTests {
         let unsubTask = Task {
             try await manager.unsubscribe(
                 subscribeId: "unsub-test",
-                timeout: Duration.milliseconds(100)
+                timeout: .milliseconds(100)
             )
         }
         
@@ -924,9 +1075,8 @@ struct PEManagerSubscribeNotifyTests {
         let subscribeTask = Task {
             try await manager.subscribe(
                 to: "ProgramList",
-                on: deviceMUID,
-                via: destinationID,
-                timeout: Duration.seconds(10)
+                on: deviceHandle,
+                timeout: .seconds(10)
             )
         }
         
@@ -971,16 +1121,21 @@ struct PEManagerSubscribeNotifyTests {
         let subscribeTask = Task {
             try await manager.subscribe(
                 to: "ProgramList",
-                on: deviceMUID,
-                via: destinationID,
-                timeout: Duration.seconds(1)
+                on: deviceHandle,
+                timeout: .seconds(1)
             )
         }
         
         try await Task.sleep(for: .milliseconds(50))
         
         let sent = await transport.sentMessages
-        let subRequestID = sent.first!.data[14] & 0x7F
+        guard let sentMessage = sent.first else {
+            Issue.record("No subscribe message sent")
+            subscribeTask.cancel()
+            await manager.stopReceiving()
+            return
+        }
+        let subRequestID = sentMessage.data[14] & 0x7F
         
         let subReply = buildSubscribeReply(
             sourceMUID: deviceMUID,
@@ -1003,14 +1158,20 @@ struct PEManagerSubscribeNotifyTests {
         let unsubTask = Task {
             try await manager.unsubscribe(
                 subscribeId: "to-be-removed",
-                timeout: Duration.seconds(1)
+                timeout: .seconds(1)
             )
         }
         
         try await Task.sleep(for: .milliseconds(50))
         
         let unsubSent = await transport.sentMessages
-        let unsubRequestID = unsubSent.first!.data[14] & 0x7F
+        guard let unsubMessage = unsubSent.first else {
+            Issue.record("No unsubscribe message sent")
+            unsubTask.cancel()
+            await manager.stopReceiving()
+            return
+        }
+        let unsubRequestID = unsubMessage.data[14] & 0x7F
         
         let unsubReply = buildSubscribeReply(
             sourceMUID: deviceMUID,

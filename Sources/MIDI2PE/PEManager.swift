@@ -89,6 +89,9 @@ public enum PEError: Error, Sendable {
     
     /// Not connected to any destination
     case noDestination
+    
+    /// Request validation failed
+    case validationFailed(PERequestError)
 }
 
 // MARK: - PE Notification
@@ -121,11 +124,8 @@ public struct PESubscription: Sendable {
     /// Resource being subscribed to
     public let resource: String
     
-    /// Device MUID
-    public let deviceMUID: MUID
-    
-    /// Destination ID
-    public let destinationID: MIDIDestinationID
+    /// Device handle
+    public let device: PEDeviceHandle
 }
 
 /// Subscribe response
@@ -157,6 +157,14 @@ public struct PESubscribeResponse: Sendable {
 /// - Request ID allocation/release
 /// - Multi-chunk response assembly
 /// - Transaction state tracking
+///
+/// ## Cancellation Support
+///
+/// All request methods support cooperative cancellation via `withTaskCancellationHandler`.
+/// When a Task is cancelled:
+/// - The pending transaction is cancelled
+/// - The Request ID is released
+/// - The continuation is resumed with `PEError.cancelled`
 ///
 /// ## Thread Safety
 ///
@@ -285,43 +293,207 @@ public actor PEManager {
         logger.info("Stopped receiving", category: Self.logCategory)
     }
     
-    // MARK: - GET
+    // MARK: - Unified Request API (Recommended)
+    
+    /// Send a Property Exchange request
+    ///
+    /// This is the unified entry point for GET and SET operations.
+    /// It supports cooperative cancellation via `Task.cancel()`.
+    ///
+    /// ## Cancellation
+    ///
+    /// When the calling Task is cancelled:
+    /// - The pending transaction is immediately cancelled
+    /// - The Request ID is released for reuse
+    /// - `PEError.cancelled` is thrown
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// let handle = PEDeviceHandle(muid: device.muid, destination: destID)
+    /// let request = PERequest.get("DeviceInfo", from: handle)
+    /// let response = try await peManager.send(request)
+    /// ```
+    public func send(_ request: PERequest) async throws -> PEResponse {
+        // Validate request
+        do {
+            try request.validate()
+        } catch let error as PERequestError {
+            throw PEError.validationFailed(error)
+        }
+        
+        logger.debug(
+            "\(request.operation.rawValue) \(request.resource) \(request.device.debugDescription)",
+            category: Self.logCategory
+        )
+        
+        // Acquire Request ID
+        guard let requestID = await transactionManager.begin(
+            resource: request.resource,
+            destinationMUID: request.device.muid,
+            timeout: request.timeout.timeInterval
+        ) else {
+            throw PEError.requestIDExhausted
+        }
+        
+        // Build message
+        let message = buildMessage(for: request, requestID: requestID)
+        
+        // Execute with cancellation support
+        return try await withTaskCancellationHandler {
+            try await performRequest(
+                requestID: requestID,
+                resource: request.resource,
+                message: message,
+                destination: request.device.destination,
+                timeout: request.timeout
+            )
+        } onCancel: {
+            Task { [weak self] in
+                await self?.cancelRequest(requestID: requestID)
+            }
+        }
+    }
+    
+    /// Cancel a pending request by Request ID
+    private func cancelRequest(requestID: UInt8) async {
+        // Cancel timeout
+        timeoutTasks[requestID]?.cancel()
+        timeoutTasks.removeValue(forKey: requestID)
+        
+        // Release transaction
+        await transactionManager.cancel(requestID: requestID)
+        
+        // Resume continuation with cancellation
+        if let continuation = pendingContinuations.removeValue(forKey: requestID) {
+            continuation.resume(throwing: PEError.cancelled)
+        }
+        
+        logger.debug("Cancelled request [\(requestID)]", category: Self.logCategory)
+    }
+    
+    /// Build MIDI message for a request
+    private func buildMessage(for request: PERequest, requestID: UInt8) -> [UInt8] {
+        let headerData: Data
+        
+        // Build header based on request parameters
+        if let channel = request.channel {
+            headerData = CIMessageBuilder.channelResourceHeader(
+                resource: request.resource,
+                channel: channel
+            )
+        } else if let offset = request.offset, let limit = request.limit {
+            headerData = CIMessageBuilder.paginatedRequestHeader(
+                resource: request.resource,
+                offset: offset,
+                limit: limit
+            )
+        } else {
+            headerData = CIMessageBuilder.resourceRequestHeader(resource: request.resource)
+        }
+        
+        // Build message based on operation
+        switch request.operation {
+        case .get:
+            return CIMessageBuilder.peGetInquiry(
+                sourceMUID: sourceMUID,
+                destinationMUID: request.device.muid,
+                requestID: requestID,
+                headerData: headerData
+            )
+            
+        case .set:
+            let encodedData = Mcoded7.encode(request.body ?? Data())
+            return CIMessageBuilder.peSetInquiry(
+                sourceMUID: sourceMUID,
+                destinationMUID: request.device.muid,
+                requestID: requestID,
+                headerData: headerData,
+                propertyData: encodedData
+            )
+            
+        case .subscribe, .unsubscribe:
+            // Subscribe/Unsubscribe use different path
+            return CIMessageBuilder.peSubscribeInquiry(
+                sourceMUID: sourceMUID,
+                destinationMUID: request.device.muid,
+                requestID: requestID,
+                headerData: headerData
+            )
+        }
+    }
+    
+    // MARK: - GET (Convenience with DeviceHandle)
     
     /// Get a resource from a device
+    public func get(
+        _ resource: String,
+        from device: PEDeviceHandle,
+        timeout: Duration = defaultTimeout
+    ) async throws -> PEResponse {
+        try await send(.get(resource, from: device, timeout: timeout))
+    }
+    
+    /// Get a channel-specific resource
+    public func get(
+        _ resource: String,
+        channel: Int,
+        from device: PEDeviceHandle,
+        timeout: Duration = defaultTimeout
+    ) async throws -> PEResponse {
+        try await send(.get(resource, channel: channel, from: device, timeout: timeout))
+    }
+    
+    /// Get a paginated resource
+    public func get(
+        _ resource: String,
+        offset: Int,
+        limit: Int,
+        from device: PEDeviceHandle,
+        timeout: Duration = defaultTimeout
+    ) async throws -> PEResponse {
+        try await send(.get(resource, offset: offset, limit: limit, from: device, timeout: timeout))
+    }
+    
+    // MARK: - SET (Convenience with DeviceHandle)
+    
+    /// Set a resource value
+    public func set(
+        _ resource: String,
+        data: Data,
+        to device: PEDeviceHandle,
+        timeout: Duration = defaultTimeout
+    ) async throws -> PEResponse {
+        try await send(.set(resource, data: data, to: device, timeout: timeout))
+    }
+    
+    /// Set a channel-specific resource
+    public func set(
+        _ resource: String,
+        data: Data,
+        channel: Int,
+        to device: PEDeviceHandle,
+        timeout: Duration = defaultTimeout
+    ) async throws -> PEResponse {
+        try await send(.set(resource, data: data, channel: channel, to: device, timeout: timeout))
+    }
+    
+    // MARK: - Legacy API (MUID + Destination separate)
+    
+    /// Get a resource from a device (legacy API)
+    @available(*, deprecated, message: "Use get(_:from:) with PEDeviceHandle instead")
     public func get(
         resource: String,
         from device: MUID,
         via destination: MIDIDestinationID,
         timeout: Duration = defaultTimeout
     ) async throws -> PEResponse {
-        logger.debug("GET \(resource) from \(device)", category: Self.logCategory)
-        
-        guard let requestID = await transactionManager.begin(
-            resource: resource,
-            destinationMUID: device,
-            timeout: timeout.timeInterval
-        ) else {
-            throw PEError.requestIDExhausted
-        }
-        
-        let headerData = CIMessageBuilder.resourceRequestHeader(resource: resource)
-        let message = CIMessageBuilder.peGetInquiry(
-            sourceMUID: sourceMUID,
-            destinationMUID: device,
-            requestID: requestID,
-            headerData: headerData
-        )
-        
-        return try await performRequest(
-            requestID: requestID,
-            resource: resource,
-            message: message,
-            destination: destination,
-            timeout: timeout
-        )
+        let handle = PEDeviceHandle(muid: device, destination: destination)
+        return try await get(resource, from: handle, timeout: timeout)
     }
     
-    /// Get a channel-specific resource
+    /// Get a channel-specific resource (legacy API)
+    @available(*, deprecated, message: "Use get(_:channel:from:) with PEDeviceHandle instead")
     public func get(
         resource: String,
         channel: Int,
@@ -329,34 +501,12 @@ public actor PEManager {
         via destination: MIDIDestinationID,
         timeout: Duration = defaultTimeout
     ) async throws -> PEResponse {
-        logger.debug("GET \(resource) channel=\(channel) from \(device)", category: Self.logCategory)
-        
-        guard let requestID = await transactionManager.begin(
-            resource: resource,
-            destinationMUID: device,
-            timeout: timeout.timeInterval
-        ) else {
-            throw PEError.requestIDExhausted
-        }
-        
-        let headerData = CIMessageBuilder.channelResourceHeader(resource: resource, channel: channel)
-        let message = CIMessageBuilder.peGetInquiry(
-            sourceMUID: sourceMUID,
-            destinationMUID: device,
-            requestID: requestID,
-            headerData: headerData
-        )
-        
-        return try await performRequest(
-            requestID: requestID,
-            resource: resource,
-            message: message,
-            destination: destination,
-            timeout: timeout
-        )
+        let handle = PEDeviceHandle(muid: device, destination: destination)
+        return try await get(resource, channel: channel, from: handle, timeout: timeout)
     }
     
-    /// Get a paginated resource
+    /// Get a paginated resource (legacy API)
+    @available(*, deprecated, message: "Use get(_:offset:limit:from:) with PEDeviceHandle instead")
     public func get(
         resource: String,
         offset: Int,
@@ -365,40 +515,12 @@ public actor PEManager {
         via destination: MIDIDestinationID,
         timeout: Duration = defaultTimeout
     ) async throws -> PEResponse {
-        logger.debug("GET \(resource) offset=\(offset) limit=\(limit) from \(device)", category: Self.logCategory)
-        
-        guard let requestID = await transactionManager.begin(
-            resource: resource,
-            destinationMUID: device,
-            timeout: timeout.timeInterval
-        ) else {
-            throw PEError.requestIDExhausted
-        }
-        
-        let headerData = CIMessageBuilder.paginatedRequestHeader(
-            resource: resource,
-            offset: offset,
-            limit: limit
-        )
-        let message = CIMessageBuilder.peGetInquiry(
-            sourceMUID: sourceMUID,
-            destinationMUID: device,
-            requestID: requestID,
-            headerData: headerData
-        )
-        
-        return try await performRequest(
-            requestID: requestID,
-            resource: resource,
-            message: message,
-            destination: destination,
-            timeout: timeout
-        )
+        let handle = PEDeviceHandle(muid: device, destination: destination)
+        return try await get(resource, offset: offset, limit: limit, from: handle, timeout: timeout)
     }
     
-    // MARK: - SET
-    
-    /// Set a resource value
+    /// Set a resource value (legacy API)
+    @available(*, deprecated, message: "Use set(_:data:to:) with PEDeviceHandle instead")
     public func set(
         resource: String,
         data: Data,
@@ -406,34 +528,8 @@ public actor PEManager {
         via destination: MIDIDestinationID,
         timeout: Duration = defaultTimeout
     ) async throws -> PEResponse {
-        logger.debug("SET \(resource) to \(device) (\(data.count) bytes)", category: Self.logCategory)
-        
-        guard let requestID = await transactionManager.begin(
-            resource: resource,
-            destinationMUID: device,
-            timeout: timeout.timeInterval
-        ) else {
-            throw PEError.requestIDExhausted
-        }
-        
-        let headerData = CIMessageBuilder.resourceRequestHeader(resource: resource)
-        let encodedData = Mcoded7.encode(data)
-        
-        let message = CIMessageBuilder.peSetInquiry(
-            sourceMUID: sourceMUID,
-            destinationMUID: device,
-            requestID: requestID,
-            headerData: headerData,
-            propertyData: encodedData
-        )
-        
-        return try await performRequest(
-            requestID: requestID,
-            resource: resource,
-            message: message,
-            destination: destination,
-            timeout: timeout
-        )
+        let handle = PEDeviceHandle(muid: device, destination: destination)
+        return try await set(resource, data: data, to: handle, timeout: timeout)
     }
     
     // MARK: - Subscribe
@@ -441,15 +537,14 @@ public actor PEManager {
     /// Subscribe to notifications for a resource
     public func subscribe(
         to resource: String,
-        on device: MUID,
-        via destination: MIDIDestinationID,
+        on device: PEDeviceHandle,
         timeout: Duration = defaultTimeout
     ) async throws -> PESubscribeResponse {
-        logger.debug("SUBSCRIBE \(resource) on \(device)", category: Self.logCategory)
+        logger.debug("SUBSCRIBE \(resource) on \(device.debugDescription)", category: Self.logCategory)
         
         guard let requestID = await transactionManager.begin(
             resource: resource,
-            destinationMUID: device,
+            destinationMUID: device.muid,
             timeout: timeout.timeInterval
         ) else {
             throw PEError.requestIDExhausted
@@ -458,32 +553,61 @@ public actor PEManager {
         let headerData = CIMessageBuilder.subscribeStartHeader(resource: resource)
         let message = CIMessageBuilder.peSubscribeInquiry(
             sourceMUID: sourceMUID,
-            destinationMUID: device,
+            destinationMUID: device.muid,
             requestID: requestID,
             headerData: headerData
         )
         
-        let response = try await performSubscribeRequest(
-            requestID: requestID,
-            resource: resource,
-            message: message,
-            destination: destination,
-            timeout: timeout
-        )
+        let response = try await withTaskCancellationHandler {
+            try await performSubscribeRequest(
+                requestID: requestID,
+                resource: resource,
+                message: message,
+                destination: device.destination,
+                timeout: timeout
+            )
+        } onCancel: {
+            Task { [weak self] in
+                await self?.cancelSubscribeRequest(requestID: requestID)
+            }
+        }
         
         // Track successful subscription
         if response.isSuccess, let subscribeId = response.subscribeId {
             let subscription = PESubscription(
                 subscribeId: subscribeId,
                 resource: resource,
-                deviceMUID: device,
-                destinationID: destination
+                device: device
             )
             activeSubscriptions[subscribeId] = subscription
             logger.info("Subscribed to \(resource): \(subscribeId)", category: Self.logCategory)
         }
         
         return response
+    }
+    
+    /// Subscribe to notifications (legacy API)
+    @available(*, deprecated, message: "Use subscribe(to:on:) with PEDeviceHandle instead")
+    public func subscribe(
+        to resource: String,
+        on device: MUID,
+        via destination: MIDIDestinationID,
+        timeout: Duration = defaultTimeout
+    ) async throws -> PESubscribeResponse {
+        let handle = PEDeviceHandle(muid: device, destination: destination)
+        return try await subscribe(to: resource, on: handle, timeout: timeout)
+    }
+    
+    /// Cancel a pending subscribe request
+    private func cancelSubscribeRequest(requestID: UInt8) async {
+        timeoutTasks[requestID]?.cancel()
+        timeoutTasks.removeValue(forKey: requestID)
+        
+        await transactionManager.cancel(requestID: requestID)
+        
+        if let continuation = pendingSubscribeContinuations.removeValue(forKey: requestID) {
+            continuation.resume(throwing: PEError.cancelled)
+        }
     }
     
     /// Unsubscribe from a resource
@@ -499,7 +623,7 @@ public actor PEManager {
         
         guard let requestID = await transactionManager.begin(
             resource: subscription.resource,
-            destinationMUID: subscription.deviceMUID,
+            destinationMUID: subscription.device.muid,
             timeout: timeout.timeInterval
         ) else {
             throw PEError.requestIDExhausted
@@ -511,18 +635,24 @@ public actor PEManager {
         )
         let message = CIMessageBuilder.peSubscribeInquiry(
             sourceMUID: sourceMUID,
-            destinationMUID: subscription.deviceMUID,
+            destinationMUID: subscription.device.muid,
             requestID: requestID,
             headerData: headerData
         )
         
-        let response = try await performSubscribeRequest(
-            requestID: requestID,
-            resource: subscription.resource,
-            message: message,
-            destination: subscription.destinationID,
-            timeout: timeout
-        )
+        let response = try await withTaskCancellationHandler {
+            try await performSubscribeRequest(
+                requestID: requestID,
+                resource: subscription.resource,
+                message: message,
+                destination: subscription.device.destination,
+                timeout: timeout
+            )
+        } onCancel: {
+            Task { [weak self] in
+                await self?.cancelSubscribeRequest(requestID: requestID)
+            }
+        }
         
         // Remove subscription on success
         if response.isSuccess {
@@ -550,11 +680,8 @@ public actor PEManager {
     // MARK: - Convenience Methods
     
     /// Get DeviceInfo from a device
-    public func getDeviceInfo(
-        from device: MUID,
-        via destination: MIDIDestinationID
-    ) async throws -> PEDeviceInfo {
-        let response = try await get(resource: "DeviceInfo", from: device, via: destination)
+    public func getDeviceInfo(from device: PEDeviceHandle) async throws -> PEDeviceInfo {
+        let response = try await get("DeviceInfo", from: device)
         
         guard response.isSuccess else {
             throw PEError.deviceError(status: response.status, message: response.header?.message)
@@ -567,12 +694,19 @@ public actor PEManager {
         }
     }
     
-    /// Get ResourceList from a device
-    public func getResourceList(
+    /// Get DeviceInfo (legacy API)
+    @available(*, deprecated, message: "Use getDeviceInfo(from:) with PEDeviceHandle instead")
+    public func getDeviceInfo(
         from device: MUID,
         via destination: MIDIDestinationID
-    ) async throws -> [PEResourceEntry] {
-        let response = try await get(resource: "ResourceList", from: device, via: destination)
+    ) async throws -> PEDeviceInfo {
+        let handle = PEDeviceHandle(muid: device, destination: destination)
+        return try await getDeviceInfo(from: handle)
+    }
+    
+    /// Get ResourceList from a device
+    public func getResourceList(from device: PEDeviceHandle) async throws -> [PEResourceEntry] {
+        let response = try await get("ResourceList", from: device)
         
         guard response.isSuccess else {
             throw PEError.deviceError(status: response.status, message: response.header?.message)
@@ -583,6 +717,16 @@ public actor PEManager {
         } catch {
             throw PEError.invalidResponse("Failed to decode ResourceList: \(error)")
         }
+    }
+    
+    /// Get ResourceList (legacy API)
+    @available(*, deprecated, message: "Use getResourceList(from:) with PEDeviceHandle instead")
+    public func getResourceList(
+        from device: MUID,
+        via destination: MIDIDestinationID
+    ) async throws -> [PEResourceEntry] {
+        let handle = PEDeviceHandle(muid: device, destination: destination)
+        return try await getResourceList(from: handle)
     }
     
     // MARK: - Private: Request Execution
