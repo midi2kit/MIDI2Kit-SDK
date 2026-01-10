@@ -12,6 +12,8 @@ A modern Swift library for MIDI 2.0 / MIDI-CI / Property Exchange.
 - **MIDI2CI** - Capability Inquiry (Discovery, Protocol Negotiation, Profiles)
 - **MIDI2PE** - Property Exchange (Get/Set resources, Subscriptions, Transaction management)
 - **MIDI2Transport** - CoreMIDI integration with duplicate connection prevention
+- **Per-device rate limiting** - Prevents overwhelming slow devices
+- **Auto-reconnecting subscriptions** - Survives device disconnections
 
 ## Requirements
 
@@ -43,25 +45,19 @@ import MIDI2Kit
 @MainActor
 class MIDIController {
     private var transport: CoreMIDITransport?
-    private let transactionManager = PETransactionManager()
-    private let myMUID = MUID.random()
-    
-    private var discoveredDevices: [MUID: (identity: DeviceIdentity, destination: MIDIDestinationID)] = [:]
-    private var receiveTask: Task<Void, Never>?
-    private var monitorHandle: PEMonitorHandle?  // Automatic timeout monitoring
+    private var ciManager: CIManager?
+    private var peManager: PEManager?
     
     func start() async throws {
-        // 1. Create transport and connect to all sources
+        // 1. Create transport
         transport = try CoreMIDITransport(clientName: "MyApp")
         try await transport?.connectToAllSources()
         
-        // 2. Start receive loop
-        receiveTask = Task { await receiveLoop() }
+        // 2. Create CI manager for device discovery
+        ciManager = CIManager(transport: transport!)
+        try await ciManager?.start()
         
-        // 3. Start automatic timeout monitoring (MUST hold the handle!)
-        monitorHandle = await transactionManager.startMonitoring()
-        
-        // 4. Handle setup changes (device connect/disconnect)
+        // 3. Handle setup changes
         Task {
             guard let transport else { return }
             for await _ in transport.setupChanged {
@@ -69,138 +65,53 @@ class MIDIController {
             }
         }
         
-        // 5. Send Discovery Inquiry to all destinations
-        await sendDiscovery()
-    }
-    
-    func stop() async {
-        receiveTask?.cancel()
-        await monitorHandle?.stop()  // Stop monitoring explicitly
-        transport = nil
-    }
-    
-    // MARK: - Receive Loop
-    
-    private func receiveLoop() async {
-        guard let transport else { return }
-        
-        for await received in transport.received {
-            // Parse as CI message
-            guard let parsed = CIMessageParser.parse(received.data) else {
-                continue  // Not a CI message
-            }
-            
-            switch parsed.messageType {
-            case .discoveryReply:
-                await handleDiscoveryReply(parsed)
-                
-            case .peGetReply, .peSetReply:
-                await handlePEReply(parsed)
-                
-            default:
-                break
+        // 4. Handle device discovery
+        Task {
+            guard let ciManager else { return }
+            for await event in ciManager.events {
+                switch event {
+                case .deviceDiscovered(let device):
+                    print("Found: \(device.displayName)")
+                    if device.supportsPropertyExchange {
+                        await fetchDeviceInfo(device)
+                    }
+                case .deviceLost(let muid):
+                    print("Lost: \(muid)")
+                default:
+                    break
+                }
             }
         }
     }
     
-    // MARK: - Discovery
-    
-    private func sendDiscovery() async {
-        guard let transport else { return }
-        
-        let message = CIMessageBuilder.discoveryInquiry(
-            sourceMUID: myMUID,
-            categorySupport: .propertyExchange
-        )
-        
-        for dest in await transport.destinations {
-            try? await transport.send(message, to: dest.destinationID)
-        }
-    }
-    
-    private func handleDiscoveryReply(_ parsed: CIMessageParser.ParsedMessage) async {
-        guard let reply = CIMessageParser.parseDiscoveryReply(parsed.payload) else { return }
-        
-        // Find destination for this device
-        guard let transport,
-              let dest = (await transport.destinations).first else { return }
-        
-        discoveredDevices[parsed.sourceMUID] = (reply.identity, dest.destinationID)
-        
-        print("Discovered: \(reply.identity.manufacturerID.name ?? "Unknown") (MUID: \(parsed.sourceMUID))")
-        
-        // If device supports PE, fetch DeviceInfo
-        if reply.categorySupport.contains(.propertyExchange) {
-            await fetchDeviceInfo(from: parsed.sourceMUID, destination: dest.destinationID)
-        }
-    }
-    
-    // MARK: - Property Exchange
-    
-    private func fetchDeviceInfo(from deviceMUID: MUID, destination: MIDIDestinationID) async {
-        guard let transport else { return }
-        
-        // Begin transaction
-        guard let requestID = await transactionManager.begin(
-            resource: "DeviceInfo",
-            destinationMUID: deviceMUID,
-            timeout: 5.0
-        ) else {
-            print("❌ Request ID exhausted")
+    private func fetchDeviceInfo(_ device: DiscoveredDevice) async {
+        guard let ciManager, let transport,
+              let destination = await ciManager.destination(for: device.muid) else {
             return
         }
         
-        // Build PE Get message
-        let header = CIMessageBuilder.resourceRequestHeader(resource: "DeviceInfo")
-        let message = CIMessageBuilder.peGetInquiry(
-            sourceMUID: myMUID,
-            destinationMUID: deviceMUID,
-            requestID: requestID,
-            headerData: header
-        )
+        // Create PE manager on first use
+        if peManager == nil {
+            peManager = PEManager(
+                transport: transport,
+                sourceMUID: ciManager.muid
+            )
+            await peManager?.startReceiving()
+        }
         
-        // Send request
+        // Fetch DeviceInfo
+        let handle = PEDeviceHandle(muid: device.muid, destination: destination)
+        
         do {
-            try await transport.send(message, to: destination)
-        } catch {
-            await transactionManager.cancel(requestID: requestID)
-            return
-        }
-        
-        // Wait for completion
-        let result = await transactionManager.waitForCompletion(requestID: requestID)
-        
-        switch result {
-        case .success(_, let body):
-            if let deviceInfo = try? JSONDecoder().decode(PEDeviceInfo.self, from: body) {
-                print("✅ DeviceInfo: \(deviceInfo.productName ?? "Unknown")")
+            let response = try await peManager!.get("DeviceInfo", from: handle)
+            if let info = try? JSONDecoder().decode(PEDeviceInfo.self, from: response.body) {
+                print("✅ Product: \(info.productName ?? "Unknown")")
             }
-        case .error(let status, let message):
-            print("❌ PE Error: \(status) - \(message ?? "")")
-        case .timeout:
-            print("⏱️ Timeout")
-        case .cancelled:
-            print("🚫 Cancelled")
+        } catch {
+            print("❌ Error: \(error)")
         }
-    }
-    
-    private func handlePEReply(_ parsed: CIMessageParser.ParsedMessage) async {
-        guard let reply = CIMessageParser.parsePEReply(parsed.payload) else { return }
-        
-        // Process chunk (auto-completes transaction when all chunks received)
-        _ = await transactionManager.processChunk(
-            requestID: reply.requestID,
-            thisChunk: reply.thisChunk,
-            numChunks: reply.numChunks,
-            headerData: reply.headerData,
-            propertyData: reply.propertyData
-        )
     }
 }
-
-// Usage
-let controller = MIDIController()
-try await controller.start()
 ```
 
 ## Quick Start
@@ -236,24 +147,26 @@ Task {
 ```swift
 import MIDI2CI
 
-// Build Discovery Inquiry
-let myMUID = MUID.random()
-let message = CIMessageBuilder.discoveryInquiry(
-    sourceMUID: myMUID,
-    categorySupport: .propertyExchange
-)
+// Create and start CI manager
+let ciManager = CIManager(transport: transport)
+try await ciManager.start()
 
-// Send to all destinations
-for dest in await transport.destinations {
-    try await transport.send(message, to: dest.destinationID)
+// Listen for device events
+for await event in ciManager.events {
+    switch event {
+    case .deviceDiscovered(let device):
+        print("Found: \(device.displayName)")
+        print("Supports PE: \(device.supportsPropertyExchange)")
+    case .deviceLost(let muid):
+        print("Lost: \(muid)")
+    default:
+        break
+    }
 }
 
-// Parse Discovery Reply
-if let parsed = CIMessageParser.parse(receivedData),
-   parsed.messageType == .discoveryReply,
-   let reply = CIMessageParser.parseDiscoveryReply(parsed.payload) {
-    print("Found: \(reply.identity)")
-    print("Supports PE: \(reply.categorySupport.contains(.propertyExchange))")
+// Get destination for sending to a device
+if let destination = await ciManager.destination(for: device.muid) {
+    try await transport.send(message, to: destination)
 }
 ```
 
@@ -262,50 +175,76 @@ if let parsed = CIMessageParser.parse(receivedData),
 ```swift
 import MIDI2PE
 
-// Create transaction manager (prevents Request ID leaks)
-let transactionManager = PETransactionManager()
-
-// Start automatic timeout monitoring (recommended)
-// IMPORTANT: Hold the handle - monitoring stops when handle is released
-let monitorHandle = await transactionManager.startMonitoring()
-
-// Begin transaction
-guard let requestID = await transactionManager.begin(
-    resource: "DeviceInfo",
-    destinationMUID: deviceMUID,
-    timeout: 5.0
-) else {
-    print("All Request IDs in use!")
-    return
-}
-
-// Build and send PE Get
-let header = CIMessageBuilder.resourceRequestHeader(resource: "DeviceInfo")
-let getMessage = CIMessageBuilder.peGetInquiry(
-    sourceMUID: myMUID,
-    destinationMUID: deviceMUID,
-    requestID: requestID,
-    headerData: header
+// Create PE manager
+let peManager = PEManager(
+    transport: transport,
+    sourceMUID: ciManager.muid
 )
-try await transport.send(getMessage, to: destination)
+await peManager.startReceiving()
 
-// Wait for completion (blocks until response or timeout)
-let result = await transactionManager.waitForCompletion(requestID: requestID)
+// Create handle for target device
+let handle = PEDeviceHandle(
+    muid: device.muid,
+    destination: destination
+)
 
-switch result {
-case .success(let header, let body):
-    let deviceInfo = try JSONDecoder().decode(PEDeviceInfo.self, from: body)
-    print("Device: \(deviceInfo.productName ?? "Unknown")")
-case .error(let status, let message):
-    print("Error \(status): \(message ?? "")")
-case .timeout:
-    print("Transaction timed out")
-case .cancelled:
-    print("Transaction cancelled")
+// GET request
+let response = try await peManager.get("DeviceInfo", from: handle)
+let deviceInfo = try JSONDecoder().decode(PEDeviceInfo.self, from: response.body)
+
+// GET with timeout
+let response = try await peManager.get(
+    "ChCtrlList",
+    from: handle,
+    timeout: .seconds(10)
+)
+
+// Channel-specific GET
+let response = try await peManager.get(
+    "ProgramInfo",
+    channel: 0,
+    from: handle
+)
+```
+
+### Auto-Reconnecting Subscriptions
+
+```swift
+import MIDI2PE
+
+// Create subscription manager
+let subscriptionManager = PESubscriptionManager(
+    peManager: peManager,
+    ciManager: ciManager
+)
+await subscriptionManager.start()
+
+// Subscribe with device identity for matching after MUID changes
+try await subscriptionManager.subscribe(
+    to: "ProgramList",
+    on: device.muid,
+    identity: device.identity  // Used for matching after reconnection
+)
+
+// Handle events (survives device reconnections)
+for await event in subscriptionManager.events {
+    switch event {
+    case .notification(let notification):
+        print("Data changed: \(notification.resource)")
+        
+    case .suspended(let intentID, let reason):
+        print("Subscription suspended: \(reason)")
+        
+    case .restored(let intentID, let newSubscribeId):
+        print("Subscription restored!")
+        
+    case .failed(let intentID, let reason):
+        print("Subscription failed: \(reason)")
+        
+    case .subscribed(let intentID, let subscribeId):
+        print("Initial subscription established")
+    }
 }
-
-// When done with PE operations, release handle or call stop()
-await monitorHandle.stop()  // or just let handle go out of scope
 ```
 
 ## Modules
@@ -317,7 +256,7 @@ Foundation types used throughout the library.
 ```swift
 import MIDI2Core
 
-// MUID - 28-bit unique identifier
+// MUID - 28-bit unique identifier (0x00000000 - 0x0FFFFFFF)
 let muid = MUID.random()
 let broadcast = MUID.broadcast
 
@@ -341,52 +280,56 @@ MIDI Capability Inquiry protocol implementation.
 ```swift
 import MIDI2CI
 
-// Message building
-let discovery = CIMessageBuilder.discoveryInquiry(sourceMUID: muid)
-let peCapability = CIMessageBuilder.peCapabilityInquiry(
-    sourceMUID: myMUID,
-    destinationMUID: deviceMUID
-)
+// Create manager
+let ciManager = CIManager(transport: transport)
+try await ciManager.start()
 
-// Message parsing
-if let msg = CIMessageParser.parse(data) {
-    switch msg.messageType {
-    case .discoveryReply:
-        let reply = CIMessageParser.parseDiscoveryReply(msg.payload)
-    case .peGetReply:
-        let reply = CIMessageParser.parsePEReply(msg.payload)
-    default:
-        break
-    }
-}
+// Configure discovery
+let config = CIManagerConfiguration(
+    discoveryInterval: 5.0,
+    deviceTimeout: 15.0,
+    categorySupport: .propertyExchange
+)
+let ciManager = CIManager(transport: transport, configuration: config)
+
+// Access discovered devices
+let devices = await ciManager.discoveredDevices
+let device = await ciManager.device(for: muid)
+
+// Find destination for a device (via Entity mapping)
+let destination = await ciManager.destination(for: device.muid)
 ```
 
 ### MIDI2PE
 
-Property Exchange with transaction management.
+Property Exchange with transaction management and per-device rate limiting.
 
 ```swift
 import MIDI2PE
 
-// Transaction manager prevents Request ID leaks
-let manager = PETransactionManager()
+// Transaction manager with per-device limiting
+let transactionManager = PETransactionManager(
+    maxInflightPerDevice: 2,  // Max 2 concurrent requests per device
+    logger: logger
+)
 
-// Start automatic timeout monitoring (recommended)
-let handle = await manager.startMonitoring()  // MUST hold this!
-
-// Begin/complete lifecycle
-let id = await manager.begin(resource: "ChCtrlList", destinationMUID: muid)
-// ... send request, receive response ...
-await manager.complete(requestID: id, header: header, body: body)
-
-// Error handling
-await manager.completeWithError(requestID: id, status: 404)
+// High-level PE manager
+let peManager = PEManager(
+    transport: transport,
+    sourceMUID: muid,
+    transactionManager: transactionManager
+)
+await peManager.startReceiving()
 
 // Device disconnection cleanup
-await manager.cancelAll(for: deviceMUID)
+await transactionManager.cancelAll(for: deviceMUID)
 
-// Stop monitoring when done
-await handle.stop()
+// Monitor state
+print(await transactionManager.diagnostics)
+// Active transactions: 3
+// Available IDs: 125
+// Device states:
+//   MUID(0x01234567): inflight=2, waiting=1
 ```
 
 ### MIDI2Transport
@@ -417,8 +360,9 @@ See [Documentation/Architecture.md](Documentation/Architecture.md) for detailed 
 
 See [Documentation/BestPractices.md](Documentation/BestPractices.md) for:
 - Preventing Request ID leaks
+- Per-device rate limiting
 - Handling duplicate MIDI connections
-- Timeout management
+- Auto-reconnecting subscriptions
 - Error handling patterns
 
 ## Testing
@@ -436,3 +380,18 @@ MIT License - see [LICENSE](LICENSE) for details.
 ## Contributing
 
 Contributions welcome! Please read the architecture documentation before submitting PRs.
+
+---
+
+## Changelog
+
+See [Documentation/CHANGELOG.md](Documentation/CHANGELOG.md) for detailed version history.
+
+### Latest (2026-01-10)
+
+- Added `PESubscriptionManager` for auto-reconnecting subscriptions
+- Added per-device inflight limiting (`maxInflightPerDevice`)
+- Added `CIManagerEvent` for event-driven device discovery
+- Fixed Source-to-Destination mapping via Entity
+- Improved responsibility separation between `PETransactionManager` and `PEManager`
+- 142+ tests passing
