@@ -488,6 +488,10 @@ public final class CoreMIDITransport: MIDITransport, @unchecked Sendable {
     }
     
     /// Find destination via entity relationship
+    ///
+    /// For multiport devices (multiple sources/destinations per entity),
+    /// we match the source index to the destination index to avoid
+    /// sending to the wrong port.
     private func findDestinationViaEntity(for sourceRef: MIDIEndpointRef) -> MIDIDestinationID? {
         var entity: MIDIEntityRef = 0
         let status = MIDIEndpointGetEntity(sourceRef, &entity)
@@ -503,9 +507,21 @@ public final class CoreMIDITransport: MIDITransport, @unchecked Sendable {
             return nil
         }
         
-        // Return the first destination in this entity
-        // (most devices have 1 source + 1 destination per entity)
-        let destRef = MIDIEntityGetDestination(entity, 0)
+        // Find which source index this sourceRef is within the entity
+        let sourceCount = MIDIEntityGetNumberOfSources(entity)
+        var sourceIndex: Int = 0
+        
+        for i in 0..<sourceCount {
+            if MIDIEntityGetSource(entity, i) == sourceRef {
+                sourceIndex = i
+                break
+            }
+        }
+        
+        // Use matching destination index if available, otherwise fallback to 0
+        let destIndex = sourceIndex < destCount ? sourceIndex : 0
+        let destRef = MIDIEntityGetDestination(entity, destIndex)
+        
         guard destRef != 0 else {
             return nil
         }
