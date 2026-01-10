@@ -307,6 +307,98 @@ struct PEManagerTests {
         task2.cancel()
         await manager.stopReceiving()
     }
+    
+    @Test("stopReceiving handles many concurrent requests safely")
+    func stopReceivingHandlesManyConcurrentRequests() async throws {
+        let transport = MockMIDITransport()
+        let manager = PEManager(
+            transport: transport,
+            sourceMUID: sourceMUID
+        )
+        
+        await manager.startReceiving()
+        
+        // Start many concurrent requests to stress test dictionary iteration
+        let requestCount = 50
+        let tasks = (0..<requestCount).map { i in
+            Task {
+                try await manager.get(
+                    resource: "Resource\(i)",
+                    from: deviceMUID,
+                    via: destinationID,
+                    timeout: Duration.seconds(60)
+                )
+            }
+        }
+        
+        // Wait for all requests to be registered
+        try await Task.sleep(for: .milliseconds(100))
+        
+        // Verify all requests are pending
+        let diagBefore = await manager.diagnostics
+        #expect(diagBefore.contains("Pending requests: \(requestCount)"))
+        
+        // Stop receiving - this should NOT crash even with many pending continuations
+        // (Previously would crash due to dictionary mutation during iteration)
+        await manager.stopReceiving()
+        
+        // Verify all tasks completed with cancellation
+        var cancelledCount = 0
+        for task in tasks {
+            do {
+                _ = try await task.value
+            } catch is PEError {
+                cancelledCount += 1
+            }
+        }
+        #expect(cancelledCount == requestCount)
+        
+        // Verify clean state
+        let diagAfter = await manager.diagnostics
+        #expect(diagAfter.contains("Pending requests: 0"))
+        #expect(diagAfter.contains("Available IDs: 128"))
+    }
+    
+    @Test("stopReceiving is idempotent")
+    func stopReceivingIsIdempotent() async throws {
+        let transport = MockMIDITransport()
+        let manager = PEManager(
+            transport: transport,
+            sourceMUID: sourceMUID
+        )
+        
+        await manager.startReceiving()
+        
+        // Start a request
+        let task = Task {
+            try await manager.get(
+                resource: "DeviceInfo",
+                from: deviceMUID,
+                via: destinationID,
+                timeout: Duration.seconds(10)
+            )
+        }
+        
+        try await Task.sleep(for: .milliseconds(30))
+        
+        // Call stopReceiving multiple times - should not crash
+        await manager.stopReceiving()
+        await manager.stopReceiving()
+        await manager.stopReceiving()
+        
+        // Verify task was cancelled
+        do {
+            _ = try await task.value
+            Issue.record("Expected cancellation")
+        } catch {
+            // Expected
+        }
+        
+        // Verify clean state
+        let diag = await manager.diagnostics
+        #expect(diag.contains("Receiving: false"))
+        #expect(diag.contains("Pending requests: 0"))
+    }
 }
 
 // MARK: - PEResponse Tests
