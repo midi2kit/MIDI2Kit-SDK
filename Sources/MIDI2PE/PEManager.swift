@@ -124,13 +124,15 @@ public actor PEManager {
     /// Receiving task
     private var receiveTask: Task<Void, Never>?
     
-    /// Monitor handle for transaction timeouts
-    private var monitorHandle: PEMonitorHandle?
-    
     /// Pending transactions waiting for response
     private var pendingContinuations: [UInt8: CheckedContinuation<PEResponse, Error>] = [:]
     
     /// Timeout tasks for pending requests
+    ///
+    /// Timeout management is centralized here (not via PETransactionManager.startMonitoring)
+    /// to ensure pendingContinuations are properly resumed on timeout.
+    /// - PETransactionManager: handles RequestID lifecycle and chunk assembly
+    /// - PEManager: handles response delivery and timeout-to-continuation mapping
     private var timeoutTasks: [UInt8: Task<Void, Never>] = [:]
     
     /// Subscription streams
@@ -160,8 +162,9 @@ public actor PEManager {
     public func startReceiving() async {
         guard receiveTask == nil else { return }
         
-        // Start transaction timeout monitoring
-        monitorHandle = await transactionManager.startMonitoring()
+        // Note: We don't use transactionManager.startMonitoring() here.
+        // Timeout is managed per-request via timeoutTasks to ensure
+        // pendingContinuations are properly resumed.
         
         // Start receive loop
         receiveTask = Task { [weak self] in
@@ -179,9 +182,6 @@ public actor PEManager {
     public func stopReceiving() async {
         receiveTask?.cancel()
         receiveTask = nil
-        
-        await monitorHandle?.stop()
-        monitorHandle = nil
         
         // Cancel all timeout tasks
         for (_, task) in timeoutTasks {
@@ -401,7 +401,7 @@ public actor PEManager {
             continuation.resume(throwing: PEError.timeout(resource: resource))
         }
         
-        // Cancel transaction in manager
+        // Cancel transaction in manager to release RequestID
         Task {
             await transactionManager.cancel(requestID: requestID)
         }
