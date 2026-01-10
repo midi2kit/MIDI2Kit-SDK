@@ -301,6 +301,23 @@ public actor CIManager {
         devices[muid]?.destination
     }
     
+    /// Create a destination resolver closure for PEManager
+    ///
+    /// This provides a convenient way to configure PEManager's
+    /// `destinationResolver` to use this CIManager for MUID → destination lookup.
+    ///
+    /// ## Example
+    /// ```swift
+    /// peManager.destinationResolver = ciManager.makeDestinationResolver()
+    /// // Now you can use MUID-only API:
+    /// let response = try await peManager.get("DeviceInfo", from: deviceMUID)
+    /// ```
+    public nonisolated func makeDestinationResolver() -> @Sendable (MUID) async -> MIDIDestinationID? {
+        { [weak self] muid in
+            await self?.destination(for: muid)
+        }
+    }
+    
     // MARK: - Device Management
     
     /// Remove a device manually

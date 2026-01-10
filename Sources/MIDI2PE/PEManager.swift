@@ -187,6 +187,19 @@ public actor PEManager {
     private let transactionManager: PETransactionManager
     private let logger: any MIDI2Logger
     
+    /// Destination resolver: given a MUID, returns the corresponding destination
+    ///
+    /// This enables MUID-only API without tight coupling to CIManager.
+    /// When set, allows using `get(_:from:MUID)` instead of requiring `PEDeviceHandle`.
+    ///
+    /// ## Setup with CIManager
+    /// ```swift
+    /// peManager.destinationResolver = { [weak ciManager] muid in
+    ///     await ciManager?.destination(for: muid)
+    /// }
+    /// ```
+    public var destinationResolver: (@Sendable (MUID) async -> MIDIDestinationID?)?
+    
     // MARK: - Receive State
     
     /// Task that processes incoming MIDI data
@@ -476,6 +489,113 @@ public actor PEManager {
         timeout: Duration = defaultTimeout
     ) async throws -> PEResponse {
         try await send(.set(resource, data: data, channel: channel, to: device, timeout: timeout))
+    }
+    
+    // MARK: - GET/SET (MUID-only, destination auto-resolved)
+    
+    /// Resolve a MUID to a PEDeviceHandle using the configured destinationResolver
+    ///
+    /// - Parameter muid: Device MUID to resolve
+    /// - Returns: PEDeviceHandle if destination was found
+    /// - Throws: `PEError.deviceNotFound` if resolver is not set or device not found
+    private func resolveDevice(_ muid: MUID) async throws -> PEDeviceHandle {
+        guard let resolver = destinationResolver else {
+            throw PEError.deviceNotFound(muid)
+        }
+        guard let destination = await resolver(muid) else {
+            throw PEError.deviceNotFound(muid)
+        }
+        return PEDeviceHandle(muid: muid, destination: destination)
+    }
+    
+    /// Get a resource from a device (MUID-only, destination auto-resolved)
+    ///
+    /// Requires `destinationResolver` to be configured.
+    ///
+    /// ## Example
+    /// ```swift
+    /// peManager.destinationResolver = { muid in
+    ///     await ciManager.destination(for: muid)
+    /// }
+    /// let response = try await peManager.get("DeviceInfo", from: deviceMUID)
+    /// ```
+    public func get(
+        _ resource: String,
+        from muid: MUID,
+        timeout: Duration = defaultTimeout
+    ) async throws -> PEResponse {
+        let device = try await resolveDevice(muid)
+        return try await get(resource, from: device, timeout: timeout)
+    }
+    
+    /// Get a channel-specific resource (MUID-only)
+    public func get(
+        _ resource: String,
+        channel: Int,
+        from muid: MUID,
+        timeout: Duration = defaultTimeout
+    ) async throws -> PEResponse {
+        let device = try await resolveDevice(muid)
+        return try await get(resource, channel: channel, from: device, timeout: timeout)
+    }
+    
+    /// Get a paginated resource (MUID-only)
+    public func get(
+        _ resource: String,
+        offset: Int,
+        limit: Int,
+        from muid: MUID,
+        timeout: Duration = defaultTimeout
+    ) async throws -> PEResponse {
+        let device = try await resolveDevice(muid)
+        return try await get(resource, offset: offset, limit: limit, from: device, timeout: timeout)
+    }
+    
+    /// Set a resource value (MUID-only, destination auto-resolved)
+    ///
+    /// Requires `destinationResolver` to be configured.
+    public func set(
+        _ resource: String,
+        data: Data,
+        to muid: MUID,
+        timeout: Duration = defaultTimeout
+    ) async throws -> PEResponse {
+        let device = try await resolveDevice(muid)
+        return try await set(resource, data: data, to: device, timeout: timeout)
+    }
+    
+    /// Set a channel-specific resource (MUID-only)
+    public func set(
+        _ resource: String,
+        data: Data,
+        channel: Int,
+        to muid: MUID,
+        timeout: Duration = defaultTimeout
+    ) async throws -> PEResponse {
+        let device = try await resolveDevice(muid)
+        return try await set(resource, data: data, channel: channel, to: device, timeout: timeout)
+    }
+    
+    /// Get DeviceInfo (MUID-only)
+    public func getDeviceInfo(from muid: MUID) async throws -> PEDeviceInfo {
+        let device = try await resolveDevice(muid)
+        return try await getDeviceInfo(from: device)
+    }
+    
+    /// Get ResourceList (MUID-only)
+    public func getResourceList(from muid: MUID) async throws -> [PEResourceEntry] {
+        let device = try await resolveDevice(muid)
+        return try await getResourceList(from: device)
+    }
+    
+    /// Subscribe to notifications (MUID-only)
+    public func subscribe(
+        to resource: String,
+        on muid: MUID,
+        timeout: Duration = defaultTimeout
+    ) async throws -> PESubscribeResponse {
+        let device = try await resolveDevice(muid)
+        return try await subscribe(to: resource, on: device, timeout: timeout)
     }
     
     // MARK: - Legacy API (MUID + Destination separate)
