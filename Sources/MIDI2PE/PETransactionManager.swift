@@ -35,11 +35,23 @@ public struct PEMonitoringConfiguration: Sendable {
     /// Interval between timeout checks (seconds)
     public let checkInterval: TimeInterval
     
-    public init(checkInterval: TimeInterval = 1.0) {
+    /// If true, monitoring starts automatically on first `begin()` call
+    ///
+    /// When enabled, you don't need to manually call `startMonitoring()` or hold a handle.
+    /// The manager keeps an internal strong reference to the monitoring task.
+    ///
+    /// Default: `false` (explicit `startMonitoring()` required)
+    public let autoStart: Bool
+    
+    public init(checkInterval: TimeInterval = 1.0, autoStart: Bool = false) {
         self.checkInterval = checkInterval
+        self.autoStart = autoStart
     }
     
     public static let `default` = PEMonitoringConfiguration()
+    
+    /// Configuration with auto-start enabled
+    public static let autoStartEnabled = PEMonitoringConfiguration(autoStart: true)
 }
 
 /// Shared running state between Task and Handle
@@ -114,11 +126,12 @@ public final class PEMonitorHandle: Sendable {
 ///
 /// Key features:
 /// - **Automatic timeout monitoring** via `startMonitoring()` returning a handle
+/// - **Auto-start option** for convenience (no handle management needed)
 /// - Guaranteed Request ID release on completion/error/timeout
 /// - Transaction state monitoring
 /// - Leak detection and warnings
 ///
-/// ## Usage
+/// ## Usage (Explicit Monitoring - Recommended)
 /// ```swift
 /// let manager = PETransactionManager()
 ///
@@ -127,10 +140,19 @@ public final class PEMonitorHandle: Sendable {
 ///
 /// let requestID = await manager.begin(resource: "DeviceInfo", destinationMUID: device)
 /// // ... use requestID ...
-/// // Timeouts are handled automatically while handle is held
 ///
 /// // When done, release handle or call stop()
-/// await handle.stop()  // or just let handle go out of scope
+/// await handle.stop()
+/// ```
+///
+/// ## Usage (Auto-Start - Convenient but less control)
+/// ```swift
+/// let manager = PETransactionManager(
+///     monitoringConfig: .autoStartEnabled
+/// )
+///
+/// // No need to call startMonitoring() - starts automatically on first begin()
+/// let requestID = await manager.begin(resource: "DeviceInfo", destinationMUID: device)
 /// ```
 public actor PETransactionManager {
     
@@ -165,6 +187,9 @@ public actor PETransactionManager {
     /// Weak reference to current monitor handle (for idempotency check)
     private weak var currentMonitorHandle: PEMonitorHandle?
     
+    /// Strong reference for auto-started monitoring (keeps monitoring alive)
+    private var autoStartedMonitorHandle: PEMonitorHandle?
+    
     // MARK: - Public Properties
     
     /// Number of active transactions
@@ -192,7 +217,7 @@ public actor PETransactionManager {
     /// Initialize with optional logger and monitoring configuration
     /// - Parameters:
     ///   - logger: Logger instance (default: NullMIDI2Logger - silent)
-    ///   - monitoringConfig: Monitoring configuration
+    ///   - monitoringConfig: Monitoring configuration (use `.autoStartEnabled` for auto-start)
     public init(
         logger: any MIDI2Logger = NullMIDI2Logger(),
         monitoringConfig: PEMonitoringConfiguration = .default
@@ -264,15 +289,32 @@ public actor PETransactionManager {
         return handle
     }
     
+    /// Stop monitoring (for auto-started monitoring)
+    ///
+    /// If monitoring was auto-started, this stops it.
+    /// If monitoring was started manually via `startMonitoring()`, 
+    /// you should use the handle's `stop()` method instead.
+    public func stopMonitoring() async {
+        if let handle = autoStartedMonitorHandle {
+            await handle.stop()
+            autoStartedMonitorHandle = nil
+        }
+    }
+    
     /// Called when monitoring stops (handle deallocated or stop() called)
     private func onMonitoringStopped() {
         logger.info("Timeout monitoring stopped", category: Self.logCategory)
         currentMonitorHandle = nil
+        autoStartedMonitorHandle = nil
     }
     
     // MARK: - Transaction Lifecycle
     
     /// Begin a new PE transaction
+    ///
+    /// If `autoStart` is enabled in the monitoring configuration,
+    /// this method will automatically start monitoring on the first call.
+    ///
     /// - Parameters:
     ///   - resource: Resource being requested
     ///   - destinationMUID: Target device MUID
@@ -283,6 +325,12 @@ public actor PETransactionManager {
         destinationMUID: MUID,
         timeout: TimeInterval = defaultTimeout
     ) -> UInt8? {
+        // Auto-start monitoring if configured and not already running
+        if monitoringConfig.autoStart && !isMonitoring {
+            logger.info("Auto-starting timeout monitoring", category: Self.logCategory)
+            autoStartedMonitorHandle = startMonitoring()
+        }
+        
         // Check for exhaustion
         if isNearExhaustion {
             logger.warning(
@@ -525,6 +573,7 @@ public actor PETransactionManager {
         var lines: [String] = []
         lines.append("=== PETransactionManager Diagnostics ===")
         lines.append("Monitoring: \(isMonitoring ? "active" : "stopped")")
+        lines.append("Auto-start: \(monitoringConfig.autoStart ? "enabled" : "disabled")")
         lines.append("Active transactions: \(activeCount)")
         lines.append("Available IDs: \(availableIDs)")
         lines.append("Near exhaustion: \(isNearExhaustion)")

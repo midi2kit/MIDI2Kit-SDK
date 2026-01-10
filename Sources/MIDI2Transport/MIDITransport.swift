@@ -115,5 +115,33 @@ public enum MIDITransportError: Error, Sendable {
     case connectionFailed(Int32)
     case destinationNotFound(UInt32)
     case sourceNotFound(UInt32)
-    case packetListFull
+    /// MIDIPacketListAdd returned nil (buffer too small or invalid parameters)
+    case packetListAddFailed(dataSize: Int, bufferSize: Int)
+    /// Packet list has no packets after add (unexpected state)
+    case packetListEmpty
+}
+
+extension MIDITransportError: CustomStringConvertible {
+    public var description: String {
+        switch self {
+        case .notInitialized:
+            return "MIDI transport not initialized"
+        case .clientCreationFailed(let status):
+            return "Failed to create MIDI client (OSStatus: \(status))"
+        case .portCreationFailed(let status):
+            return "Failed to create MIDI port (OSStatus: \(status))"
+        case .sendFailed(let status):
+            return "Failed to send MIDI data (OSStatus: \(status))"
+        case .connectionFailed(let status):
+            return "Failed to connect/disconnect MIDI source (OSStatus: \(status))"
+        case .destinationNotFound(let id):
+            return "MIDI destination not found (ID: \(id))"
+        case .sourceNotFound(let id):
+            return "MIDI source not found (ID: \(id))"
+        case .packetListAddFailed(let dataSize, let bufferSize):
+            return "MIDIPacketListAdd failed (data: \(dataSize) bytes, buffer: \(bufferSize) bytes)"
+        case .packetListEmpty:
+            return "Packet list empty after add (unexpected)"
+        }
+    }
 }
