@@ -63,7 +63,7 @@ let package = Package(
         // PE: Get/Set resources, Subscription, Chunk handling
         .target(
             name: "MIDI2PE",
-            dependencies: ["MIDI2Core", "MIDI2CI"],
+            dependencies: ["MIDI2Core", "MIDI2CI", "MIDI2Transport"],
             swiftSettings: [
                 .swiftLanguageMode(.v6),
                 .enableExperimentalFeature("StrictConcurrency")
