@@ -484,6 +484,13 @@ public actor PEManager {
             
         case .timeout(let id, _, _, _):
             handleTimeout(requestID: id)
+            
+        case .unknownRequestID(let id):
+            // Request ID not found - late/duplicate response, already completed or cancelled
+            logger.debug(
+                "Ignoring reply for unknown requestID \(id) (late/duplicate response)",
+                category: Self.logCategory
+            )
         }
     }
     

@@ -172,17 +172,13 @@ public final class CoreMIDITransport: MIDITransport, @unchecked Sendable {
         let packetList = UnsafeMutableRawPointer(buffer).bindMemory(to: MIDIPacketList.self, capacity: 1)
         let packet = MIDIPacketListInit(packetList)
         
-        // Check MIDIPacketListAdd return value explicitly
-        let addResult = MIDIPacketListAdd(packetList, bufferSize, packet, 0, data.count, data)
+        // Add packet to list
+        // Note: MIDIPacketListAdd returns non-optional in Swift, check numPackets instead
+        _ = MIDIPacketListAdd(packetList, bufferSize, packet, 0, data.count, data)
         
-        // MIDIPacketListAdd returns nil on failure
-        guard addResult != nil else {
-            throw MIDITransportError.packetListAddFailed(dataSize: data.count, bufferSize: bufferSize)
-        }
-        
-        // Double-check: packet list should have at least one packet
+        // Verify packet was added (MIDIPacketListAdd fails silently if buffer too small)
         guard packetList.pointee.numPackets > 0 else {
-            throw MIDITransportError.packetListEmpty
+            throw MIDITransportError.packetListAddFailed(dataSize: data.count, bufferSize: bufferSize)
         }
         
         let status = MIDISend(outputPort, destRef, packetList)

@@ -115,10 +115,8 @@ public enum MIDITransportError: Error, Sendable {
     case connectionFailed(Int32)
     case destinationNotFound(UInt32)
     case sourceNotFound(UInt32)
-    /// MIDIPacketListAdd returned nil (buffer too small or invalid parameters)
+    /// MIDIPacketListAdd failed (buffer too small or invalid parameters)
     case packetListAddFailed(dataSize: Int, bufferSize: Int)
-    /// Packet list has no packets after add (unexpected state)
-    case packetListEmpty
 }
 
 extension MIDITransportError: CustomStringConvertible {
@@ -140,8 +138,6 @@ extension MIDITransportError: CustomStringConvertible {
             return "MIDI source not found (ID: \(id))"
         case .packetListAddFailed(let dataSize, let bufferSize):
             return "MIDIPacketListAdd failed (data: \(dataSize) bytes, buffer: \(bufferSize) bytes)"
-        case .packetListEmpty:
-            return "Packet list empty after add (unexpected)"
         }
     }
 }
