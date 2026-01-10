@@ -60,6 +60,7 @@ private final class ConnectionState: @unchecked Sendable {
 /// - Automatic reconnection on setup changes
 /// - SysEx assembly for fragmented messages
 /// - Source ID tracking for received messages
+/// - Optional message tracing for diagnostics
 public final class CoreMIDITransport: MIDITransport, @unchecked Sendable {
     
     // MARK: - Private State
@@ -75,6 +76,18 @@ public final class CoreMIDITransport: MIDITransport, @unchecked Sendable {
     
     private var receivedContinuation: AsyncStream<MIDIReceivedData>.Continuation?
     private var setupChangedContinuation: AsyncStream<Void>.Continuation?
+    
+    // MARK: - Public Properties
+    
+    /// Optional tracer for message logging
+    ///
+    /// Set this to enable automatic tracing of all sent/received messages:
+    /// ```swift
+    /// transport.tracer = MIDITracer(capacity: 500)
+    /// // ... later ...
+    /// print(transport.tracer?.dump() ?? "")
+    /// ```
+    public var tracer: MIDITracer?
     
     // MARK: - Public Streams
     
@@ -170,6 +183,12 @@ public final class CoreMIDITransport: MIDITransport, @unchecked Sendable {
     
     public func send(_ data: [UInt8], to destination: MIDIDestinationID) async throws {
         let destRef = MIDIEndpointRef(destination.value)
+        
+        // Trace send
+        if let tracer = tracer {
+            let label = MIDITraceEntry.detectLabel(for: data)
+            tracer.recordSend(to: destination.value, data: data, label: label)
+        }
         
         // Calculate buffer size:
         // MIDIPacketList header (4 bytes) + MIDIPacket header (10 bytes) + data + padding
@@ -379,6 +398,12 @@ public final class CoreMIDITransport: MIDITransport, @unchecked Sendable {
         let messages = await sysExAssembler.process(data)
         
         for message in messages {
+            // Trace receive
+            if let tracer = tracer {
+                let label = MIDITraceEntry.detectLabel(for: message)
+                tracer.recordReceive(from: sourceID?.value ?? 0, data: message, label: label)
+            }
+            
             let received = MIDIReceivedData(data: message, sourceID: sourceID)
             receivedContinuation?.yield(received)
         }

@@ -49,7 +49,7 @@ MIDI2Kit ──────┬────────────────�
 
 | Type | Description |
 |------|-------------|
-| `MUID` | 28-bit MIDI Unique Identifier |
+| `MUID` | 28-bit MIDI Unique Identifier (0x0000_0000 - 0x0FFF_FFFF) |
 | `DeviceIdentity` | Manufacturer, family, model, version |
 | `ManufacturerID` | Standard (1-byte) or Extended (3-byte) |
 | `Mcoded7` | 8-bit ↔ 7-bit SysEx encoding |
@@ -77,33 +77,6 @@ MIDI2Kit ──────┬────────────────�
 │  Levels: debug < info < notice < warning < error < fault    │
 │                                                              │
 └─────────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────────┐
-│                     MIDI2LogUtils                            │
-├─────────────────────────────────────────────────────────────┤
-│  Safe Formatting (prevents log bloat & sensitive data leak) │
-│                                                              │
-│  hexPreview(data, limit: 32)                                │
-│    → "F0 7E 7F... (32 of 128 bytes)"                        │
-│                                                              │
-│  transactionInfo(requestID, resource, muid)                 │
-│    → "[42] DeviceInfo -> 0x12345678"                        │
-│                                                              │
-│  chunkProgress(received, total)                             │
-│    → "3/5 chunks"                                           │
-│                                                              │
-│  responseSummary(status, headerSize, bodySize)              │
-│    → "status=200, header=45B, body=1024B"                   │
-│                                                              │
-│  timeoutInfo(elapsedSeconds, receivedChunks, totalChunks)   │
-│    → "timeout after 5.0s (received 2/4 chunks)"             │
-│                                                              │
-│  Extensions: Data.logPreview, [UInt8].logPreview            │
-│                                                              │
-│  Guidelines:                                                 │
-│    ✅ Log: requestID, MUID, chunk progress, status, size    │
-│    ❌ Avoid: Full SysEx dumps, complete bodies, raw binary  │
-└─────────────────────────────────────────────────────────────┘
 ```
 
 **Design Notes**:
@@ -119,10 +92,11 @@ MIDI2Kit ──────┬────────────────�
 
 | Type | Description |
 |------|-------------|
-| `CIManager` | Central manager for CI devices and MUID lifecycle |
+| `CIManager` | Central manager for CI devices, events, and MUID lifecycle |
 | `DiscoveredDevice` | Device found via Discovery |
 | `CIMessageBuilder` | Builds CI SysEx messages |
 | `CIMessageParser` | Parses CI SysEx messages |
+| `CIManagerEvent` | Device discovery and lifecycle events |
 
 **CIManager**:
 
@@ -136,16 +110,36 @@ MIDI2Kit ──────┬────────────────�
 │    • Track discovered devices                               │
 │    • Handle device invalidation                             │
 │    • Provide device lookup by MUID                          │
+│    • Map Source endpoint to Destination (via Entity)        │
+│    • Emit discovery events via AsyncStream                  │
 │                                                              │
 │  Key Methods:                                                │
-│    generateMUID() → MUID                                    │
+│    start() / stop()                                         │
 │    device(for: MUID) → DiscoveredDevice?                    │
+│    destination(for: MUID) → MIDIDestinationID?              │
 │    handleDiscoveryReply(payload:) → DiscoveredDevice        │
 │    handleInvalidateMUID(payload:)                           │
 │    clearAllDevices()                                        │
 │                                                              │
+│  Events:                                                     │
+│    deviceDiscovered, deviceLost, deviceUpdated             │
+│    discoveryStarted, discoveryStopped                       │
+│                                                              │
 └─────────────────────────────────────────────────────────────┘
 ```
+
+**Source-to-Destination Mapping**:
+
+CoreMIDI uses separate endpoints for input (Source) and output (Destination). They belong to the same Entity:
+
+```
+Physical Device
+  └── Entity (MIDIEntityRef)
+       ├── Source (MIDIEndpointRef A) ← CI replies come FROM here
+       └── Destination (MIDIEndpointRef B) ← CI requests go TO here
+```
+
+`CIManager.destination(for:)` uses `MIDIEndpointGetEntity` and `MIDIEntityGetDestination` to find the correct destination for a device.
 
 **Message Flow**:
 
@@ -177,9 +171,73 @@ App                     MIDI2CI                    Device
 | `PEChunkAssembler` | Assembles multi-chunk responses |
 | `PEChunkResult` | Result of chunk processing |
 | `PERequestIDManager` | Manages 7-bit Request IDs (0-127) |
-| `PETransactionManager` | **Critical**: Prevents Request ID leaks |
-| `PEMonitorHandle` | Handle for automatic timeout monitoring |
-| `PEMonitoringConfiguration` | Configuration for monitoring behavior |
+| `PETransactionManager` | Request ID lifecycle, chunk assembly, per-device limiting |
+| `PEManager` | High-level PE API with timeout and continuation management |
+| `PESubscriptionManager` | Auto-reconnecting subscription management |
+
+**Responsibility Separation**:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                  Component Responsibilities                  │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  PETransactionManager:                                       │
+│    ✅ Request ID allocation/release                         │
+│    ✅ Chunk assembly                                        │
+│    ✅ Transaction state tracking                            │
+│    ✅ Per-device inflight limiting                          │
+│    ❌ Timeout scheduling                                    │
+│    ❌ Continuation management                               │
+│                                                              │
+│  PEManager:                                                  │
+│    ❌ Request ID management                                 │
+│    ❌ Chunk assembly                                        │
+│    ✅ Timeout scheduling (per-request Tasks)               │
+│    ✅ Continuation management                               │
+│    ✅ Response delivery                                     │
+│    ✅ High-level get/set/subscribe API                     │
+│                                                              │
+│  PESubscriptionManager:                                      │
+│    ✅ Auto-reconnection handling                            │
+│    ✅ Device identity matching                              │
+│    ✅ Subscription intent tracking                          │
+│    ✅ Unified event stream                                  │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Per-Device Inflight Limiting**:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                Per-Device Inflight Limiting                  │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  Problem: Some devices can't handle many concurrent PE      │
+│  requests (e.g., KORG Module Pro drops chunks)              │
+│                                                              │
+│  Solution: Limit concurrent requests per device             │
+│                                                              │
+│  Configuration:                                              │
+│    maxInflightPerDevice: Int (default: 2)                   │
+│                                                              │
+│  Behavior:                                                   │
+│    • begin() waits if device is at capacity                 │
+│    • Waiters queued in FIFO order                           │
+│    • cancel() resumes next waiter automatically             │
+│    • Different devices can have concurrent requests         │
+│                                                              │
+│  Example with maxInflightPerDevice=2:                       │
+│                                                              │
+│    Request 1 → [ACTIVE] ─────────────┐                      │
+│    Request 2 → [ACTIVE] ────────────┐│                      │
+│    Request 3 → [WAITING] ───────────┼┤ Device A             │
+│    Request 4 → [WAITING] ───────────┼┘                      │
+│    Request 5 → [ACTIVE] ────────────┘   Device B            │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
 
 **Chunk Processing Results**:
 
@@ -200,50 +258,36 @@ public enum PEChunkResult {
 >   - Response for cancelled transaction
 >   - Misrouted message / ID collision
 
-**Monitoring System**:
+**Subscription Management**:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                PEMonitoringConfiguration                     │
-├─────────────────────────────────────────────────────────────┤
-│  checkInterval: TimeInterval (default: 1.0s)                │
-│  autoStart: Bool (default: false)                           │
-│                                                              │
-│  Presets:                                                    │
-│    .default         → manual startMonitoring() required     │
-│    .autoStartEnabled → monitoring starts on first begin()   │
-└─────────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────────┐
-│                  PEMonitorHandle Pattern                     │
+│               PESubscriptionManager                          │
 ├─────────────────────────────────────────────────────────────┤
 │                                                              │
-│  startMonitoring()                                           │
-│        │                                                     │
-│        ▼                                                     │
-│  ┌───────────────────────────────────────────────────┐      │
-│  │ PEMonitorHandle                                    │      │
-│  │   ├─ Task (background timeout checking)           │      │
-│  │   ├─ MonitorRunningState (shared state)           │      │
-│  │   └─ stopCallback                                 │      │
-│  └───────────────────────────────────────────────────┘      │
-│        │                                                     │
-│        │ Task runs: while !cancelled && manager alive       │
-│        │   → checkTimeouts()                                │
-│        │   → sleep(checkInterval)                           │
-│        │                                                     │
-│        ├─── stop() called ──▶ Task cancelled, state marked  │
-│        │                                                     │
-│        ├─── Handle released ──▶ deinit cancels Task         │
-│        │                                                     │
-│        └─── Manager deallocated ──▶ weak self nil,          │
-│                                      Task exits cleanly     │
+│  Subscription Intent (what user wants):                      │
+│    • Resource name                                           │
+│    • Device MUID (may change)                               │
+│    • Device Identity (for matching after MUID change)       │
 │                                                              │
-│  Auto-Start Mode (autoStart: true):                         │
-│    • No need to call startMonitoring()                      │
-│    • Monitoring starts automatically on first begin()       │
-│    • Manager holds internal strong reference to handle      │
-│    • Use stopMonitoring() to stop                           │
+│  States:                                                     │
+│    .active(subscribeId, muid) - Subscription is live        │
+│    .pending - Waiting for device                            │
+│    .failed(reason) - Subscription failed                    │
+│                                                              │
+│  Events:                                                     │
+│    .subscribed - Initial subscription established           │
+│    .suspended - Device disconnected                         │
+│    .restored - Device reconnected, re-subscribed            │
+│    .failed - Subscription failed                            │
+│    .notification - Received PE notification                 │
+│                                                              │
+│  Auto-Reconnection Flow:                                     │
+│    1. Device disconnects → .suspended                       │
+│    2. Same device reconnects (matched by identity)          │
+│    3. Wait resubscribeDelay                                 │
+│    4. Re-subscribe (up to maxRetryAttempts)                 │
+│    5. Success → .restored, Fail → .failed                   │
 │                                                              │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -256,25 +300,25 @@ public enum PEChunkResult {
 ├─────────────────────────────────────────────────────────────┤
 │                                                              │
 │  begin() ─────────────┬─────────────────────────────────────│
-│                       │                                      │
-│                       ▼                                      │
-│              ┌─────────────────┐                            │
-│              │   ACTIVE        │                            │
-│              │   Transaction   │                            │
-│              └────────┬────────┘                            │
-│                       │                                      │
-│     ┌─────────────────┼─────────────────┐                   │
-│     │                 │                 │                   │
-│     ▼                 ▼                 ▼                   │
-│ complete()    completeWithError()   checkTimeouts()         │
-│     │                 │                 │                   │
-│     └─────────────────┴─────────────────┘                   │
-│                       │                                      │
-│                       ▼                                      │
-│              ┌─────────────────┐                            │
-│              │ Request ID      │ ◀── ALWAYS released        │
-│              │ RELEASED        │                            │
-│              └─────────────────┘                            │
+│      │                │                                      │
+│      ▼                ▼                                      │
+│  [WAIT for slot] → [ALLOCATE ID] → [TRACK]                  │
+│                                       │                      │
+│              ┌────────────────────────┘                     │
+│              │                                              │
+│              ▼                                              │
+│     [PROCESS CHUNKS] ─────┐                                 │
+│              │            │                                 │
+│              ▼            ▼                                 │
+│     [.complete]    [.timeout / cancel()]                    │
+│              │            │                                 │
+│              └────────────┘                                 │
+│                    │                                        │
+│                    ▼                                        │
+│           [RELEASE ID + SLOT]                               │
+│                    │                                        │
+│                    ▼                                        │
+│           [RESUME NEXT WAITER]                              │
 │                                                              │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -326,6 +370,15 @@ Request IDs are 7-bit (0-127). Without proper lifecycle management:
 │    2. Connect all                                            │
 │    → Clean slate when needed                                 │
 │                                                              │
+│  Source ID Tracking:                                         │
+│    • connRefCon passed to MIDIPortConnectSource             │
+│    • Extracted in callback to populate sourceID             │
+│                                                              │
+│  Packet Order Guarantee:                                     │
+│    • All packets collected first                            │
+│    • Processed sequentially in single Task                  │
+│    → Prevents SysEx corruption from race conditions         │
+│                                                              │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -337,6 +390,8 @@ MIDI2Kit uses Swift 6 strict concurrency:
 |-----------|-----------|
 | `CIManager` | `actor` |
 | `PETransactionManager` | `actor` |
+| `PEManager` | `actor` |
+| `PESubscriptionManager` | `actor` |
 | `SysExAssembler` | `actor` |
 | `MockMIDITransport` | `actor` |
 | Data types | `Sendable struct/enum` |
@@ -354,8 +409,17 @@ public enum MIDITransportError: Error, CustomStringConvertible {
     case connectionFailed(Int32)
     case destinationNotFound(UInt32)
     case sourceNotFound(UInt32)
-    case packetListAddFailed(dataSize: Int, bufferSize: Int)  // MIDIPacketListAdd returned nil
-    case packetListEmpty  // Unexpected empty packet list
+    case packetListAddFailed(dataSize: Int, bufferSize: Int)
+    case packetListEmpty
+}
+
+public enum PEError: Error {
+    case requestIDExhausted
+    case timeout(resource: String)
+    case cancelled
+    case deviceError(status: Int, message: String?)
+    case transportError(Error)
+    case invalidResponse
 }
 
 public enum PETransactionResult {
@@ -375,18 +439,21 @@ public enum PEChunkResult: CustomStringConvertible {
 
 ## Data Flow Example
 
-Complete PE Get flow:
+Complete PE Get flow with per-device limiting:
 
 ```
 ┌──────┐    ┌────────────┐    ┌─────────────┐    ┌──────────┐
 │ App  │    │ MIDI2PE    │    │ MIDI2CI     │    │ Transport│
 └──┬───┘    └─────┬──────┘    └──────┬──────┘    └────┬─────┘
    │              │                  │                 │
-   │ begin()      │                  │                 │
+   │ get()        │                  │                 │
    │─────────────▶│                  │                 │
    │              │                  │                 │
-   │ requestID    │                  │                 │
-   │◀─────────────│                  │                 │
+   │              │ begin() (may wait for slot)       │
+   │              │─────────────────▶│                 │
+   │              │                  │                 │
+   │              │ requestID        │                 │
+   │              │◀─────────────────│                 │
    │              │                  │                 │
    │              │ peGetInquiry()   │                 │
    │──────────────┼─────────────────▶│                 │
@@ -404,7 +471,10 @@ Complete PE Get flow:
    │─────────────▶│                  │                 │
    │              │                  │                 │
    │ .complete    │                  │                 │
-   │◀─────────────│ (ID released)    │                 │
+   │◀─────────────│                  │                 │
+   │              │                  │                 │
+   │              │ cancel() (release ID + slot)      │
+   │              │─────────────────▶│ (resumes waiter)│
    │              │                  │                 │
 ```
 
@@ -414,7 +484,7 @@ Complete PE Get flow:
 |-------|---------------|
 | MIDI2Core | Unit tests for encoding/decoding |
 | MIDI2CI | Unit tests for message building/parsing, CIManager lifecycle |
-| MIDI2PE | Unit tests for transaction lifecycle, chunk assembly |
+| MIDI2PE | Unit tests for transaction lifecycle, chunk assembly, inflight limiting |
 | MIDI2Transport | MockMIDITransport for integration tests |
 
 Mock transport enables testing without hardware:
@@ -432,5 +502,6 @@ XCTAssert(await mock.wasSent(ciMessageType: 0x70))
 
 ## Version History
 
-- **2025-01-10**: Added `unknownRequestID` to `PEChunkResult`, `autoStart` monitoring option, `MIDI2LogUtils`, improved `MIDITransportError` with explicit `packetListAddFailed`
-- **2025-01-09**: Unified `CIManager` implementations (MIDI2CI + MIDI2Kit → single implementation)
+- **2026-01-10**: Added per-device inflight limiting, `PESubscriptionManager`, `CIManagerEvent`, fixed Source-to-Destination mapping via Entity
+- **2025-01-10**: Added `unknownRequestID` to `PEChunkResult`, improved `MIDITransportError`, responsibility separation between `PETransactionManager` and `PEManager`
+- **2025-01-09**: Initial release with MIDI2Core, MIDI2CI, MIDI2PE, MIDI2Transport

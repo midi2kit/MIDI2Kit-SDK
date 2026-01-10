@@ -1,5 +1,175 @@
 # MIDI2Kit Changelog
 
+## 2026-01-10 (Session 4-6)
+
+### Added
+
+#### PESubscriptionManager - Auto-Reconnection Support
+**New component for managing PE subscriptions with automatic reconnection:**
+
+```swift
+let subscriptionManager = PESubscriptionManager(
+    peManager: peManager,
+    ciManager: ciManager
+)
+await subscriptionManager.start()
+
+// Subscribe with auto-reconnect capability
+let intentID = try await subscriptionManager.subscribe(
+    to: "ProgramList",
+    on: device.muid,
+    identity: device.identity  // Used for matching after MUID changes
+)
+
+// Handle events (survives device reconnections)
+for await event in subscriptionManager.events {
+    switch event {
+    case .notification(let n):
+        print("Data: \(n.data)")
+    case .suspended(let id, let reason):
+        print("Subscription \(id) suspended: \(reason)")
+    case .restored(let id, let newSubscribeId):
+        print("Subscription \(id) restored!")
+    case .failed(let id, let reason):
+        print("Subscription \(id) failed: \(reason)")
+    case .subscribed(let id, let subscribeId):
+        print("Subscribed \(id) -> \(subscribeId)")
+    }
+}
+```
+
+**Features:**
+- Automatic re-subscription when devices reconnect
+- Device matching by identity (survives MUID changes)
+- Configurable retry attempts and delays
+- Unified event stream for subscription lifecycle
+
+#### Per-Device Inflight Limiting
+**Prevents overwhelming slow devices with concurrent requests:**
+
+```swift
+let manager = PETransactionManager(
+    maxInflightPerDevice: 2,  // Max 2 concurrent requests per device
+    logger: logger
+)
+```
+
+**Behavior:**
+- Excess requests wait in FIFO queue
+- Waiters automatically resume when slots become available
+- Per-device tracking (different devices can have concurrent requests)
+- Default limit: 2 requests per device
+
+#### CIManager Events
+**Event-driven device lifecycle monitoring:**
+
+```swift
+public enum CIManagerEvent: Sendable {
+    case deviceDiscovered(DiscoveredDevice)
+    case deviceLost(MUID)
+    case deviceUpdated(DiscoveredDevice)
+    case discoveryStarted
+    case discoveryStopped
+}
+
+for await event in ciManager.events {
+    switch event {
+    case .deviceDiscovered(let device):
+        print("Found: \(device.displayName)")
+    case .deviceLost(let muid):
+        print("Lost: \(muid)")
+    // ...
+    }
+}
+```
+
+### Fixed
+
+#### CIManager - Source-to-Destination Mapping
+**Problem:** `findDestination(for:)` assumed source endpoint ref == destination endpoint ref, which rarely holds true in CoreMIDI.
+
+**Solution:** Use Entity-based mapping via `MIDIEndpointGetEntity` and `MIDIEntityGetDestination`:
+
+```swift
+// Find destination on same entity as source
+public func destination(for muid: MUID) async -> MIDIDestinationID? {
+    guard let entry = devices[muid],
+          let sourceID = entry.sourceID else { return nil }
+    
+    // Find entity containing this source
+    var entity: MIDIEntityRef = 0
+    guard MIDIEndpointGetEntity(sourceID.value, &entity) == noErr else { return nil }
+    
+    // Get destination from same entity
+    if MIDIEntityGetNumberOfDestinations(entity) > 0 {
+        return MIDIDestinationID(MIDIEntityGetDestination(entity, 0))
+    }
+    
+    return nil
+}
+```
+
+#### MUID Validation in Tests
+**Problem:** Test code used `MUID(rawValue: 0x12345678)!` which exceeded the 28-bit limit (0x0FFFFFFF), causing force unwrap crashes.
+
+**Fix:** Changed test values to valid 28-bit MUIDs:
+```swift
+// Before (invalid - crashes)
+let muid = MUID(rawValue: 0x12345678)!  // > 0x0FFFFFFF
+
+// After (valid)
+let muid = MUID(rawValue: 0x01234567)!  // <= 0x0FFFFFFF
+```
+
+#### stopReceiving Tests - Inflight Limiting Compatibility
+**Problem:** Tests expected all requests to be "Pending", but per-device inflight limiting queues excess requests as "waiters".
+
+**Fix:** Updated tests to verify correct inflight/waiting distribution:
+```swift
+// With maxInflightPerDevice=2, 5 requests become:
+// 2 inflight (active) + 3 waiting
+#expect(diagBefore.contains("inflight=2, waiting=3"))
+```
+
+### Changed
+
+#### PETransactionManager - Responsibility Separation
+**Simplified architecture with clear responsibility boundaries:**
+
+| Responsibility | PETransactionManager | PEManager |
+|----------------|:-------------------:|:---------:|
+| Request ID allocation/release | ✅ | ❌ |
+| Chunk assembly | ✅ | ❌ |
+| Transaction state tracking | ✅ | ❌ |
+| Per-device inflight limiting | ✅ | ❌ |
+| **Timeout scheduling** | ❌ | ✅ |
+| **Continuation management** | ❌ | ✅ |
+| **Response delivery** | ❌ | ✅ |
+
+**Removed from PETransactionManager:**
+- `complete(requestID:header:body:)`
+- `completeWithError(requestID:status:message:)`
+- `checkTimeouts()`
+- `startMonitoring()` / `stopMonitoring()`
+- `waitForCompletion(requestID:)`
+- `PEMonitoringConfiguration`
+- `PEMonitorHandle`
+- `completionHandlers` dictionary
+
+### Test Coverage
+
+**142+ tests total** (up from 121)
+
+| Suite | Tests | Changes |
+|-------|------:|---------|
+| PETransactionManagerTests | 24 | Updated for simplified API |
+| PEManagerTests | 15+ | Added inflight limiting tests |
+| PESubscriptionManagerTests | New | Auto-reconnection tests |
+| CIManagerTests | Updated | Event handling tests |
+| PEDeviceHandleTests | Fixed | MUID validation |
+
+---
+
 ## 2026-01-10 (Session 3)
 
 ### Fixed
@@ -85,15 +255,6 @@
 - Duplicate call returns cancelled
 - Does not leak continuation on duplicate call
 
-### Test Coverage
-
-- **121 tests total**, all passing (up from 95)
-- Previously disabled "GET times out when no reply" test now enabled and passing
-- SysExAssembler Tests: 14 tests
-- CoreMIDITransport Packet Order Tests: 4 tests
-- PETransactionManager Tests: 24 tests (up from 11)
-- PEManager Tests: 13 tests (up from 7)
-
 ---
 
 ## 2026-01-10 (Session 1 & 2)
@@ -154,3 +315,22 @@ let manager = PETransactionManager(logger: logger)
 
 - `PEMonitoringConfiguration.autoStart` removed - use `startMonitoring()` explicitly
 - `PEMonitoringConfiguration.checkInterval` is now `let` (immutable)
+
+---
+
+## 2026-01-09 (Initial Release)
+
+### Added
+
+- **MIDI2Core**: Foundation types (MUID, DeviceIdentity, Mcoded7, Constants)
+- **MIDI2CI**: Message building and parsing, DiscoveredDevice, CIManager
+- **MIDI2PE**: Transaction management, chunk assembly, resource types
+- **MIDI2Transport**: CoreMIDI integration, MockMIDITransport, SysExAssembler
+- **MIDI2Kit**: Umbrella module re-exporting all modules
+
+### Documentation
+
+- README with quick start guide
+- Architecture documentation
+- API reference
+- Best practices guide

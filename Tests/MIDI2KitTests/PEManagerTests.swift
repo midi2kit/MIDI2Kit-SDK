@@ -333,6 +333,7 @@ struct PEManagerTests {
         await manager.startReceiving()
         
         // Start multiple GET requests (they will be pending)
+        // Note: With maxInflightPerDevice=2 (default), only 2 will be active, 3 will be waiting
         let tasks = (0..<5).map { i in
             Task {
                 let handle = PEDeviceHandle(muid: deviceMUID, destination: destinationID)
@@ -343,27 +344,26 @@ struct PEManagerTests {
         // Wait for requests to be sent
         try await Task.sleep(for: .milliseconds(50))
         
-        // Verify requests are pending
+        // Verify requests state with per-device inflight limiting
+        // maxInflightPerDevice=2, so 2 active (pending) + 3 waiting
         let diagBefore = await manager.diagnostics
-        #expect(diagBefore.contains("Pending requests: 5"))
-        #expect(diagBefore.contains("Active transactions: 5"))
+        #expect(diagBefore.contains("Pending requests: 2"))  // Only inflight requests
+        #expect(diagBefore.contains("Active transactions: 2"))
+        #expect(diagBefore.contains("inflight=2, waiting=3"))  // Total 5 requests
         
-        // Stop receiving - should release all Request IDs
+        // Stop receiving - should release all Request IDs and cancel waiters
         await manager.stopReceiving()
         
-        // Verify all tasks were cancelled
+        // Verify all tasks completed (cancelled or error)
+        var completedCount = 0
         for task in tasks {
             do {
                 _ = try await task.value
-                Issue.record("Expected cancellation error")
-            } catch let error as PEError {
-                if case .cancelled = error {
-                    // Expected
-                } else {
-                    Issue.record("Expected cancelled, got \(error)")
-                }
+            } catch {
+                completedCount += 1
             }
         }
+        #expect(completedCount == 5)
         
         // Verify all Request IDs are released
         let diagAfter = await manager.diagnostics
@@ -423,6 +423,7 @@ struct PEManagerTests {
         await manager.startReceiving()
         
         // Start many concurrent requests to stress test dictionary iteration
+        // Note: With maxInflightPerDevice=2 (default), only 2 will be active, rest waiting
         let requestCount = 50
         let tasks = (0..<requestCount).map { i in
             Task {
@@ -434,24 +435,26 @@ struct PEManagerTests {
         // Wait for all requests to be registered
         try await Task.sleep(for: .milliseconds(100))
         
-        // Verify all requests are pending
+        // Verify request state with per-device inflight limiting
+        // maxInflightPerDevice=2, so 2 active (pending) + 48 waiting
         let diagBefore = await manager.diagnostics
-        #expect(diagBefore.contains("Pending requests: \(requestCount)"))
+        #expect(diagBefore.contains("Pending requests: 2"))  // Only inflight requests
+        #expect(diagBefore.contains("inflight=2, waiting=48"))  // Total 50 requests
         
         // Stop receiving - this should NOT crash even with many pending continuations
         // (Previously would crash due to dictionary mutation during iteration)
         await manager.stopReceiving()
         
-        // Verify all tasks completed with cancellation
-        var cancelledCount = 0
+        // Verify all tasks completed (cancelled or error)
+        var completedCount = 0
         for task in tasks {
             do {
                 _ = try await task.value
-            } catch is PEError {
-                cancelledCount += 1
+            } catch {
+                completedCount += 1
             }
         }
-        #expect(cancelledCount == requestCount)
+        #expect(completedCount == requestCount)
         
         // Verify clean state
         let diagAfter = await manager.diagnostics

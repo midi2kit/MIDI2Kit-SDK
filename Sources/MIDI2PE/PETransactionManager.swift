@@ -111,7 +111,7 @@ public actor PETransactionManager {
     ///
     /// Setting this to a low value (1-4) improves stability with devices
     /// that have weak MIDI-CI implementations.
-    public let maxInflightPerDevice: Int
+    public nonisolated let maxInflightPerDevice: Int
     
     /// Warning threshold for active transactions (possible leak indicator)
     public static let warningThreshold: Int = 100
