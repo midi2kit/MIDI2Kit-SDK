@@ -210,6 +210,24 @@ public protocol MIDITransport: Sendable {
     
     /// Connect to all available sources
     func connectToAllSources() async throws
+    
+    /// Find the matching destination for a source (same entity/device)
+    ///
+    /// This is essential for bidirectional communication with MIDI-CI devices.
+    /// In CoreMIDI, a source (input from device) and destination (output to device)
+    /// that belong to the same entity represent the same physical port.
+    ///
+    /// ## CoreMIDI Structure
+    /// ```
+    /// Device
+    ///   └── Entity (physical port)
+    ///        ├── Source (receive from device)
+    ///        └── Destination (send to device)
+    /// ```
+    ///
+    /// - Parameter source: The source to find a matching destination for
+    /// - Returns: The matching destination, or `nil` if none found
+    func findMatchingDestination(for source: MIDISourceID) async -> MIDIDestinationID?
 }
 
 /// MIDI Transport errors

@@ -115,6 +115,7 @@ public actor CIManager {
     private struct DeviceEntry {
         let device: DiscoveredDevice
         var lastSeen: Date
+        var sourceID: MIDISourceID?
         var destination: MIDIDestinationID?
     }
     
@@ -377,13 +378,29 @@ public actor CIManager {
             functionBlock: payload.functionBlock
         )
         
-        // Find matching destination based on source
-        let destination = findDestination(for: sourceID)
-        
-        let isNew = devices[parsed.sourceMUID] == nil
-        devices[parsed.sourceMUID] = DeviceEntry(
+        // Resolve destination asynchronously via transport
+        Task {
+            let destination = await self.findDestination(for: sourceID)
+            await self.registerDevice(
+                device,
+                sourceMUID: parsed.sourceMUID,
+                sourceID: sourceID,
+                destination: destination
+            )
+        }
+    }
+    
+    private func registerDevice(
+        _ device: DiscoveredDevice,
+        sourceMUID: MUID,
+        sourceID: MIDISourceID?,
+        destination: MIDIDestinationID?
+    ) {
+        let isNew = devices[sourceMUID] == nil
+        devices[sourceMUID] = DeviceEntry(
             device: device,
             lastSeen: Date(),
+            sourceID: sourceID,
             destination: destination
         )
         
@@ -433,11 +450,12 @@ public actor CIManager {
     
     // MARK: - Helpers
     
-    private func findDestination(for sourceID: MIDISourceID?) -> MIDIDestinationID? {
+    /// Find the destination endpoint that pairs with a source
+    ///
+    /// Delegates to transport layer to properly resolve entity relationships.
+    private func findDestination(for sourceID: MIDISourceID?) async -> MIDIDestinationID? {
         guard let sourceID else { return nil }
-        // Simple mapping: assume source ID value can be used as destination ID
-        // (common for bidirectional MIDI devices)
-        return MIDIDestinationID(sourceID.value)
+        return await transport.findMatchingDestination(for: sourceID)
     }
 }
 

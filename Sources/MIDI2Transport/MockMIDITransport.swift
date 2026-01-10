@@ -87,6 +87,26 @@ public actor MockMIDITransport: MIDITransport {
         // No-op for mock
     }
     
+    /// Source to destination mapping for testing
+    ///
+    /// Configure this to control what `findMatchingDestination` returns.
+    /// Key: sourceID.value, Value: destinationID.value
+    public var sourceToDestinationMap: [UInt32: UInt32] = [:]
+    
+    public func findMatchingDestination(for source: MIDISourceID) async -> MIDIDestinationID? {
+        // Check explicit mapping first
+        if let destValue = sourceToDestinationMap[source.value] {
+            return MIDIDestinationID(destValue)
+        }
+        
+        // Default: try to find destination with matching name
+        let sourceInfo = mockSources.first { $0.sourceID == source }
+        guard let sourceName = sourceInfo?.name else { return nil }
+        
+        let matchingDest = mockDestinations.first { $0.name == sourceName }
+        return matchingDest?.destinationID
+    }
+    
     // MARK: - Test Helpers
     
     /// Set mock destinations

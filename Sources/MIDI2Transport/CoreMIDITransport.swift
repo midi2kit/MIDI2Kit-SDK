@@ -428,6 +428,90 @@ public final class CoreMIDITransport: MIDITransport, @unchecked Sendable {
         }
         return uniqueID
     }
+    
+    // MARK: - Entity-based Destination Lookup
+    
+    /// Find the destination that belongs to the same entity as a source
+    ///
+    /// In CoreMIDI, endpoints are organized as:
+    /// ```
+    /// Device
+    ///   └── Entity (physical port)
+    ///        ├── Source (input from device)
+    ///        └── Destination (output to device)
+    /// ```
+    ///
+    /// This method finds the destination endpoint that shares the same entity
+    /// as the given source, enabling proper bidirectional communication.
+    ///
+    /// ## Fallback Strategy
+    /// 1. Entity-based lookup (most reliable for physical devices)
+    /// 2. Name-based matching (for virtual endpoints without entities)
+    ///
+    /// - Parameter source: The source to find a matching destination for
+    /// - Returns: The matching destination, or `nil` if none found
+    public func findMatchingDestination(for source: MIDISourceID) async -> MIDIDestinationID? {
+        let sourceRef = MIDIEndpointRef(source.value)
+        
+        // Strategy 1: Entity-based lookup
+        if let destination = findDestinationViaEntity(for: sourceRef) {
+            return destination
+        }
+        
+        // Strategy 2: Name-based fallback (for virtual endpoints)
+        return findDestinationByName(for: sourceRef)
+    }
+    
+    /// Find destination via entity relationship
+    private func findDestinationViaEntity(for sourceRef: MIDIEndpointRef) -> MIDIDestinationID? {
+        var entity: MIDIEntityRef = 0
+        let status = MIDIEndpointGetEntity(sourceRef, &entity)
+        
+        // Virtual endpoints may not have an entity
+        guard status == noErr, entity != 0 else {
+            return nil
+        }
+        
+        // Find destinations belonging to the same entity
+        let destCount = MIDIEntityGetNumberOfDestinations(entity)
+        guard destCount > 0 else {
+            return nil
+        }
+        
+        // Return the first destination in this entity
+        // (most devices have 1 source + 1 destination per entity)
+        let destRef = MIDIEntityGetDestination(entity, 0)
+        guard destRef != 0 else {
+            return nil
+        }
+        
+        return MIDIDestinationID(UInt32(destRef))
+    }
+    
+    /// Fallback: find destination by matching name (for virtual endpoints)
+    private func findDestinationByName(for sourceRef: MIDIEndpointRef) -> MIDIDestinationID? {
+        let sourceName = getEndpointName(sourceRef)
+        
+        // Common naming patterns for paired endpoints
+        let candidateNames = [
+            sourceName,
+            sourceName.replacingOccurrences(of: " In", with: " Out"),
+            sourceName.replacingOccurrences(of: " Input", with: " Output"),
+            sourceName.replacingOccurrences(of: " Source", with: " Destination")
+        ]
+        
+        let destCount = MIDIGetNumberOfDestinations()
+        for i in 0..<destCount {
+            let destRef = MIDIGetDestination(i)
+            let destName = getEndpointName(destRef)
+            
+            if candidateNames.contains(destName) {
+                return MIDIDestinationID(UInt32(destRef))
+            }
+        }
+        
+        return nil
+    }
 }
 
 #endif
