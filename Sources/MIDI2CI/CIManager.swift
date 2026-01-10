@@ -22,6 +22,9 @@ public struct CIManagerConfiguration: Sendable {
     /// Whether to automatically start discovery when start() is called
     public var autoStartDiscovery: Bool
     
+    /// Whether to respond to Discovery Inquiries (act as Responder)
+    public var respondToDiscovery: Bool
+    
     /// Category support to advertise
     public var categorySupport: CategorySupport
     
@@ -35,6 +38,7 @@ public struct CIManagerConfiguration: Sendable {
         discoveryInterval: TimeInterval = 5.0,
         deviceTimeout: TimeInterval = 15.0,
         autoStartDiscovery: Bool = true,
+        respondToDiscovery: Bool = true,
         categorySupport: CategorySupport = .propertyExchange,
         deviceIdentity: DeviceIdentity = .default,
         maxSysExSize: UInt32 = 0
@@ -42,10 +46,14 @@ public struct CIManagerConfiguration: Sendable {
         self.discoveryInterval = discoveryInterval
         self.deviceTimeout = deviceTimeout
         self.autoStartDiscovery = autoStartDiscovery
+        self.respondToDiscovery = respondToDiscovery
         self.categorySupport = categorySupport
         self.deviceIdentity = deviceIdentity
         self.maxSysExSize = maxSysExSize
     }
+    
+    /// Default configuration
+    public static let `default` = CIManagerConfiguration()
 }
 
 // MARK: - Events
@@ -68,10 +76,11 @@ public enum CIManagerEvent: Sendable {
 /// - Device lifecycle tracking (discovered/updated/lost)
 /// - Device timeout detection
 /// - PE capability filtering
+/// - Optionally responds to Discovery Inquiries (Responder mode)
 ///
 /// Example usage:
 /// ```swift
-/// let transport = CoreMIDITransport()
+/// let transport = try CoreMIDITransport(clientName: "MyApp")
 /// let manager = CIManager(transport: transport)
 /// try await manager.start()
 ///
@@ -81,6 +90,8 @@ public enum CIManagerEvent: Sendable {
 ///         print("Found: \(device.displayName)")
 ///     case .deviceLost(let muid):
 ///         print("Lost: \(muid)")
+///     default:
+///         break
 ///     }
 /// }
 /// ```
@@ -131,7 +142,7 @@ public actor CIManager {
     public init(
         transport: any MIDITransport,
         muid: MUID? = nil,
-        configuration: CIManagerConfiguration = CIManagerConfiguration()
+        configuration: CIManagerConfiguration = .default
     ) {
         self.transport = transport
         self.muid = muid ?? MUID.random()
@@ -144,30 +155,21 @@ public actor CIManager {
         self.eventContinuation = continuation
     }
     
-    /// Initializer with default configuration
+    /// Convenience initializer with default configuration
     public init(transport: any MIDITransport) {
-        self.transport = transport
-        self.muid = MUID.random()
-        self.configuration = CIManagerConfiguration()
-        
-        var continuation: AsyncStream<CIManagerEvent>.Continuation?
-        self.events = AsyncStream { cont in
-            continuation = cont
-        }
-        self.eventContinuation = continuation
+        self.init(transport: transport, muid: nil, configuration: .default)
     }
     
-    /// Initializer with specific MUID
+    /// Convenience initializer with specific MUID
     public init(transport: any MIDITransport, muid: MUID) {
-        self.transport = transport
-        self.muid = muid
-        self.configuration = CIManagerConfiguration()
-        
-        var continuation: AsyncStream<CIManagerEvent>.Continuation?
-        self.events = AsyncStream { cont in
-            continuation = cont
-        }
-        self.eventContinuation = continuation
+        self.init(transport: transport, muid: muid, configuration: .default)
+    }
+    
+    deinit {
+        discoveryTask?.cancel()
+        receiveTask?.cancel()
+        timeoutTask?.cancel()
+        eventContinuation?.finish()
     }
     
     // MARK: - Lifecycle
@@ -263,6 +265,19 @@ public actor CIManager {
         }
     }
     
+    /// Invalidate this manager's MUID (call when shutting down)
+    public func invalidateMUID() async {
+        let message = CIMessageBuilder.invalidateMUID(
+            sourceMUID: muid,
+            targetMUID: MUID.broadcast
+        )
+        
+        let destinations = await transport.destinations
+        for dest in destinations {
+            try? await transport.send(message, to: dest.destinationID)
+        }
+    }
+    
     // MARK: - Device Access
     
     /// All discovered devices
@@ -285,15 +300,41 @@ public actor CIManager {
         devices[muid]?.destination
     }
     
+    // MARK: - Device Management
+    
+    /// Remove a device manually
+    public func removeDevice(_ muid: MUID) {
+        if devices.removeValue(forKey: muid) != nil {
+            eventContinuation?.yield(.deviceLost(muid))
+        }
+    }
+    
+    /// Clear all devices
+    public func clearDevices() {
+        let muids = Array(devices.keys)
+        devices.removeAll()
+        for muid in muids {
+            eventContinuation?.yield(.deviceLost(muid))
+        }
+    }
+    
     // MARK: - Message Handling
     
     private func handleReceived(_ received: MIDIReceivedData) {
         guard let parsed = CIMessageParser.parse(received.data) else { return }
         
+        // Ignore messages from ourselves
+        guard parsed.sourceMUID != muid else { return }
+        
         // Ignore messages not addressed to us (unless broadcast)
         guard parsed.destinationMUID == muid || parsed.destinationMUID.isBroadcast else { return }
         
         switch parsed.messageType {
+        case .discoveryInquiry:
+            if configuration.respondToDiscovery {
+                Task { await handleDiscoveryInquiry(parsed) }
+            }
+            
         case .discoveryReply:
             handleDiscoveryReply(parsed, sourceID: received.sourceID)
             
@@ -302,6 +343,25 @@ public actor CIManager {
             
         default:
             break
+        }
+    }
+    
+    private func handleDiscoveryInquiry(_ parsed: CIMessageParser.ParsedMessage) async {
+        // Build reply
+        let reply = CIMessageBuilder.discoveryReply(
+            sourceMUID: muid,
+            destinationMUID: parsed.sourceMUID,
+            deviceIdentity: configuration.deviceIdentity,
+            categorySupport: configuration.categorySupport,
+            maxSysExSize: configuration.maxSysExSize,
+            initiatorOutputPath: 0,
+            functionBlock: 0
+        )
+        
+        // Send to all destinations
+        let destinations = await transport.destinations
+        for dest in destinations {
+            try? await transport.send(reply, to: dest.destinationID)
         }
     }
     
@@ -346,12 +406,6 @@ public actor CIManager {
         }
     }
     
-    private func removeDevice(_ muid: MUID) {
-        if devices.removeValue(forKey: muid) != nil {
-            eventContinuation?.yield(.deviceLost(muid))
-        }
-    }
-    
     // MARK: - Timeout Checking
     
     private func runTimeoutChecker() async {
@@ -379,17 +433,10 @@ public actor CIManager {
     
     // MARK: - Helpers
     
-    private func findDestination(for sourceID: MIDISourceID?) async -> MIDIDestinationID? {
-        guard let sourceID else { return nil }
-        
-        // Try to find a destination with matching ID (common for bidirectional devices)
-        let destinations = await transport.destinations
-        return destinations.first { $0.destinationID.value == sourceID.value }?.destinationID
-    }
-    
-    // Non-async version for use in sync context
     private func findDestination(for sourceID: MIDISourceID?) -> MIDIDestinationID? {
         guard let sourceID else { return nil }
+        // Simple mapping: assume source ID value can be used as destination ID
+        // (common for bidirectional MIDI devices)
         return MIDIDestinationID(sourceID.value)
     }
 }

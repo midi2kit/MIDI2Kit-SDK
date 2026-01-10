@@ -234,6 +234,44 @@ public enum CIMessageParser {
             messageText: messageText
         )
     }
+    
+    // MARK: - Full PE Reply Parser
+    
+    /// Full PE Reply structure (including MUIDs)
+    public struct FullPEReply: Sendable {
+        public let sourceMUID: MUID
+        public let destinationMUID: MUID
+        public let requestID: UInt8
+        public let headerData: Data
+        public let propertyData: Data
+        public let numChunks: Int
+        public let thisChunk: Int
+    }
+    
+    /// Parse complete PE Reply SysEx message
+    /// - Parameter data: Complete SysEx bytes including F0 and F7
+    /// - Returns: Full PE reply, or nil if invalid or not a PE reply
+    public static func parseFullPEReply(_ data: [UInt8]) -> FullPEReply? {
+        guard let parsed = parse(data) else { return nil }
+        
+        // Check message type (Get Reply or Set Reply)
+        guard parsed.messageType == .peGetReply || parsed.messageType == .peSetReply else {
+            return nil
+        }
+        
+        // Parse payload
+        guard let payload = parsePEReply(parsed.payload) else { return nil }
+        
+        return FullPEReply(
+            sourceMUID: parsed.sourceMUID,
+            destinationMUID: parsed.destinationMUID,
+            requestID: payload.requestID,
+            headerData: payload.headerData,
+            propertyData: payload.propertyData,
+            numChunks: payload.numChunks,
+            thisChunk: payload.thisChunk
+        )
+    }
 }
 
 // MARK: - Convenience Extensions
