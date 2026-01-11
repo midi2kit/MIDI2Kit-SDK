@@ -1,5 +1,94 @@
 # MIDI2Kit Changelog
 
+## 2026-01-12
+
+### Added
+
+#### MIDITransport.shutdown() - Stream Termination API
+**New protocol method for clean shutdown of transport streams:**
+
+```swift
+public protocol MIDITransport: Sendable {
+    /// Shut down the transport and finish all streams
+    func shutdown() async
+}
+
+// Default no-op implementation provided
+public extension MIDITransport {
+    func shutdown() async { }
+}
+```
+
+**Usage:**
+```swift
+// In tests - ensure async loops terminate
+func tearDown() async throws {
+    await transport.shutdown()
+}
+
+// In production - clean resource cleanup
+func disconnect() async {
+    await transport.shutdown()
+}
+```
+
+#### Duration.asTimeInterval Extension
+**Utility for converting Swift `Duration` to `TimeInterval`:**
+
+```swift
+extension Duration {
+    var asTimeInterval: TimeInterval {
+        let c = self.components
+        return TimeInterval(c.seconds) + TimeInterval(c.attoseconds) / 1e18
+    }
+}
+```
+
+### Fixed
+
+#### CoreMIDITransport - Proper Shutdown with Resource Cleanup
+**Problem:** `deinit` only disconnected sources and disposed client. Ports were not disposed, streams could leak.
+
+**Fix:** New `shutdown()` / `shutdownSync()` implementation:
+- Idempotent (safe to call multiple times)
+- Thread-safe via `NSLock`
+- Proper cleanup order: disconnect sources → dispose ports → dispose client → finish streams
+- Clears continuation references to prevent leaks
+
+#### MockMIDITransport.shutdown() - Async Protocol Conformance
+`shutdown()` signature changed from sync to `async` for protocol conformance.
+
+#### PETransactionManager - RequestID Exhaustion Hang Fix
+**Problem:** `swift test --no-parallel` hung at "Exhaustion returns nil" test.
+
+**Root Cause:**
+- With `maxInflightPerDevice: 128`, calling `begin()` 128 times fills all slots
+- 129th call enters `waitForDeviceSlot()` waiting for a slot to free
+- Nothing releases slots → infinite wait
+
+**Fix:** Fail-fast guard before waiting:
+```swift
+public func begin(...) async -> UInt8? {
+    guard await requestIDManager.availableCount > 0 else {
+        return nil  // Fail fast
+    }
+    await waitForDeviceSlot(destinationMUID)
+    // ...
+}
+```
+
+### Changed
+
+#### PEManager - Duration to TimeInterval Conversion
+Updated `transactionManager.begin()` calls to use `timeout.asTimeInterval`.
+
+### Known Issues (Deferred)
+
+#### CoreMIDITransport.send() - Potential Race with shutdown()
+`send()` does not check `didShutdown` flag. In typical usage this is not a problem since `shutdown()` is called during teardown.
+
+---
+
 ## 2026-01-10 (Session 4-6)
 
 ### Added
