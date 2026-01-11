@@ -260,7 +260,22 @@ public actor PEManager {
     }
     
     deinit {
+        // Cancel all tasks
         receiveTask?.cancel()
+        
+        // Cancel timeout and send tasks
+        for (_, task) in timeoutTasks {
+            task.cancel()
+        }
+        for (_, task) in sendTasks {
+            task.cancel()
+        }
+        
+        // Finish notification stream
+        notificationContinuation?.finish()
+        
+        // Note: pendingContinuations will be dropped without resuming.
+        // Callers should ensure stopReceiving() is called before releasing PEManager.
     }
     
     // MARK: - Lifecycle

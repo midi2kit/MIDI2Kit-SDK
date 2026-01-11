@@ -185,15 +185,21 @@ public actor MockMIDITransport: MIDITransport {
 extension MockMIDITransport {
     
     /// Create a mock with simulated KORG device
-    public static func withKORGDevice() -> MockMIDITransport {
+    ///
+    /// - Returns: Configured MockMIDITransport with KORG device endpoints
+    ///
+    /// ## Usage
+    /// ```swift
+    /// let mock = await MockMIDITransport.withKORGDevice()
+    /// ```
+    public static func withKORGDevice() async -> MockMIDITransport {
         let mock = MockMIDITransport()
-        Task {
-            await mock.setupKORGDevice()
-        }
+        await mock.setupKORGDevice()
         return mock
     }
     
-    private func setupKORGDevice() {
+    /// Configure mock as KORG device
+    public func setupKORGDevice() {
         mockSources = [
             MIDISourceInfo(
                 sourceID: MIDISourceID(1),
@@ -212,5 +218,40 @@ extension MockMIDITransport {
                 uniqueID: 0x4B4F5248  // Different from source (example)
             )
         ]
+        
+        // Set up source-to-destination mapping
+        sourceToDestinationMap[1] = 1
+    }
+    
+    /// Create a mock with custom device configuration
+    ///
+    /// - Parameters:
+    ///   - name: Device name
+    ///   - manufacturer: Manufacturer name
+    /// - Returns: Configured MockMIDITransport
+    public static func withDevice(
+        name: String,
+        manufacturer: String = "Test"
+    ) async -> MockMIDITransport {
+        let mock = MockMIDITransport()
+        await mock.addSource(MIDISourceInfo(
+            sourceID: MIDISourceID(1),
+            name: name,
+            manufacturer: manufacturer,
+            isOnline: true
+        ))
+        await mock.addDestination(MIDIDestinationInfo(
+            destinationID: MIDIDestinationID(1),
+            name: name,
+            manufacturer: manufacturer,
+            isOnline: true
+        ))
+        await mock.setSourceToDestinationMapping(1, to: 1)
+        return mock
+    }
+    
+    /// Set source to destination mapping
+    public func setSourceToDestinationMapping(_ sourceValue: UInt32, to destValue: UInt32) {
+        sourceToDestinationMap[sourceValue] = destValue
     }
 }

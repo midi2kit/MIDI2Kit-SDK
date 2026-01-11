@@ -167,10 +167,16 @@ public actor CIManager {
     }
     
     deinit {
+        // Cancel all background tasks
         discoveryTask?.cancel()
         receiveTask?.cancel()
         timeoutTask?.cancel()
+        
+        // Finish event stream
         eventContinuation?.finish()
+        
+        // Note: Device lost events will NOT be emitted during deinit.
+        // For proper cleanup with events, call stop() before releasing CIManager.
     }
     
     // MARK: - Lifecycle

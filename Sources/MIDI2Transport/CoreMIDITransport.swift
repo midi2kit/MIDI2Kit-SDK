@@ -217,6 +217,16 @@ public final class CoreMIDITransport: MIDITransport, @unchecked Sendable {
 
     
     public func send(_ data: [UInt8], to destination: MIDIDestinationID) async throws {
+        // Thread-safe check for shutdown state and capture port reference
+        // Use withLock closure which is safe in async contexts
+        let (isShutdown, port) = shutdownLock.withLock {
+            (didShutdown, outputPort)
+        }
+        
+        guard !isShutdown, port != 0 else {
+            throw MIDITransportError.notInitialized
+        }
+        
         let destRef = MIDIEndpointRef(destination.value)
         
         // Trace send
@@ -243,7 +253,7 @@ public final class CoreMIDITransport: MIDITransport, @unchecked Sendable {
             throw MIDITransportError.packetListAddFailed(dataSize: data.count, bufferSize: bufferSize)
         }
         
-        let status = MIDISend(outputPort, destRef, packetList)
+        let status = MIDISend(port, destRef, packetList)
         
         guard status == noErr else {
             throw MIDITransportError.sendFailed(status)

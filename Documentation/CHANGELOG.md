@@ -4,6 +4,92 @@
 
 ### Added
 
+#### Batch Request API - Parallel PE Operations
+**Fetch multiple resources concurrently with configurable limits:**
+
+```swift
+// Basic batch GET
+let response = await peManager.batchGet(
+    ["DeviceInfo", "ResourceList", "ProgramList"],
+    from: device
+)
+
+// Check results
+if let info = response["DeviceInfo"]?.response {
+    print("Status: \(info.status)")
+}
+print("Success: \(response.successCount)/\(response.results.count)")
+
+// With options
+let response = await peManager.batchGet(
+    resources,
+    from: device,
+    options: PEBatchOptions(maxConcurrency: 4, continueOnFailure: true)
+)
+
+// Typed batch (type-safe parallel fetch)
+let (deviceInfo, resourceList) = try await peManager.batchGetTyped(
+    from: device,
+    ("DeviceInfo", PEDeviceInfo.self),
+    ("ResourceList", [PEResourceEntry].self)
+)
+
+// Channel-specific batch
+let response = await peManager.batchGetChannels(
+    "ProgramInfo",
+    channels: Array(0..<16),
+    from: device
+)
+```
+
+**Files:**
+- `Sources/MIDI2PE/Batch/PEBatchRequest.swift`
+- `Sources/MIDI2PE/Batch/PEManager+Batch.swift`
+
+#### UMP Type-Safe API - MIDI 2.0 Message Construction
+**Type-safe Universal MIDI Packet (UMP) message creation:**
+
+```swift
+// MIDI 2.0 Channel Voice (64-bit, high resolution)
+try await transport.send(
+    UMP.noteOn(channel: 0, note: 60, velocity: 0x8000),
+    to: destination
+)
+try await transport.send(
+    UMP.controlChange(channel: 0, controller: 74, value: 0x80000000),
+    to: destination
+)
+
+// MIDI 1.0 Channel Voice (32-bit, compatible)
+try await transport.send(
+    UMP.midi1.volume(channel: 0, value: 100),
+    to: destination
+)
+
+// Convenience methods on transport
+try await transport.sendNoteOn(channel: 0, note: 60, velocity: 0x8000, to: dest)
+try await transport.sendAllNotesOff(channel: 0, to: dest)
+
+// Value conversion helpers
+let velocity16 = UMP.velocity7to16(100)  // 7-bit → 16-bit
+let cc32 = UMP.cc7to32(64)               // 7-bit → 32-bit
+let pb32 = UMP.pitchBend14to32(8192)     // 14-bit → 32-bit
+```
+
+**Message Types:**
+- `UMPMIDI2ChannelVoice` - Note On/Off, CC, Program, Pitch Bend, RPN/NRPN (64-bit)
+- `UMPMIDI1ChannelVoice` - Legacy MIDI 1.0 messages (32-bit)
+- `UMPSystemRealTime` - Clock, Start, Stop, Continue
+- `UMPSystemCommon` - MTC, Song Position, Song Select
+- `UMPUtility` - JR Clock, JR Timestamp
+
+**Files:**
+- `Sources/MIDI2Core/UMP/UMPMessage.swift`
+- `Sources/MIDI2Core/UMP/UMPMIDI1ChannelVoice.swift`
+- `Sources/MIDI2Core/UMP/UMPSystemMessages.swift`
+- `Sources/MIDI2Core/UMP/UMP.swift`
+- `Sources/MIDI2Transport/MIDITransport+UMP.swift`
+
 #### MIDITransport.shutdown() - Stream Termination API
 **New protocol method for clean shutdown of transport streams:**
 
@@ -82,10 +168,70 @@ public func begin(...) async -> UInt8? {
 #### PEManager - Duration to TimeInterval Conversion
 Updated `transactionManager.begin()` calls to use `timeout.asTimeInterval`.
 
-### Known Issues (Deferred)
+### Fixed
 
-#### CoreMIDITransport.send() - Potential Race with shutdown()
-`send()` does not check `didShutdown` flag. In typical usage this is not a problem since `shutdown()` is called during teardown.
+#### CoreMIDITransport.send() - Race Condition with shutdown()
+**Problem:** `send()` did not check `didShutdown` flag before using `outputPort`, risking use of disposed port.
+
+**Fix:** Thread-safe check using `withLock` closure (Swift 6 async-compatible):
+```swift
+public func send(_ data: [UInt8], to destination: MIDIDestinationID) async throws {
+    let (isShutdown, port) = shutdownLock.withLock {
+        (didShutdown, outputPort)
+    }
+    guard !isShutdown, port != 0 else {
+        throw MIDITransportError.notInitialized
+    }
+    // ... send using captured port
+}
+```
+
+#### PEManager deinit - Incomplete Cleanup
+**Problem:** `deinit` only cancelled `receiveTask`, leaving `pendingContinuations`, `timeoutTasks`, and `sendTasks` potentially leaked.
+
+**Fix:** Added comprehensive cleanup with documentation:
+```swift
+deinit {
+    // Note: Callers should ensure stopReceiving() before releasing PEManager
+    receiveTask?.cancel()
+    for task in timeoutTasks.values { task.cancel() }
+    for task in sendTasks.values { task.cancel() }
+    notificationContinuation?.finish()
+}
+```
+
+#### CIManager deinit - Missing Device Lost Events
+**Problem:** `deinit` cleared devices without emitting `deviceLost` events.
+
+**Fix:** Added documentation noting proper cleanup pattern:
+```swift
+// For proper cleanup with events, call stop() before releasing CIManager
+```
+
+#### MockMIDITransport.withKORGDevice() - Async Race Condition
+**Problem:** Method returned before async `setupKORGDevice()` completed, causing test failures.
+
+**Fix:** Changed to fully async API:
+```swift
+// Before (race condition)
+public static func withKORGDevice() -> MockMIDITransport {
+    let transport = MockMIDITransport()
+    Task { await transport.setupKORGDevice() }  // Returns before setup!
+    return transport
+}
+
+// After (properly awaited)
+public static func withKORGDevice() async -> MockMIDITransport {
+    let transport = MockMIDITransport()
+    await transport.setupKORGDevice()
+    return transport
+}
+```
+
+Also added:
+- `setupKORGDevice()` now public
+- `withDevice(name:manufacturer:) async` generic helper
+- `setSourceToDestinationMapping(_:to:)` for explicit routing
 
 ---
 

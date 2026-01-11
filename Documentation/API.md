@@ -704,3 +704,252 @@ public enum MIDITransportError: Error, Sendable {
     case sourceNotFound(UInt32)
 }
 ```
+
+### UMP (Universal MIDI Packet) API
+
+**Type-safe MIDI 2.0 message construction.**
+
+```swift
+/// Message type enumeration
+public enum UMPMessageType: UInt8, Sendable {
+    case utility = 0x0
+    case systemRealTime = 0x1
+    case midi1ChannelVoice = 0x2
+    case data64 = 0x3
+    case midi2ChannelVoice = 0x4
+    case data128 = 0x5
+    case flexData = 0xD
+    case umpStream = 0xF
+}
+
+/// Protocol for all UMP messages
+public protocol UMPMessage: Sendable {
+    var messageType: UMPMessageType { get }
+    var group: UMPGroup { get }
+    var wordCount: Int { get }
+    func toBytes() -> [UInt8]
+}
+
+/// MIDI 2.0 Channel Voice (64-bit)
+public enum UMPMIDI2ChannelVoice: UMPMessage {
+    case noteOff(group: UMPGroup, channel: UMPChannel, note: UInt8, velocity: UInt16, ...)
+    case noteOn(group: UMPGroup, channel: UMPChannel, note: UInt8, velocity: UInt16, ...)
+    case polyPressure(group: UMPGroup, channel: UMPChannel, note: UInt8, pressure: UInt32)
+    case controlChange(group: UMPGroup, channel: UMPChannel, controller: UInt8, value: UInt32)
+    case programChange(group: UMPGroup, channel: UMPChannel, program: UInt8, ...)
+    case channelPressure(group: UMPGroup, channel: UMPChannel, pressure: UInt32)
+    case pitchBend(group: UMPGroup, channel: UMPChannel, value: UInt32)
+    // ... and more
+}
+
+/// MIDI 1.0 Channel Voice (32-bit)
+public enum UMPMIDI1ChannelVoice: UMPMessage {
+    case noteOff(group: UMPGroup, channel: UMPChannel, note: UInt8, velocity: UInt8)
+    case noteOn(group: UMPGroup, channel: UMPChannel, note: UInt8, velocity: UInt8)
+    case controlChange(group: UMPGroup, channel: UMPChannel, controller: UInt8, value: UInt8)
+    case programChange(group: UMPGroup, channel: UMPChannel, program: UInt8)
+    case pitchBend(group: UMPGroup, channel: UMPChannel, value: UInt16)
+    // ... convenience methods: volume, pan, modulation, sustain, etc.
+}
+```
+
+**Convenient Factory:**
+
+```swift
+public enum UMP {
+    // MIDI 2.0 (high resolution)
+    static func noteOn(group: UMPGroup = 0, channel: UMPChannel, note: UInt8, velocity: UInt16) -> UMPMIDI2ChannelVoice
+    static func noteOff(group: UMPGroup = 0, channel: UMPChannel, note: UInt8, velocity: UInt16 = 0) -> UMPMIDI2ChannelVoice
+    static func controlChange(group: UMPGroup = 0, channel: UMPChannel, controller: UInt8, value: UInt32) -> UMPMIDI2ChannelVoice
+    static func pitchBend(group: UMPGroup = 0, channel: UMPChannel, value: UInt32) -> UMPMIDI2ChannelVoice
+    static func programChange(group: UMPGroup = 0, channel: UMPChannel, program: UInt8, bankMSB: UInt8? = nil, bankLSB: UInt8? = nil) -> UMPMIDI2ChannelVoice
+    static func rpn(group: UMPGroup = 0, channel: UMPChannel, bank: UInt8, index: UInt8, value: UInt32) -> UMPMIDI2ChannelVoice
+    static func nrpn(group: UMPGroup = 0, channel: UMPChannel, bank: UInt8, index: UInt8, value: UInt32) -> UMPMIDI2ChannelVoice
+    
+    // MIDI 1.0 (compatible)
+    enum midi1 {
+        static func noteOn(...) -> UMPMIDI1ChannelVoice
+        static func controlChange(...) -> UMPMIDI1ChannelVoice
+        static func volume(...) -> UMPMIDI1ChannelVoice
+        static func pan(...) -> UMPMIDI1ChannelVoice
+        static func sustain(...) -> UMPMIDI1ChannelVoice
+        static func allNotesOff(...) -> UMPMIDI1ChannelVoice
+    }
+    
+    // Value conversion
+    static func velocity7to16(_ v: UInt8) -> UInt16
+    static func velocity16to7(_ v: UInt16) -> UInt8
+    static func cc7to32(_ v: UInt8) -> UInt32
+    static func cc32to7(_ v: UInt32) -> UInt8
+    static func pitchBend14to32(_ v: UInt16) -> UInt32
+    static func pitchBend32to14(_ v: UInt32) -> UInt16
+    
+    static let pitchBendCenter: UInt32 = 0x80000000
+    static let pitchBendCenter14: UInt16 = 8192
+}
+```
+
+**Transport Extension:**
+
+```swift
+extension MIDITransport {
+    /// Send UMP message
+    func send(_ message: some UMPMessage, to destination: MIDIDestinationID) async throws
+    
+    /// Send multiple UMP messages
+    func send(_ messages: [any UMPMessage], to destination: MIDIDestinationID) async throws
+    
+    // Convenience methods
+    func sendNoteOn(group: UMPGroup = 0, channel: UMPChannel, note: UInt8, velocity: UInt16, to: MIDIDestinationID) async throws
+    func sendNoteOff(group: UMPGroup = 0, channel: UMPChannel, note: UInt8, velocity: UInt16 = 0, to: MIDIDestinationID) async throws
+    func sendControlChange(group: UMPGroup = 0, channel: UMPChannel, controller: UInt8, value: UInt32, to: MIDIDestinationID) async throws
+    func sendProgramChange(group: UMPGroup = 0, channel: UMPChannel, program: UInt8, bankMSB: UInt8? = nil, bankLSB: UInt8? = nil, to: MIDIDestinationID) async throws
+    func sendPitchBend(group: UMPGroup = 0, channel: UMPChannel, value: UInt32, to: MIDIDestinationID) async throws
+    func sendAllNotesOff(group: UMPGroup = 0, channel: UMPChannel, to: MIDIDestinationID) async throws
+    func sendAllSoundOff(group: UMPGroup = 0, channel: UMPChannel, to: MIDIDestinationID) async throws
+}
+```
+
+---
+
+## MIDI2PE (Batch API)
+
+### PEBatchResult
+
+```swift
+public enum PEBatchResult: Sendable {
+    case success(PEResponse)
+    case failure(Error)
+    
+    var response: PEResponse?
+    var error: Error?
+    var isSuccess: Bool
+}
+```
+
+### PEBatchResponse
+
+```swift
+public struct PEBatchResponse: Sendable {
+    /// Results keyed by resource name
+    public let results: [String: PEBatchResult]
+    
+    /// All successful responses
+    public var successes: [String: PEResponse]
+    
+    /// All failures
+    public var failures: [String: Error]
+    
+    /// Whether all requests succeeded
+    public var allSucceeded: Bool
+    
+    /// Counts
+    public var successCount: Int
+    public var failureCount: Int
+    
+    /// Subscript access
+    public subscript(resource: String) -> PEBatchResult?
+}
+```
+
+### PEBatchOptions
+
+```swift
+public struct PEBatchOptions: Sendable {
+    /// Maximum concurrent requests (default: 4)
+    public var maxConcurrency: Int
+    
+    /// Continue on individual failures (default: true)
+    public var continueOnFailure: Bool
+    
+    /// Timeout per request (default: 5 seconds)
+    public var timeout: Duration
+    
+    public init(maxConcurrency: Int = 4, continueOnFailure: Bool = true, timeout: Duration = .seconds(5))
+    
+    public static let `default`: PEBatchOptions
+    public static let serial: PEBatchOptions      // maxConcurrency: 1
+    public static let fast: PEBatchOptions        // maxConcurrency: 8, timeout: 3s
+}
+```
+
+### PEManager Batch Extension
+
+```swift
+extension PEManager {
+    /// Fetch multiple resources in parallel
+    public func batchGet(
+        _ resources: [String],
+        from device: PEDeviceHandle,
+        options: PEBatchOptions = .default
+    ) async -> PEBatchResponse
+    
+    /// Fetch multiple resources (MUID-only, requires destinationResolver)
+    public func batchGet(
+        _ resources: [String],
+        from muid: MUID,
+        options: PEBatchOptions = .default
+    ) async throws -> PEBatchResponse
+    
+    /// Fetch channel-specific resources for multiple channels
+    public func batchGetChannels(
+        _ resource: String,
+        channels: [Int],
+        from device: PEDeviceHandle,
+        options: PEBatchOptions = .default
+    ) async -> PEBatchResponse
+    
+    /// Type-safe batch fetch (2 resources)
+    public func batchGetTyped<T1: Decodable & Sendable, T2: Decodable & Sendable>(
+        from device: PEDeviceHandle,
+        _ r1: (String, T1.Type),
+        _ r2: (String, T2.Type),
+        timeout: Duration = .seconds(5)
+    ) async throws -> (T1, T2)
+    
+    /// Type-safe batch fetch (3 resources)
+    public func batchGetTyped<T1, T2, T3>(...) async throws -> (T1, T2, T3)
+    
+    /// Type-safe batch fetch (4 resources)
+    public func batchGetTyped<T1, T2, T3, T4>(...) async throws -> (T1, T2, T3, T4)
+}
+```
+
+**Usage Examples:**
+
+```swift
+// Basic batch GET
+let response = await peManager.batchGet(
+    ["DeviceInfo", "ResourceList", "ProgramList"],
+    from: device
+)
+
+if let info = response["DeviceInfo"]?.response {
+    print("Status: \(info.status)")
+}
+print("Success: \(response.successCount)/\(response.results.count)")
+
+// With options
+let response = await peManager.batchGet(
+    resources,
+    from: device,
+    options: PEBatchOptions(maxConcurrency: 2, continueOnFailure: false)
+)
+
+// Type-safe batch
+let (deviceInfo, resourceList) = try await peManager.batchGetTyped(
+    from: device,
+    ("DeviceInfo", PEDeviceInfo.self),
+    ("ResourceList", [PEResourceEntry].self)
+)
+
+// Channel batch
+let response = await peManager.batchGetChannels(
+    "ProgramInfo",
+    channels: Array(0..<16),
+    from: device
+)
+for (key, result) in response.successes {
+    print("\(key): \(result.status)")
+}
+```
