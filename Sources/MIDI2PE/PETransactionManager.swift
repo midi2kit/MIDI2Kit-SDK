@@ -199,6 +199,19 @@ public actor PETransactionManager {
         let startGeneration = generation
         
         // Wait for device slot if at capacity
+        // Fail fast when Request IDs are exhausted.
+        //
+        // Rationale:
+        // - When maxInflightPerDevice == 128 and all IDs are in use, waiting for a device slot first
+        //   can deadlock tests (and can also hang production calls) because no one will ever release
+        //   an inflight slot if the caller is waiting forever.
+        // - If there are no IDs available, this operation cannot succeed anyway, so return nil
+        //   immediately instead of waiting.
+        guard await requestIDManager.availableCount > 0 else {
+            return nil
+        }
+
+
         await waitForDeviceSlot(destinationMUID)
         
         // Check if manager was stopped while waiting (either by flag or generation change)

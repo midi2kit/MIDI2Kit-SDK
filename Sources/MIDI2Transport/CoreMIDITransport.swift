@@ -73,6 +73,11 @@ public final class CoreMIDITransport: MIDITransport, @unchecked Sendable {
     
     /// Connection state (thread-safe, sync accessible for deinit)
     private let connectionState = ConnectionState()
+
+    /// Shutdown state (thread-safe)
+    private let shutdownLock = NSLock()
+    private var didShutdown = false
+
     
     private var receivedContinuation: AsyncStream<MIDIReceivedData>.Continuation?
     private var setupChangedContinuation: AsyncStream<Void>.Continuation?
@@ -117,18 +122,7 @@ public final class CoreMIDITransport: MIDITransport, @unchecked Sendable {
     }
     
     deinit {
-        // Disconnect all sources synchronously
-        let connected = connectionState.getConnected()
-        for source in connected {
-            MIDIPortDisconnectSource(inputPort, source)
-        }
-        connectionState.clear()
-        
-        if client != 0 {
-            MIDIClientDispose(client)
-        }
-        receivedContinuation?.finish()
-        setupChangedContinuation?.finish()
+        shutdownSync()
     }
     
     // MARK: - Setup
@@ -180,6 +174,47 @@ public final class CoreMIDITransport: MIDITransport, @unchecked Sendable {
     }
     
     // MARK: - MIDITransport Protocol
+
+    /// Shut down the transport and finish all streams.
+    ///
+    /// This is safe to call multiple times (idempotent).
+    public func shutdown() async {
+        shutdownSync()
+    }
+
+    private func shutdownSync() {
+        shutdownLock.lock()
+        defer { shutdownLock.unlock() }
+        guard !didShutdown else { return }
+        didShutdown = true
+
+        // Disconnect all sources synchronously
+        let connected = connectionState.getConnected()
+        for source in connected {
+            MIDIPortDisconnectSource(inputPort, source)
+        }
+        connectionState.clear()
+
+        // Dispose ports before disposing client
+        if inputPort != 0 {
+            MIDIPortDispose(inputPort)
+            inputPort = 0
+        }
+        if outputPort != 0 {
+            MIDIPortDispose(outputPort)
+            outputPort = 0
+        }
+        if client != 0 {
+            MIDIClientDispose(client)
+            client = 0
+        }
+
+        receivedContinuation?.finish()
+        setupChangedContinuation?.finish()
+        receivedContinuation = nil
+        setupChangedContinuation = nil
+    }
+
     
     public func send(_ data: [UInt8], to destination: MIDIDestinationID) async throws {
         let destRef = MIDIEndpointRef(destination.value)
