@@ -201,6 +201,14 @@ public protocol MIDITransport: Sendable {
     
     /// Stream of setup change notifications
     var setupChanged: AsyncStream<Void> { get }
+
+    /// Shut down the transport and finish all streams
+    ///
+    /// Use this to terminate `received` and `setupChanged` streams so any `for await`
+    /// loops can exit (especially important in tests).
+    ///
+    /// Implementations should be idempotent.
+    func shutdown() async
     
     /// Connect to a MIDI source
     func connect(to source: MIDISourceID) async throws
@@ -228,6 +236,12 @@ public protocol MIDITransport: Sendable {
     /// - Parameter source: The source to find a matching destination for
     /// - Returns: The matching destination, or `nil` if none found
     func findMatchingDestination(for source: MIDISourceID) async -> MIDIDestinationID?
+}
+
+
+public extension MIDITransport {
+    /// Default no-op shutdown
+    func shutdown() async { }
 }
 
 /// MIDI Transport errors

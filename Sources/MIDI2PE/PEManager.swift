@@ -367,7 +367,7 @@ public actor PEManager {
         guard let requestID = await transactionManager.begin(
             resource: request.resource,
             destinationMUID: request.device.muid,
-            timeout: request.timeout
+            timeout: request.timeout.asTimeInterval
         ) else {
             throw PEError.requestIDExhausted
         }
@@ -688,7 +688,7 @@ public actor PEManager {
         guard let requestID = await transactionManager.begin(
             resource: resource,
             destinationMUID: device.muid,
-            timeout: timeout
+            timeout: timeout.asTimeInterval
         ) else {
             throw PEError.requestIDExhausted
         }
@@ -768,7 +768,7 @@ public actor PEManager {
         guard let requestID = await transactionManager.begin(
             resource: subscription.resource,
             destinationMUID: subscription.device.muid,
-            timeout: timeout
+            timeout: timeout.asTimeInterval
         ) else {
             throw PEError.requestIDExhausted
         }
