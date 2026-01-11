@@ -1,0 +1,592 @@
+Building for debugging...
+[0/3] Write sources
+[1/3] Write swift-version--58304C5D6DBC2206.txt
+[3/7] Compiling MIDI2KitTests SysExAssemblerTests.swift
+[4/7] Compiling MIDI2KitTests PEManagerTests.swift
+/Users/hakaru/Desktop/MIDI2Kit/Tests/MIDI2KitTests/PEManagerTests.swift:38:9: [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+  [0;36m36 |[0;0m         #expect(diag.contains("Source MUID: \(sourceMUID)"))
+  [0;36m37 |[0;0m         #expect(diag.contains("Receiving: false"))
+  [0;36m38 |[0;0m         await transport.finish()
+     [0;36m|[0;0m         `- [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+  [0;36m39 |[0;0m     }
+  [0;36m40 |[0;0m     
+
+/Users/hakaru/Desktop/MIDI2Kit/Tests/MIDI2KitTests/PEManagerTests.swift:54:9: [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+  [0;36m52 |[0;0m         
+  [0;36m53 |[0;0m         // IMPORTANT: finish() BEFORE stopReceiving() to terminate AsyncStream
+  [0;36m54 |[0;0m         await transport.finish()
+     [0;36m|[0;0m         `- [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+  [0;36m55 |[0;0m         await manager.stopReceiving()
+  [0;36m56 |[0;0m         diag = await manager.diagnostics
+
+/Users/hakaru/Desktop/MIDI2Kit/Tests/MIDI2KitTests/PEManagerTests.swift:78:20: [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+  [0;36m76 |[0;0m         try await Task.sleep(for: .milliseconds(50))
+  [0;36m77 |[0;0m         
+  [0;36m78 |[0;0m         let sent = await transport.sentMessages
+     [0;36m|[0;0m                    `- [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+  [0;36m79 |[0;0m         #expect(sent.count == 1)
+  [0;36m80 |[0;0m         
+
+/Users/hakaru/Desktop/MIDI2Kit/Tests/MIDI2KitTests/PEManagerTests.swift:94:9: [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+  [0;36m92 |[0;0m         
+  [0;36m93 |[0;0m         getTask.cancel()
+  [0;36m94 |[0;0m         await transport.finish()
+     [0;36m|[0;0m         `- [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+  [0;36m95 |[0;0m         await manager.stopReceiving()
+  [0;36m96 |[0;0m     }
+
+/Users/hakaru/Desktop/MIDI2Kit/Tests/MIDI2KitTests/PEManagerTests.swift:119:9: [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+ [0;36m117 |[0;0m         }
+ [0;36m118 |[0;0m         
+ [0;36m119 |[0;0m         await transport.finish()
+     [0;36m|[0;0m         `- [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+ [0;36m120 |[0;0m         await manager.stopReceiving()
+ [0;36m121 |[0;0m     }
+
+/Users/hakaru/Desktop/MIDI2Kit/Tests/MIDI2KitTests/PEManagerTests.swift:143:20: [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+ [0;36m141 |[0;0m         try await Task.sleep(for: .milliseconds(50))
+ [0;36m142 |[0;0m         
+ [0;36m143 |[0;0m         let sent = await transport.sentMessages
+     [0;36m|[0;0m                    `- [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+ [0;36m144 |[0;0m         #expect(sent.count == 1)
+ [0;36m145 |[0;0m         
+
+/Users/hakaru/Desktop/MIDI2Kit/Tests/MIDI2KitTests/PEManagerTests.swift:151:9: [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+ [0;36m149 |[0;0m         
+ [0;36m150 |[0;0m         setTask.cancel()
+ [0;36m151 |[0;0m         await transport.finish()
+     [0;36m|[0;0m         `- [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+ [0;36m152 |[0;0m         await manager.stopReceiving()
+ [0;36m153 |[0;0m     }
+
+/Users/hakaru/Desktop/MIDI2Kit/Tests/MIDI2KitTests/PEManagerTests.swift:179:20: [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+ [0;36m177 |[0;0m         try await Task.sleep(for: .milliseconds(50))
+ [0;36m178 |[0;0m         
+ [0;36m179 |[0;0m         let sent = await transport.sentMessages
+     [0;36m|[0;0m                    `- [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+ [0;36m180 |[0;0m         #expect(sent.count == 1)
+ [0;36m181 |[0;0m         
+
+/Users/hakaru/Desktop/MIDI2Kit/Tests/MIDI2KitTests/PEManagerTests.swift:183:9: [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+ [0;36m181 |[0;0m         
+ [0;36m182 |[0;0m         getTask.cancel()
+ [0;36m183 |[0;0m         await transport.finish()
+     [0;36m|[0;0m         `- [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+ [0;36m184 |[0;0m         await manager.stopReceiving()
+ [0;36m185 |[0;0m     }
+
+/Users/hakaru/Desktop/MIDI2Kit/Tests/MIDI2KitTests/PEManagerTests.swift:274:20: [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+ [0;36m272 |[0;0m         try await Task.sleep(for: .milliseconds(50))
+ [0;36m273 |[0;0m         
+ [0;36m274 |[0;0m         let sent = await transport.sentMessages
+     [0;36m|[0;0m                    `- [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+ [0;36m275 |[0;0m         #expect(sent.count == 1)
+ [0;36m276 |[0;0m         
+
+/Users/hakaru/Desktop/MIDI2Kit/Tests/MIDI2KitTests/PEManagerTests.swift:278:9: [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+ [0;36m276 |[0;0m         
+ [0;36m277 |[0;0m         sendTask.cancel()
+ [0;36m278 |[0;0m         await transport.finish()
+     [0;36m|[0;0m         `- [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+ [0;36m279 |[0;0m         await manager.stopReceiving()
+ [0;36m280 |[0;0m     }
+
+/Users/hakaru/Desktop/MIDI2Kit/Tests/MIDI2KitTests/PEManagerTests.swift:328:9: [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+ [0;36m326 |[0;0m         }
+ [0;36m327 |[0;0m         
+ [0;36m328 |[0;0m         await transport.finish()
+     [0;36m|[0;0m         `- [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+ [0;36m329 |[0;0m         await manager.stopReceiving()
+ [0;36m330 |[0;0m     }
+
+/Users/hakaru/Desktop/MIDI2Kit/Tests/MIDI2KitTests/PEManagerTests.swift:363:9: [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+ [0;36m361 |[0;0m         
+ [0;36m362 |[0;0m         // Stop receiving - should release all Request IDs and cancel waiters
+ [0;36m363 |[0;0m         await transport.finish()
+     [0;36m|[0;0m         `- [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+ [0;36m364 |[0;0m         await manager.stopReceiving()
+ [0;36m365 |[0;0m         
+
+/Users/hakaru/Desktop/MIDI2Kit/Tests/MIDI2KitTests/PEManagerTests.swift:399:9: [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+ [0;36m397 |[0;0m         
+ [0;36m398 |[0;0m         try await Task.sleep(for: .milliseconds(30))
+ [0;36m399 |[0;0m         await transport.finish()
+     [0;36m|[0;0m         `- [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+ [0;36m400 |[0;0m         await manager.stopReceiving()
+ [0;36m401 |[0;0m         
+
+/Users/hakaru/Desktop/MIDI2Kit/Tests/MIDI2KitTests/PEManagerTests.swift:422:20: [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+ [0;36m420 |[0;0m         
+ [0;36m421 |[0;0m         // Verify new request was sent
+ [0;36m422 |[0;0m         let sent = await transport2.sentMessages
+     [0;36m|[0;0m                    `- [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+ [0;36m423 |[0;0m         #expect(sent.count == 1)
+ [0;36m424 |[0;0m         
+
+/Users/hakaru/Desktop/MIDI2Kit/Tests/MIDI2KitTests/PEManagerTests.swift:426:9: [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+ [0;36m424 |[0;0m         
+ [0;36m425 |[0;0m         task2.cancel()
+ [0;36m426 |[0;0m         await transport2.finish()
+     [0;36m|[0;0m         `- [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+ [0;36m427 |[0;0m         await manager2.stopReceiving()
+ [0;36m428 |[0;0m     }
+
+/Users/hakaru/Desktop/MIDI2Kit/Tests/MIDI2KitTests/PEManagerTests.swift:461:9: [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+ [0;36m459 |[0;0m         // Stop receiving - this should NOT crash even with many pending continuations
+ [0;36m460 |[0;0m         // (Previously would crash due to dictionary mutation during iteration)
+ [0;36m461 |[0;0m         await transport.finish()
+     [0;36m|[0;0m         `- [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+ [0;36m462 |[0;0m         await manager.stopReceiving()
+ [0;36m463 |[0;0m         
+
+/Users/hakaru/Desktop/MIDI2Kit/Tests/MIDI2KitTests/PEManagerTests.swift:499:9: [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+ [0;36m497 |[0;0m         
+ [0;36m498 |[0;0m         // Finish transport first
+ [0;36m499 |[0;0m         await transport.finish()
+     [0;36m|[0;0m         `- [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+ [0;36m500 |[0;0m         
+ [0;36m501 |[0;0m         // Call stopReceiving multiple times - should not crash
+
+/Users/hakaru/Desktop/MIDI2Kit/Tests/MIDI2KitTests/PEManagerTests.swift:763:20: [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+ [0;36m761 |[0;0m         
+ [0;36m762 |[0;0m         // Check sent message
+ [0;36m763 |[0;0m         let sent = await transport.sentMessages
+     [0;36m|[0;0m                    `- [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+ [0;36m764 |[0;0m         #expect(sent.count == 1)
+ [0;36m765 |[0;0m         
+
+/Users/hakaru/Desktop/MIDI2Kit/Tests/MIDI2KitTests/PEManagerTests.swift:786:9: [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+ [0;36m784 |[0;0m         
+ [0;36m785 |[0;0m         subscribeTask.cancel()
+ [0;36m786 |[0;0m         await transport.finish()
+     [0;36m|[0;0m         `- [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+ [0;36m787 |[0;0m         await manager.stopReceiving()
+ [0;36m788 |[0;0m     }
+
+/Users/hakaru/Desktop/MIDI2Kit/Tests/MIDI2KitTests/PEManagerTests.swift:813:20: [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+ [0;36m811 |[0;0m         
+ [0;36m812 |[0;0m         // Get the requestID from sent message
+ [0;36m813 |[0;0m         let sent = await transport.sentMessages
+     [0;36m|[0;0m                    `- [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+ [0;36m814 |[0;0m         guard let sentMessage = sent.first else {
+ [0;36m815 |[0;0m             Issue.record("No message sent")
+
+/Users/hakaru/Desktop/MIDI2Kit/Tests/MIDI2KitTests/PEManagerTests.swift:816:13: [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+ [0;36m814 |[0;0m         guard let sentMessage = sent.first else {
+ [0;36m815 |[0;0m             Issue.record("No message sent")
+ [0;36m816 |[0;0m             await transport.finish()
+     [0;36m|[0;0m             `- [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+ [0;36m817 |[0;0m             return
+ [0;36m818 |[0;0m         }
+
+/Users/hakaru/Desktop/MIDI2Kit/Tests/MIDI2KitTests/PEManagerTests.swift:829:9: [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+ [0;36m827 |[0;0m             subscribeId: "sub-12345"
+ [0;36m828 |[0;0m         )
+ [0;36m829 |[0;0m         await transport.injectReceived(reply)
+     [0;36m|[0;0m         `- [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+ [0;36m830 |[0;0m         
+ [0;36m831 |[0;0m         // Wait for response
+
+/Users/hakaru/Desktop/MIDI2Kit/Tests/MIDI2KitTests/PEManagerTests.swift:845:9: [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+ [0;36m843 |[0;0m         #expect(subscriptions.first?.device.muid == deviceMUID)
+ [0;36m844 |[0;0m         
+ [0;36m845 |[0;0m         await transport.finish()
+     [0;36m|[0;0m         `- [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+ [0;36m846 |[0;0m         await manager.stopReceiving()
+ [0;36m847 |[0;0m     }
+
+/Users/hakaru/Desktop/MIDI2Kit/Tests/MIDI2KitTests/PEManagerTests.swift:874:9: [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+ [0;36m872 |[0;0m         }
+ [0;36m873 |[0;0m         
+ [0;36m874 |[0;0m         await transport.finish()
+     [0;36m|[0;0m         `- [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+ [0;36m875 |[0;0m         await manager.stopReceiving()
+ [0;36m876 |[0;0m     }
+
+/Users/hakaru/Desktop/MIDI2Kit/Tests/MIDI2KitTests/PEManagerTests.swift:901:20: [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+ [0;36m899 |[0;0m         try await Task.sleep(for: .milliseconds(50))
+ [0;36m900 |[0;0m         
+ [0;36m901 |[0;0m         let sent = await transport.sentMessages
+     [0;36m|[0;0m                    `- [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+ [0;36m902 |[0;0m         guard let sentMessage = sent.first else {
+ [0;36m903 |[0;0m             Issue.record("No message sent")
+
+/Users/hakaru/Desktop/MIDI2Kit/Tests/MIDI2KitTests/PEManagerTests.swift:904:13: [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+ [0;36m902 |[0;0m         guard let sentMessage = sent.first else {
+ [0;36m903 |[0;0m             Issue.record("No message sent")
+ [0;36m904 |[0;0m             await transport.finish()
+     [0;36m|[0;0m             `- [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+ [0;36m905 |[0;0m             return
+ [0;36m906 |[0;0m         }
+
+/Users/hakaru/Desktop/MIDI2Kit/Tests/MIDI2KitTests/PEManagerTests.swift:917:9: [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+ [0;36m915 |[0;0m             subscribeId: "notify-test-sub"
+ [0;36m916 |[0;0m         )
+ [0;36m917 |[0;0m         await transport.injectReceived(reply)
+     [0;36m|[0;0m         `- [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+ [0;36m918 |[0;0m         
+ [0;36m919 |[0;0m         _ = try await subscribeTask.value
+
+/Users/hakaru/Desktop/MIDI2Kit/Tests/MIDI2KitTests/PEManagerTests.swift:934:9: [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+ [0;36m932 |[0;0m             propertyData: notifyData
+ [0;36m933 |[0;0m         )
+ [0;36m934 |[0;0m         await transport.injectReceived(notify)
+     [0;36m|[0;0m         `- [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+ [0;36m935 |[0;0m         
+ [0;36m936 |[0;0m         // Receive notification with timeout
+
+/Users/hakaru/Desktop/MIDI2Kit/Tests/MIDI2KitTests/PEManagerTests.swift:950:9: [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+ [0;36m948 |[0;0m         notificationTask.cancel()
+ [0;36m949 |[0;0m         
+ [0;36m950 |[0;0m         await transport.finish()
+     [0;36m|[0;0m         `- [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+ [0;36m951 |[0;0m         await manager.stopReceiving()
+ [0;36m952 |[0;0m     }
+
+/Users/hakaru/Desktop/MIDI2Kit/Tests/MIDI2KitTests/PEManagerTests.swift:985:9: [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+ [0;36m983 |[0;0m             propertyData: notifyData
+ [0;36m984 |[0;0m         )
+ [0;36m985 |[0;0m         await transport.injectReceived(notify)
+     [0;36m|[0;0m         `- [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+ [0;36m986 |[0;0m         
+ [0;36m987 |[0;0m         // Wait a bit
+
+/Users/hakaru/Desktop/MIDI2Kit/Tests/MIDI2KitTests/PEManagerTests.swift:995:9: [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+ [0;36m993 |[0;0m         // (unknown subscribeId notifications are ignored)
+ [0;36m994 |[0;0m         
+ [0;36m995 |[0;0m         await transport.finish()
+     [0;36m|[0;0m         `- [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+ [0;36m996 |[0;0m         await manager.stopReceiving()
+ [0;36m997 |[0;0m     }
+
+/Users/hakaru/Desktop/MIDI2Kit/Tests/MIDI2KitTests/PEManagerTests.swift:1022:20: [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+[0;36m1020 |[0;0m         try await Task.sleep(for: .milliseconds(50))
+[0;36m1021 |[0;0m         
+[0;36m1022 |[0;0m         let sent = await transport.sentMessages
+     [0;36m|[0;0m                    `- [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+[0;36m1023 |[0;0m         guard let sentMessage = sent.first else {
+[0;36m1024 |[0;0m             Issue.record("No subscribe message sent")
+
+/Users/hakaru/Desktop/MIDI2Kit/Tests/MIDI2KitTests/PEManagerTests.swift:1026:13: [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+[0;36m1024 |[0;0m             Issue.record("No subscribe message sent")
+[0;36m1025 |[0;0m             subscribeTask.cancel()
+[0;36m1026 |[0;0m             await transport.finish()
+     [0;36m|[0;0m             `- [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+[0;36m1027 |[0;0m             await manager.stopReceiving()
+[0;36m1028 |[0;0m             return
+
+/Users/hakaru/Desktop/MIDI2Kit/Tests/MIDI2KitTests/PEManagerTests.swift:1039:9: [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+[0;36m1037 |[0;0m             subscribeId: "unsub-test"
+[0;36m1038 |[0;0m         )
+[0;36m1039 |[0;0m         await transport.injectReceived(reply)
+     [0;36m|[0;0m         `- [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+[0;36m1040 |[0;0m         
+[0;36m1041 |[0;0m         _ = try await subscribeTask.value
+
+/Users/hakaru/Desktop/MIDI2Kit/Tests/MIDI2KitTests/PEManagerTests.swift:1044:9: [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+[0;36m1042 |[0;0m         
+[0;36m1043 |[0;0m         // Clear sent messages
+[0;36m1044 |[0;0m         await transport.clearSentMessages()
+     [0;36m|[0;0m         `- [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+[0;36m1045 |[0;0m         
+[0;36m1046 |[0;0m         // Now unsubscribe (will timeout)
+
+/Users/hakaru/Desktop/MIDI2Kit/Tests/MIDI2KitTests/PEManagerTests.swift:1057:25: [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+[0;36m1055 |[0;0m         
+[0;36m1056 |[0;0m         // Check unsubscribe message was sent
+[0;36m1057 |[0;0m         let unsubSent = await transport.sentMessages
+     [0;36m|[0;0m                         `- [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+[0;36m1058 |[0;0m         #expect(unsubSent.count == 1)
+[0;36m1059 |[0;0m         
+
+/Users/hakaru/Desktop/MIDI2Kit/Tests/MIDI2KitTests/PEManagerTests.swift:1065:9: [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+[0;36m1063 |[0;0m         
+[0;36m1064 |[0;0m         unsubTask.cancel()
+[0;36m1065 |[0;0m         await transport.finish()
+     [0;36m|[0;0m         `- [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+[0;36m1066 |[0;0m         await manager.stopReceiving()
+[0;36m1067 |[0;0m     }
+
+/Users/hakaru/Desktop/MIDI2Kit/Tests/MIDI2KitTests/PEManagerTests.swift:1090:9: [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+[0;36m1088 |[0;0m         }
+[0;36m1089 |[0;0m         
+[0;36m1090 |[0;0m         await transport.finish()
+     [0;36m|[0;0m         `- [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+[0;36m1091 |[0;0m         await manager.stopReceiving()
+[0;36m1092 |[0;0m     }
+
+/Users/hakaru/Desktop/MIDI2Kit/Tests/MIDI2KitTests/PEManagerTests.swift:1122:9: [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+[0;36m1120 |[0;0m         
+[0;36m1121 |[0;0m         // Stop receiving
+[0;36m1122 |[0;0m         await transport.finish()
+     [0;36m|[0;0m         `- [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+[0;36m1123 |[0;0m         await manager.stopReceiving()
+[0;36m1124 |[0;0m         
+
+/Users/hakaru/Desktop/MIDI2Kit/Tests/MIDI2KitTests/PEManagerTests.swift:1164:20: [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+[0;36m1162 |[0;0m         try await Task.sleep(for: .milliseconds(50))
+[0;36m1163 |[0;0m         
+[0;36m1164 |[0;0m         let sent = await transport.sentMessages
+     [0;36m|[0;0m                    `- [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+[0;36m1165 |[0;0m         guard let sentMessage = sent.first else {
+[0;36m1166 |[0;0m             Issue.record("No subscribe message sent")
+
+/Users/hakaru/Desktop/MIDI2Kit/Tests/MIDI2KitTests/PEManagerTests.swift:1168:13: [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+[0;36m1166 |[0;0m             Issue.record("No subscribe message sent")
+[0;36m1167 |[0;0m             subscribeTask.cancel()
+[0;36m1168 |[0;0m             await transport.finish()
+     [0;36m|[0;0m             `- [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+[0;36m1169 |[0;0m             await manager.stopReceiving()
+[0;36m1170 |[0;0m             return
+
+/Users/hakaru/Desktop/MIDI2Kit/Tests/MIDI2KitTests/PEManagerTests.swift:1181:9: [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+[0;36m1179 |[0;0m             subscribeId: "to-be-removed"
+[0;36m1180 |[0;0m         )
+[0;36m1181 |[0;0m         await transport.injectReceived(subReply)
+     [0;36m|[0;0m         `- [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+[0;36m1182 |[0;0m         
+[0;36m1183 |[0;0m         _ = try await subscribeTask.value
+
+/Users/hakaru/Desktop/MIDI2Kit/Tests/MIDI2KitTests/PEManagerTests.swift:1190:9: [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+[0;36m1188 |[0;0m         
+[0;36m1189 |[0;0m         // Clear and unsubscribe
+[0;36m1190 |[0;0m         await transport.clearSentMessages()
+     [0;36m|[0;0m         `- [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+[0;36m1191 |[0;0m         
+[0;36m1192 |[0;0m         let unsubTask = Task {
+
+/Users/hakaru/Desktop/MIDI2Kit/Tests/MIDI2KitTests/PEManagerTests.swift:1201:25: [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+[0;36m1199 |[0;0m         try await Task.sleep(for: .milliseconds(50))
+[0;36m1200 |[0;0m         
+[0;36m1201 |[0;0m         let unsubSent = await transport.sentMessages
+     [0;36m|[0;0m                         `- [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+[0;36m1202 |[0;0m         guard let unsubMessage = unsubSent.first else {
+[0;36m1203 |[0;0m             Issue.record("No unsubscribe message sent")
+
+/Users/hakaru/Desktop/MIDI2Kit/Tests/MIDI2KitTests/PEManagerTests.swift:1205:13: [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+[0;36m1203 |[0;0m             Issue.record("No unsubscribe message sent")
+[0;36m1204 |[0;0m             unsubTask.cancel()
+[0;36m1205 |[0;0m             await transport.finish()
+     [0;36m|[0;0m             `- [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+[0;36m1206 |[0;0m             await manager.stopReceiving()
+[0;36m1207 |[0;0m             return
+
+/Users/hakaru/Desktop/MIDI2Kit/Tests/MIDI2KitTests/PEManagerTests.swift:1218:9: [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+[0;36m1216 |[0;0m             subscribeId: nil
+[0;36m1217 |[0;0m         )
+[0;36m1218 |[0;0m         await transport.injectReceived(unsubReply)
+     [0;36m|[0;0m         `- [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+[0;36m1219 |[0;0m         
+[0;36m1220 |[0;0m         _ = try await unsubTask.value
+
+/Users/hakaru/Desktop/MIDI2Kit/Tests/MIDI2KitTests/PEManagerTests.swift:1226:9: [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+[0;36m1224 |[0;0m         #expect(subscriptions.count == 0)
+[0;36m1225 |[0;0m         
+[0;36m1226 |[0;0m         await transport.finish()
+     [0;36m|[0;0m         `- [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+[0;36m1227 |[0;0m         await manager.stopReceiving()
+[0;36m1228 |[0;0m     }
+[5/7] Compiling MIDI2KitTests CIManagerTests.swift
+/Users/hakaru/Desktop/MIDI2Kit/Tests/MIDI2KitTests/CIManagerTests.swift:52:9: [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+ [0;36m50 |[0;0m     func discoversDeviceFromReply() async throws {
+ [0;36m51 |[0;0m         let transport = MockMIDITransport()
+ [0;36m52 |[0;0m         await transport.addDestination(MIDIDestinationInfo(
+    [0;36m|[0;0m         `- [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+ [0;36m53 |[0;0m             destinationID: MIDIDestinationID(1),
+ [0;36m54 |[0;0m             name: "Test"
+
+/Users/hakaru/Desktop/MIDI2Kit/Tests/MIDI2KitTests/CIManagerTests.swift:77:9: [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+ [0;36m75 |[0;0m         )
+ [0;36m76 |[0;0m         
+ [0;36m77 |[0;0m         await transport.simulateReceive(reply, from: MIDISourceID(1))
+    [0;36m|[0;0m         `- [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+ [0;36m78 |[0;0m         
+ [0;36m79 |[0;0m         // Wait for processing
+
+/Users/hakaru/Desktop/MIDI2Kit/Tests/MIDI2KitTests/CIManagerTests.swift:88:9: [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+ [0;36m86 |[0;0m         
+ [0;36m87 |[0;0m         // IMPORTANT: finish() BEFORE stop() to terminate AsyncStream
+ [0;36m88 |[0;0m         await transport.finish()
+    [0;36m|[0;0m         `- [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+ [0;36m89 |[0;0m         await manager.stop()
+ [0;36m90 |[0;0m     }
+
+/Users/hakaru/Desktop/MIDI2Kit/Tests/MIDI2KitTests/CIManagerTests.swift:95:9: [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+ [0;36m93 |[0;0m     func removesDeviceOnInvalidate() async throws {
+ [0;36m94 |[0;0m         let transport = MockMIDITransport()
+ [0;36m95 |[0;0m         await transport.addDestination(MIDIDestinationInfo(
+    [0;36m|[0;0m         `- [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+ [0;36m96 |[0;0m             destinationID: MIDIDestinationID(1),
+ [0;36m97 |[0;0m             name: "Test"
+
+/Users/hakaru/Desktop/MIDI2Kit/Tests/MIDI2KitTests/CIManagerTests.swift:113:9: [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+[0;36m111 |[0;0m             categorySupport: .propertyExchange
+[0;36m112 |[0;0m         )
+[0;36m113 |[0;0m         await transport.simulateReceive(reply, from: MIDISourceID(1))
+    [0;36m|[0;0m         `- [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+[0;36m114 |[0;0m         
+[0;36m115 |[0;0m         try await Task.sleep(for: .milliseconds(100))
+
+/Users/hakaru/Desktop/MIDI2Kit/Tests/MIDI2KitTests/CIManagerTests.swift:126:9: [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+[0;36m124 |[0;0m             targetMUID: MUID.broadcast
+[0;36m125 |[0;0m         )
+[0;36m126 |[0;0m         await transport.simulateReceive(invalidate, from: MIDISourceID(1))
+    [0;36m|[0;0m         `- [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+[0;36m127 |[0;0m         
+[0;36m128 |[0;0m         try await Task.sleep(for: .milliseconds(100))
+
+/Users/hakaru/Desktop/MIDI2Kit/Tests/MIDI2KitTests/CIManagerTests.swift:134:9: [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+[0;36m132 |[0;0m         #expect(devices.count == 0)
+[0;36m133 |[0;0m         
+[0;36m134 |[0;0m         await transport.finish()
+    [0;36m|[0;0m         `- [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+[0;36m135 |[0;0m         await manager.stop()
+[0;36m136 |[0;0m     }
+
+/Users/hakaru/Desktop/MIDI2Kit/Tests/MIDI2KitTests/CIManagerTests.swift:141:9: [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+[0;36m139 |[0;0m     func clearDevices() async throws {
+[0;36m140 |[0;0m         let transport = MockMIDITransport()
+[0;36m141 |[0;0m         await transport.addDestination(MIDIDestinationInfo(
+    [0;36m|[0;0m         `- [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+[0;36m142 |[0;0m             destinationID: MIDIDestinationID(1),
+[0;36m143 |[0;0m             name: "Test"
+
+/Users/hakaru/Desktop/MIDI2Kit/Tests/MIDI2KitTests/CIManagerTests.swift:159:13: [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+[0;36m157 |[0;0m                 categorySupport: .propertyExchange
+[0;36m158 |[0;0m             )
+[0;36m159 |[0;0m             await transport.simulateReceive(reply, from: MIDISourceID(1))
+    [0;36m|[0;0m             `- [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+[0;36m160 |[0;0m         }
+[0;36m161 |[0;0m         
+
+/Users/hakaru/Desktop/MIDI2Kit/Tests/MIDI2KitTests/CIManagerTests.swift:173:9: [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+[0;36m171 |[0;0m         #expect(devices.count == 0)
+[0;36m172 |[0;0m         
+[0;36m173 |[0;0m         await transport.finish()
+    [0;36m|[0;0m         `- [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+[0;36m174 |[0;0m         await manager.stop()
+[0;36m175 |[0;0m     }
+
+/Users/hakaru/Desktop/MIDI2Kit/Tests/MIDI2KitTests/CIManagerTests.swift:180:9: [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+[0;36m178 |[0;0m     func getDeviceByMUID() async throws {
+[0;36m179 |[0;0m         let transport = MockMIDITransport()
+[0;36m180 |[0;0m         await transport.addDestination(MIDIDestinationInfo(
+    [0;36m|[0;0m         `- [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+[0;36m181 |[0;0m             destinationID: MIDIDestinationID(1),
+[0;36m182 |[0;0m             name: "Test"
+
+/Users/hakaru/Desktop/MIDI2Kit/Tests/MIDI2KitTests/CIManagerTests.swift:204:9: [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+[0;36m202 |[0;0m             categorySupport: .propertyExchange
+[0;36m203 |[0;0m         )
+[0;36m204 |[0;0m         await transport.simulateReceive(reply, from: MIDISourceID(1))
+    [0;36m|[0;0m         `- [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+[0;36m205 |[0;0m         
+[0;36m206 |[0;0m         try await Task.sleep(for: .milliseconds(100))
+
+/Users/hakaru/Desktop/MIDI2Kit/Tests/MIDI2KitTests/CIManagerTests.swift:218:9: [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+[0;36m216 |[0;0m         #expect(notFound == nil)
+[0;36m217 |[0;0m         
+[0;36m218 |[0;0m         await transport.finish()
+    [0;36m|[0;0m         `- [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+[0;36m219 |[0;0m         await manager.stop()
+[0;36m220 |[0;0m     }
+
+/Users/hakaru/Desktop/MIDI2Kit/Tests/MIDI2KitTests/CIManagerTests.swift:225:9: [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+[0;36m223 |[0;0m     func ignoresReplyAfterStop() async throws {
+[0;36m224 |[0;0m         let transport = MockMIDITransport()
+[0;36m225 |[0;0m         await transport.addDestination(MIDIDestinationInfo(
+    [0;36m|[0;0m         `- [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+[0;36m226 |[0;0m             destinationID: MIDIDestinationID(1),
+[0;36m227 |[0;0m             name: "Test"
+
+/Users/hakaru/Desktop/MIDI2Kit/Tests/MIDI2KitTests/CIManagerTests.swift:236:9: [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+[0;36m234 |[0;0m         
+[0;36m235 |[0;0m         // Finish transport first, then stop
+[0;36m236 |[0;0m         await transport.finish()
+    [0;36m|[0;0m         `- [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+[0;36m237 |[0;0m         await manager.stop()
+[0;36m238 |[0;0m         
+
+/Users/hakaru/Desktop/MIDI2Kit/Tests/MIDI2KitTests/CIManagerTests.swift:248:9: [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+[0;36m246 |[0;0m             categorySupport: .propertyExchange
+[0;36m247 |[0;0m         )
+[0;36m248 |[0;0m         await transport.simulateReceive(reply, from: MIDISourceID(1))
+    [0;36m|[0;0m         `- [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+[0;36m249 |[0;0m         
+[0;36m250 |[0;0m         // Wait for any orphaned tasks
+
+/Users/hakaru/Desktop/MIDI2Kit/Tests/MIDI2KitTests/CIManagerTests.swift:263:9: [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+[0;36m261 |[0;0m         
+[0;36m262 |[0;0m         // Setup source and destination with matching entity simulation
+[0;36m263 |[0;0m         await transport.addSource(MIDISourceInfo(
+    [0;36m|[0;0m         `- [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+[0;36m264 |[0;0m             sourceID: MIDISourceID(100),
+[0;36m265 |[0;0m             name: "Test Device"
+
+/Users/hakaru/Desktop/MIDI2Kit/Tests/MIDI2KitTests/CIManagerTests.swift:267:9: [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+[0;36m265 |[0;0m             name: "Test Device"
+[0;36m266 |[0;0m         ))
+[0;36m267 |[0;0m         await transport.addDestination(MIDIDestinationInfo(
+    [0;36m|[0;0m         `- [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+[0;36m268 |[0;0m             destinationID: MIDIDestinationID(200),
+[0;36m269 |[0;0m             name: "Test Device"
+
+/Users/hakaru/Desktop/MIDI2Kit/Tests/MIDI2KitTests/CIManagerTests.swift:290:9: [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+[0;36m288 |[0;0m             categorySupport: .propertyExchange
+[0;36m289 |[0;0m         )
+[0;36m290 |[0;0m         await transport.simulateReceive(reply, from: MIDISourceID(100))
+    [0;36m|[0;0m         `- [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+[0;36m291 |[0;0m         
+[0;36m292 |[0;0m         try await Task.sleep(for: .milliseconds(100))
+
+/Users/hakaru/Desktop/MIDI2Kit/Tests/MIDI2KitTests/CIManagerTests.swift:304:9: [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+[0;36m302 |[0;0m         #expect(notFound == nil)
+[0;36m303 |[0;0m         
+[0;36m304 |[0;0m         await transport.finish()
+    [0;36m|[0;0m         `- [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+[0;36m305 |[0;0m         await manager.stop()
+[0;36m306 |[0;0m     }
+
+/Users/hakaru/Desktop/MIDI2Kit/Tests/MIDI2KitTests/CIManagerTests.swift:311:9: [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+[0;36m309 |[0;0m     func peDeviceHandlesReturnsAllPECapable() async throws {
+[0;36m310 |[0;0m         let transport = MockMIDITransport()
+[0;36m311 |[0;0m         await transport.addSource(MIDISourceInfo(
+    [0;36m|[0;0m         `- [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+[0;36m312 |[0;0m             sourceID: MIDISourceID(100),
+[0;36m313 |[0;0m             name: "Test Device"
+
+/Users/hakaru/Desktop/MIDI2Kit/Tests/MIDI2KitTests/CIManagerTests.swift:315:9: [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+[0;36m313 |[0;0m             name: "Test Device"
+[0;36m314 |[0;0m         ))
+[0;36m315 |[0;0m         await transport.addDestination(MIDIDestinationInfo(
+    [0;36m|[0;0m         `- [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+[0;36m316 |[0;0m             destinationID: MIDIDestinationID(200),
+[0;36m317 |[0;0m             name: "Test Device"
+
+/Users/hakaru/Desktop/MIDI2Kit/Tests/MIDI2KitTests/CIManagerTests.swift:333:13: [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+[0;36m331 |[0;0m                 categorySupport: .propertyExchange
+[0;36m332 |[0;0m             )
+[0;36m333 |[0;0m             await transport.simulateReceive(reply, from: MIDISourceID(100))
+    [0;36m|[0;0m             `- [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+[0;36m334 |[0;0m         }
+[0;36m335 |[0;0m         
+
+/Users/hakaru/Desktop/MIDI2Kit/Tests/MIDI2KitTests/CIManagerTests.swift:343:9: [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+[0;36m341 |[0;0m             categorySupport: .profileConfiguration  // No PE support
+[0;36m342 |[0;0m         )
+[0;36m343 |[0;0m         await transport.simulateReceive(nonPEReply, from: MIDISourceID(100))
+    [0;36m|[0;0m         `- [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+[0;36m344 |[0;0m         
+[0;36m345 |[0;0m         try await Task.sleep(for: .milliseconds(100))
+
+/Users/hakaru/Desktop/MIDI2Kit/Tests/MIDI2KitTests/CIManagerTests.swift:351:9: [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+[0;36m349 |[0;0m         #expect(handles.count == 2)
+[0;36m350 |[0;0m         
+[0;36m351 |[0;0m         await transport.finish()
+    [0;36m|[0;0m         `- [1;33mwarning: [1;39mno 'async' operations occur within 'await' expression[0;0m
+[0;36m352 |[0;0m         await manager.stop()
+[0;36m353 |[0;0m     }
+[6/7] Emitting module MIDI2KitTests
+[6/8] Write Objects.LinkFileList
+[7/8] Linking MIDI2KitPackageTests
+Build complete! (5.77s)

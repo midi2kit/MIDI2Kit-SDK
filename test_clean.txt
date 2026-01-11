@@ -1,0 +1,82 @@
+Building for debugging...
+[0/11] /Users/hakaru/Desktop/MIDI2Kit/.build/x86_64-apple-macosx/debug/MIDI2KitPackageTests.derived/runner.swift
+[1/11] Write sources
+[8/11] Write swift-version--58304C5D6DBC2206.txt
+[10/19] Compiling MIDI2Core MUID.swift
+[11/19] Compiling MIDI2Core MIDICIConstants.swift
+[12/19] Compiling MIDI2Core MIDI2Logger.swift
+[13/19] Compiling MIDI2Core Mcoded7.swift
+[14/19] Emitting module MIDI2Core
+[15/19] Compiling MIDI2Core MIDI2Core.swift
+[16/19] Compiling MIDI2Core DeviceIdentity.swift
+[17/19] Compiling MIDI2Core MIDITracer.swift
+[18/25] Compiling MIDI2Transport SysExAssembler.swift
+[19/25] Compiling MIDI2Transport MockMIDITransport.swift
+[20/25] Compiling MIDI2Transport MIDI2Transport.swift
+[21/25] Compiling MIDI2Transport MIDITransport.swift
+[22/25] Emitting module MIDI2Transport
+[23/25] Compiling MIDI2Transport CoreMIDITransport.swift
+[24/31] Compiling MIDI2CI CIMessageParser.swift
+[25/31] Compiling MIDI2CI MIDI2CI.swift
+[26/31] Compiling MIDI2CI DiscoveredDevice.swift
+[27/31] Emitting module MIDI2CI
+[28/31] Compiling MIDI2CI CIManager.swift
+/Users/hakaru/Desktop/MIDI2Kit/Sources/MIDI2CI/CIManager.swift:401:13: warning: no 'async' operations occur within 'await' expression
+399 |         Task {
+400 |             let destination = await self.findDestination(for: sourceID)
+401 |             await self.registerDevice(
+    |             `- warning: no 'async' operations occur within 'await' expression
+402 |                 device,
+403 |                 sourceMUID: parsed.sourceMUID,
+[29/31] Compiling MIDI2CI CIMessageBuilder.swift
+[30/40] Compiling MIDI2PE PEChunkAssembler.swift
+[31/40] Compiling MIDI2PE PETypes.swift
+[32/40] Compiling MIDI2PE PEResource.swift
+[33/40] Compiling MIDI2PE PESubscriptionManager.swift
+[34/40] Compiling MIDI2PE MIDI2PE.swift
+[35/40] Compiling MIDI2PE PETransactionManager.swift
+[36/40] Compiling MIDI2PE PEManager.swift
+[37/40] Emitting module MIDI2PE
+[38/40] Compiling MIDI2PE PERequestIDManager.swift
+[39/44] Compiling MIDI2Kit Empty.swift
+[40/44] Emitting module MIDI2Kit
+[41/44] Compiling MIDI2Kit MIDI2Kit.swift
+[42/44] Compiling MIDI2Kit CIManagerPEExtension.swift
+/Users/hakaru/Desktop/MIDI2Kit/Sources/MIDI2Kit/CIManagerPEExtension.swift:40:28: warning: no 'async' operations occur within 'await' expression
+ 38 |     /// - Returns: A `PEDeviceHandle` if the device exists and has a destination, nil otherwise
+ 39 |     public func peDeviceHandle(for muid: MUID) async -> PEDeviceHandle? {
+ 40 |         guard let device = await device(for: muid),
+    |                            `- warning: no 'async' operations occur within 'await' expression
+ 41 |               let destination = await destination(for: muid) else {
+ 42 |             return nil
+
+/Users/hakaru/Desktop/MIDI2Kit/Sources/MIDI2Kit/CIManagerPEExtension.swift:41:33: warning: no 'async' operations occur within 'await' expression
+ 39 |     public func peDeviceHandle(for muid: MUID) async -> PEDeviceHandle? {
+ 40 |         guard let device = await device(for: muid),
+ 41 |               let destination = await destination(for: muid) else {
+    |                                 `- warning: no 'async' operations occur within 'await' expression
+ 42 |             return nil
+ 43 |         }
+
+/Users/hakaru/Desktop/MIDI2Kit/Sources/MIDI2Kit/CIManagerPEExtension.swift:70:33: warning: no 'async' operations occur within 'await' expression
+ 68 |     /// - Returns: A `PEDeviceHandle` if the device has a destination, nil otherwise
+ 69 |     public func peDeviceHandle(for device: DiscoveredDevice) async -> PEDeviceHandle? {
+ 70 |         guard let destination = await destination(for: device.muid) else {
+    |                                 `- warning: no 'async' operations occur within 'await' expression
+ 71 |             return nil
+ 72 |         }
+[43/54] Compiling MIDI2KitTests PERequestIDManagerTests.swift
+[44/54] Compiling MIDI2KitTests Mcoded7Tests.swift
+[45/54] Compiling MIDI2KitTests PEManagerTests.swift
+[46/54] Compiling MIDI2KitTests PEChunkAssemblerTests.swift
+[47/54] Compiling MIDI2KitTests PETransactionManagerTests.swift
+[48/54] Compiling MIDI2KitTests SysExAssemblerTests.swift
+[49/54] Compiling MIDI2KitTests CIMessageParserTests.swift
+[50/54] Compiling MIDI2KitTests MUIDTests.swift
+[51/54] Compiling MIDI2KitTests CIManagerTests.swift
+[52/54] Emitting module MIDI2KitTests
+[53/56] Emitting module MIDI2KitPackageTests
+[54/56] Compiling MIDI2KitPackageTests runner.swift
+[54/56] Write Objects.LinkFileList
+[55/56] Linking MIDI2KitPackageTests
+Build complete! (24.77s)

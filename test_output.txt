@@ -1,0 +1,345 @@
+warning: 'midi2kit': /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swift-frontend -frontend -c -primary-file /Users/hakaru/Desktop/MIDI2Kit/Package.swift -target x86_64-apple-macosx14.0 -enable-objc-interop -stack-check -sdk /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk -I /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib -I /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/pm/ManifestAPI -F /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks -F /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks -vfsoverlay /var/folders/48/hr7xy7t10n18t9jwtxf_xt480000gn/T/TemporaryDirectory.Adxrgc/vfs.yaml -no-color-diagnostics -Xcc -fno-color-diagnostics -swift-version 6 -package-description-version 6.0.0 -new-driver-path /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swift-driver -empty-abi-descriptor -plugin-path /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing -no-auto-bridging-header-chaining -module-name main -disable-clang-spi -target-sdk-version 26.2 -target-sdk-name macosx26.2 -external-plugin-path '/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib/swift/host/plugins#/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/bin/swift-plugin-server' -external-plugin-path '/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/local/lib/swift/host/plugins#/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/bin/swift-plugin-server' -in-process-plugin-server-path /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/libSwiftInProcPluginServer.dylib -plugin-path /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins -plugin-path /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/local/lib/swift/host/plugins -o /var/folders/48/hr7xy7t10n18t9jwtxf_xt480000gn/T/TemporaryDirectory.tqVFo3/Package-1.o
+/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang /var/folders/48/hr7xy7t10n18t9jwtxf_xt480000gn/T/TemporaryDirectory.tqVFo3/Package-1.o -F /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks -F /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/PrivateFrameworks --sysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk --target=x86_64-apple-macosx14.0 -L /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/macosx -L /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk/usr/lib/swift -rpath /usr/lib/swift -L /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/pm/ManifestAPI -L /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib -lPackageDescription -Xlinker -rpath -Xlinker /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/pm/ManifestAPI -o /var/folders/48/hr7xy7t10n18t9jwtxf_xt480000gn/T/TemporaryDirectory.nvakNc/midi2kit-manifest
+Apple Swift version 6.2.3 (swiftlang-6.2.3.3.21 clang-1700.6.3.2)
+Target: x86_64-apple-macosx14.0
+Building for debugging...
+Write auxiliary file /Users/hakaru/Desktop/MIDI2Kit/.build/x86_64-apple-macosx/debug/swift-version--58304C5D6DBC2206.txt
+Build complete! (0.18s)
+Test Suite 'All tests' started at 2026-01-10 17:09:36.037.
+Test Suite 'All tests' passed at 2026-01-10 17:09:36.039.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.002) seconds
+􀟈  Test run started.
+􀄵  Swift Version: 6.1.0
+􀄵  Testing Library Version: 1501
+􀄵  Target Platform: x86_64-apple-macos14.0
+􀄵  OS Version: 15.7.2 (24G325)
+􀟈  Suite "PERequestIDManager Tests" (aka 'PERequestIDManagerTests') started.
+􀟈  Suite "PEDeviceHandle Tests" (aka 'PEDeviceHandleTests') started.
+􀟈  Suite "PEManager Subscribe/Notify Tests" (aka 'PEManagerSubscribeNotifyTests') started.
+􀟈  Suite "SysExAssembler Tests" (aka 'SysExAssemblerTests') started.
+􀟈  Suite "CoreMIDITransport Packet Order Tests" (aka 'CoreMIDITransportPacketOrderTests') started.
+􀟈  Suite "PETransactionManager Tests" (aka 'PETransactionManagerTests') started.
+􀟈  Suite "CIManager Tests" (aka 'CIManagerTests') started.
+􀟈  Suite "MUID Tests" (aka 'MUIDTests') started.
+􀟈  Suite "PEManager Tests" (aka 'PEManagerTests') started.
+􀟈  Suite "Mcoded7 Tests" (aka 'Mcoded7Tests') started.
+􀟈  Suite "PEResponse Tests" (aka 'PEResponseTests') started.
+􀟈  Suite "Per-Device Inflight Limiting Tests" (aka 'InflightLimitingTests') started.
+􀟈  Suite "PEChunkAssembler Tests" (aka 'PEChunkAssemblerTests') started.
+􀟈  Suite "CIMessageParser Tests" (aka 'CIMessageParserTests') started.
+􀟈  Test "IsInUse tracking" (aka 'isInUseTracking()') started.
+􀟈  Test "All 128 IDs can be acquired" (aka 'acquireAll128()') started.
+􀟈  Test "7-bit masking on release" (aka 'maskingOnRelease()') started.
+􀟈  Test "PEDeviceHandle is Hashable" (aka 'hashable()') started.
+􀟈  Test "PEDeviceHandle debugDescription" (aka 'debugDescription()') started.
+􀟈  Test "Fixed approach guarantees order" (aka 'fixedApproachGuaranteesOrder()') started.
+􀟈  Test "PEDeviceHandle stores MUID and destination" (aka 'storesMUIDAndDestination()') started.
+􀟈  Test "Release allows reuse" (aka 'releaseAllowsReuse()') started.
+􀟈  Test "Release multiple IDs" (aka 'releaseMultiple()') started.
+􀟈  Test "Available count" (aka 'availableCount()') started.
+􀟈  Test "Notify is received through notification stream" (aka 'notifyIsReceivedThroughStream()') started.
+􀟈  Test "Wrong packet order corrupts SysEx assembly" (aka 'wrongPacketOrderCorruptsSysExAssembly()') started.
+􀟈  Test "Unsubscribe for unknown subscribeId throws error" (aka 'unsubscribeForUnknownIdThrows()') started.
+􀟈  Test "Packet order matters for fragmented SysEx" (aka 'packetOrderMattersForFragmentedSysEx()') started.
+􀟈  Test "Large SysEx message assembly" (aka 'largeSysExMessageAssembly()') started.
+􀟈  Test "Sequential IDs are unique" (aka 'sequentialUnique()') started.
+􀟈  Test "Complete SysEx in single packet" (aka 'completeSysExInSinglePacket()') started.
+􀟈  Test "New F0 during buffering discards incomplete message" (aka 'newF0DuringBufferingDiscardsIncomplete()') started.
+􀟈  Test "Unsubscribe sends correct message format" (aka 'unsubscribeSendsCorrectMessage()') started.
+􀟈  Test "Simulated packet list maintains order" (aka 'simulatedPacketListMaintainsOrder()') started.
+􀟈  Test "Sequential processing preserves order" (aka 'sequentialProcessingPreservesOrder()') started.
+􀟈  Test "Acquire returns valid 7-bit ID" (aka 'acquireValid7BitID()') started.
+􀟈  Test "stopReceiving clears subscriptions and pending subscribe requests" (aka 'stopReceivingClearsSubscriptionsAndPendingRequests()') started.
+􀟈  Test "Subscribe receives reply with subscribeId" (aka 'subscribeReceivesReplyWithSubscribeId()') started.
+􀟈  Test "Notify for unknown subscribeId is ignored" (aka 'notifyForUnknownSubscribeIdIsIgnored()') started.
+􀟈  Test "Order tracker demonstrates race condition risk" (aka 'orderTrackerDemonstratesRaceConditionRisk()') started.
+􀟈  Test "Release all" (aka 'releaseAll()') started.
+􀟈  Test "Subscribe sends correct message format" (aka 'subscribeSendsCorrectMessage()') started.
+􀟈  Test "SysEx split across two packets" (aka 'sysExSplitAcrossTwoPackets()') started.
+􀟈  Test "Invalid raw value rejected" (aka 'invalidRawValue()') started.
+􀟈  Test "SysEx split across three packets" (aka 'sysExSplitAcrossThreePackets()') started.
+􀟈  Test "Subscribe times out when no reply" (aka 'subscribeTimesOut()') started.
+􀟈  Test "Exhaustion returns nil" (aka 'exhaustionReturnsNil()') started.
+􀟈  Test "CIManager generates unique MUIDs" (aka 'uniqueMUIDs()') started.
+􀟈  Test "Multiple complete SysEx in single packet" (aka 'multipleSysExInSinglePacket()') started.
+􀟈  Test "SysEx after non-SysEx data" (aka 'sysExAfterNonSysExData()') started.
+􀟈  Test "Empty packet returns no messages" (aka 'emptyPacketReturnsNoMessages()') started.
+􀟈  Test "Chunk for unknown request ID returns unknownRequestID" (aka 'chunkForUnknownRequestID()') started.
+􀟈  Test "CIManager peDeviceHandles returns all PE-capable devices" (aka 'peDeviceHandlesReturnsAllPECapable()') started.
+􀟈  Test "Cancel releases ID" (aka 'cancelReleasesID()') started.
+􀟈  Test "Random MUID generation" (aka 'randomGeneration()') started.
+􀟈  Test "MUID from byte array" (aka 'fromByteArray()') started.
+􀟈  Test "MUID from bytes" (aka 'fromBytes()') started.
+􀟈  Test "MUID from byte array with offset" (aka 'fromByteArrayWithOffset()') started.
+􀟈  Test "F0 before F7 in continuation discards buffer" (aka 'f0BeforeF7InContinuationDiscardsBuffer()') started.
+􀟈  Test "CIManager gets device by MUID" (aka 'getDeviceByMUID()') started.
+􀟈  Test "CIManager ignores Discovery Reply after stop" (aka 'ignoresReplyAfterStop()') started.
+􀟈  Test "CIManager can clear all devices" (aka 'clearDevices()') started.
+􀟈  Test "ID wraps around at 128" (aka 'wrapAround()') started.
+􀟈  Test "Near exhaustion warning threshold" (aka 'nearExhaustionWarning()') started.
+􀟈  Test "PEManager starts and stops receiving" (aka 'startsAndStopsReceiving()') started.
+􀟈  Test "Reserved MUID" (aka 'reserved()') started.
+􀟈  Test "Non-SysEx data without buffer is ignored" (aka 'nonSysExDataWithoutBufferIsIgnored()') started.
+􀟈  Test "Broadcast MUID" (aka 'broadcast()') started.
+􀟈  Test "Multiple transactions same resource get unique IDs" (aka 'multipleTransactionsSameResource()') started.
+􀟈  Test "Transaction query returns nil for unknown ID" (aka 'transactionQueryUnknownID()') started.
+􀟈  Test "send(request:) works correctly" (aka 'sendRequestWorks()') started.
+􀟈  Test "Cancel all" (aka 'cancelAll()') started.
+􀟈  Test "MUID to bytes round-trip" (aka 'bytesRoundTrip()') started.
+􀟈  Test "Active subscription is removed after successful unsubscribe" (aka 'activeSubscriptionRemovedAfterUnsubscribe()') started.
+􀟈  Test "Cancel unknown ID is safe" (aka 'cancelUnknownIDIsSafe()') started.
+􀟈  Test "CIManager discovers device from Discovery Reply" (aka 'discoversDeviceFromReply()') started.
+􀟈  Test "MUID insufficient bytes returns nil" (aka 'insufficientBytes()') started.
+􀟈  Test "CIManager uses default configuration" (aka 'defaultConfiguration()') started.
+􀟈  Test "stopReceiving handles many concurrent requests safely" (aka 'stopReceivingHandlesManyConcurrentRequests()') started.
+􀟈  Test "Transaction query returns transaction info" (aka 'transactionQuery()') started.
+􀟈  Test "Begin transaction acquires ID" (aka 'beginAcquiresID()') started.
+􀟈  Test "Request IDs can be reused after cancel" (aka 'requestIDReuseAfterCancel()') started.
+􀟈  Test "stopReceiving is idempotent" (aka 'stopReceivingIsIdempotent()') started.
+􀟈  Test "Multi-chunk assembly" (aka 'multiChunkAssembly()') started.
+􀟈  Test "Not near exhaustion with sufficient IDs" (aka 'notNearExhaustion()') started.
+􀟈  Test "PERequest factory methods create correct requests" (aka 'peRequestFactoryMethods()') started.
+􀟈  Test "hasTransaction returns correct value" (aka 'hasTransaction()') started.
+􀟈  Test "GET with DeviceHandle sends correct message" (aka 'getWithDeviceHandleSendsCorrectMessage()') started.
+􀟈  Test "Task cancellation cancels pending request" (aka 'taskCancellationCancelsPendingRequest()') started.
+􀟈  Test "PEManager initializes correctly" (aka 'initializesCorrectly()') started.
+􀟈  Test "GET times out when no reply" (aka 'getTimesOutWhenNoReply()') started.
+􀟈  Test "Chunk after cancel returns unknownRequestID" (aka 'chunkAfterCancel()') started.
+􀟈  Test "CIManager removes device on InvalidateMUID" (aka 'removesDeviceOnInvalidate()') started.
+􀟈  Test "SET sends correct message format" (aka 'setSendsCorrectMessage()') started.
+􀟈  Test "Single chunk completes immediately" (aka 'singleChunkCompletesImmediately()') started.
+􀟈  Test "PERequest validation catches missing body" (aka 'peRequestValidationMissingBody()') started.
+􀟈  Test "Sequential processing assembles correctly" (aka 'sequentialProcessingAssemblesCorrectly()') started.
+􀟈  Test "Paginated GET sends offset and limit" (aka 'paginatedGetSendsOffsetAndLimit()') started.
+􀟈  Test "Request IDs can be reused after stopReceiving" (aka 'requestIDsCanBeReusedAfterStop()') started.
+􀟈  Test "Request ID released after chunk complete" (aka 'requestIDReleasedAfterChunkComplete()') started.
+􀟈  Test "Encode empty data" (aka 'encodeEmpty()') started.
+􀟈  Test "Encode data with MSB set" (aka 'encodeMSBSet()') started.
+􀟈  Test "Cancel all for device" (aka 'cancelAllForDevice()') started.
+􀟈  Test "PERequest validation catches invalid channel" (aka 'peRequestValidationInvalidChannel()') started.
+􀟈  Test "Cancel is idempotent" (aka 'cancelIsIdempotent()') started.
+􀟈  Test "Encode all 0xFF bytes" (aka 'encodeAllFF()') started.
+􀟈  Test "Diagnostics output" (aka 'diagnosticsOutput()') started.
+􀟈  Test "stopReceiving releases all Request IDs" (aka 'stopReceivingReleasesAllRequestIDs()') started.
+􀟈  Test "Large data round-trip" (aka 'largeDataRoundTrip()') started.
+􀟈  Test "CIManager creates PEDeviceHandle for discovered device" (aka 'createsPEDeviceHandle()') started.
+􀟈  Test "Diagnostics shows near exhaustion warning" (aka 'diagnosticsShowsExhaustionWarning()') started.
+􀟈  Test "Decode empty data" (aka 'decodeEmpty()') started.
+􀟈  Test "Decode invalid data returns nil" (aka 'decodeInvalidData()') started.
+􀟈  Test "Encode partial group" (aka 'encodePartialGroup()') started.
+􀟈  Test "CIManager initializes with random MUID" (aka 'initWithRandomMUID()') started.
+􀟈  Test "isError for 4xx and 5xx status codes" (aka 'isErrorFor4xx5xx()') started.
+􀟈  Test "isSuccess for 2xx status codes" (aka 'isSuccessFor2xx()') started.
+􀟈  Test "Round-trip encoding" (aka 'roundTrip()') started.
+􀟈  Test "PERequest validation catches empty resource" (aka 'peRequestValidationEmptyResource()') started.
+􀟈  Test "Different devices have independent inflight counts" (aka 'independentInflightCounts()') started.
+􀟈  Test "MaxInflightPerDevice minimum is 1" (aka 'maxInflightMinimum()') started.
+􀟈  Test "Diagnostics shows device states" (aka 'diagnosticsShowsDeviceStates()') started.
+􀟈  Test "Multiple concurrent requests" (aka 'concurrentRequests()') started.
+􀟈  Test "Default maxInflightPerDevice is 2" (aka 'defaultMaxInflight()') started.
+􀟈  Test "Custom maxInflightPerDevice is respected" (aka 'customMaxInflight()') started.
+􀟈  Test "Encode 7-bit safe data unchanged" (aka 'encode7BitSafe()') started.
+􀟈  Test "Reset clears buffer" (aka 'resetClearsBuffer()') started.
+􀟈  Test "bodyString returns UTF8 string" (aka 'bodyStringReturnsUTF8()') started.
+􀟈  Test "Encoded size calculation" (aka 'encodedSizeCalculation()') started.
+􀟈  Test "Waiter queued when at capacity and resumed on cancel" (aka 'waiterQueuedAndResumed()') started.
+􀟈  Test "Cancel all pending" (aka 'cancelAll()') started.
+􀟈  Test "Inflight count tracks active transactions" (aka 'inflightCountTracksActive()') started.
+􀟈  Test "Cancel all for device clears inflight state" (aka 'cancelAllClearsInflightState()') started.
+􀟈  Test "Out of order chunks" (aka 'outOfOrderChunks()') started.
+􀟈  Test "Multi-chunk assembly" (aka 'multiChunkAssembly()') started.
+􀟈  Test "Pending state tracking" (aka 'pendingStateTracking()') started.
+􀟈  Test "parseNAK with minimum payload (3 bytes)" (aka 'parseNAKMinimum()') started.
+􀟈  Test "parseDiscoveryReply with optional fields" (aka 'parseDiscoveryReplyWithOptional()') started.
+􀟈  Test "parseDiscoveryReply minimum payload" (aka 'parseDiscoveryReplyMinimum()') started.
+􀟈  Test "Single chunk returns complete immediately" (aka 'singleChunk()') started.
+􀟈  Test "parseNAK with short message" (aka 'parseNAKWithMessage()') started.
+􀟈  Test "parseInvalidateMUID too short" (aka 'parseInvalidateMUIDTooShort()') started.
+􀟈  Test "parseSubscribeReply with subscribeId" (aka 'parseSubscribeReplyWithSubscribeId()') started.
+􀟈  Test "parseFullNotify complete message" (aka 'parseFullNotifyCompleteMessage()') started.
+􀟈  Test "Header preserved from first non-empty chunk" (aka 'headerPreservation()') started.
+􀟈  Test "parseInvalidateMUID broadcast" (aka 'parseInvalidateMUIDBroadcast()') started.
+􀟈  Test "parseNAK with empty payload" (aka 'parseNAKEmpty()') started.
+􀟈  Test "parseFullSubscribeReply complete message" (aka 'parseFullSubscribeReplyCompleteMessage()') started.
+􀟈  Test "parseSubscribeReply without subscribeId" (aka 'parseSubscribeReplyWithoutSubscribeId()') started.
+􀟈  Test "parseNAK with zero-length message" (aka 'parseNAKZeroLengthMessage()') started.
+􀟈  Test "parseNAK with 9 bytes (details but no message length)" (aka 'parseNAK9Bytes()') started.
+􀟈  Test "parsePEReply with header and data" (aka 'parsePEReplyWithData()') started.
+􀟈  Test "parsePEReply with truncated header" (aka 'parsePEReplyTruncatedHeader()') started.
+􀟈  Test "parseNAK with truncated message" (aka 'parseNAKTruncatedMessage()') started.
+􀟈  Test "parsePEReply too short" (aka 'parsePEReplyTooShort()') started.
+􀟈  Test "parsePECapabilityReply too short" (aka 'parsePECapabilityReplyTooShort()') started.
+􀟈  Test "parsePEReply minimum valid" (aka 'parsePEReplyMinimum()') started.
+􀟈  Test "parseNAK with insufficient payload (2 bytes)" (aka 'parseNAKTooShort()') started.
+􀟈  Test "parseFullSubscribeReply wrong message type returns nil" (aka 'parseFullSubscribeReplyWrongMessageType()') started.
+􀟈  Test "parseNAK with long message (14-bit length)" (aka 'parseNAKLongMessage()') started.
+􀟈  Test "parsePECapabilityReply valid" (aka 'parsePECapabilityReplyValid()') started.
+􀟈  Test "parseNotify with subscribeId and resource" (aka 'parseNotifyWithSubscribeIdAndResource()') started.
+􀟈  Test "parseNAK with partial NAK details (7 bytes)" (aka 'parseNAKPartialDetails()') started.
+􀟈  Test "parseInvalidateMUID valid" (aka 'parseInvalidateMUIDValid()') started.
+􁁛  Test "IsInUse tracking" (aka 'isInUseTracking()') passed after 0.004 seconds.
+􀟈  Test "parseNAK with message length but no message (10 bytes)" (aka 'parseNAKMessageLengthOnly()') started.
+􀟈  Test "parseDiscoveryReply too short" (aka 'parseDiscoveryReplyTooShort()') started.
+􁁛  Test "PEDeviceHandle is Hashable" (aka 'hashable()') passed after 0.004 seconds.
+􁁛  Test "7-bit masking on release" (aka 'maskingOnRelease()') passed after 0.004 seconds.
+􁁛  Test "Fixed approach guarantees order" (aka 'fixedApproachGuaranteesOrder()') passed after 0.004 seconds.
+􀟈  Test "parseNAK with full NAK details (8 bytes)" (aka 'parseNAKFullDetails()') started.
+􁁛  Test "Release allows reuse" (aka 'releaseAllowsReuse()') passed after 0.004 seconds.
+􁁛  Test "PEDeviceHandle stores MUID and destination" (aka 'storesMUIDAndDestination()') passed after 0.004 seconds.
+􁁛  Test "All 128 IDs can be acquired" (aka 'acquireAll128()') passed after 0.004 seconds.
+􁁛  Test "Release multiple IDs" (aka 'releaseMultiple()') passed after 0.004 seconds.
+􁁛  Test "Sequential IDs are unique" (aka 'sequentialUnique()') passed after 0.004 seconds.
+􁁛  Test "Wrong packet order corrupts SysEx assembly" (aka 'wrongPacketOrderCorruptsSysExAssembly()') passed after 0.004 seconds.
+􁁛  Test "PEDeviceHandle debugDescription" (aka 'debugDescription()') passed after 0.004 seconds.
+􁁛  Test "Simulated packet list maintains order" (aka 'simulatedPacketListMaintainsOrder()') passed after 0.004 seconds.
+􁁛  Test "Complete SysEx in single packet" (aka 'completeSysExInSinglePacket()') passed after 0.004 seconds.
+􁁛  Test "Available count" (aka 'availableCount()') passed after 0.004 seconds.
+􁁛  Test "Packet order matters for fragmented SysEx" (aka 'packetOrderMattersForFragmentedSysEx()') passed after 0.004 seconds.
+􁁛  Test "Large SysEx message assembly" (aka 'largeSysExMessageAssembly()') passed after 0.004 seconds.
+􁁛  Test "New F0 during buffering discards incomplete message" (aka 'newF0DuringBufferingDiscardsIncomplete()') passed after 0.004 seconds.
+􁁛  Test "Unsubscribe for unknown subscribeId throws error" (aka 'unsubscribeForUnknownIdThrows()') passed after 0.004 seconds.
+􁁛  Test "Invalid raw value rejected" (aka 'invalidRawValue()') passed after 0.004 seconds.
+􁁛  Test "Acquire returns valid 7-bit ID" (aka 'acquireValid7BitID()') passed after 0.004 seconds.
+􁁛  Test "SysEx split across three packets" (aka 'sysExSplitAcrossThreePackets()') passed after 0.004 seconds.
+􁁛  Test "SysEx split across two packets" (aka 'sysExSplitAcrossTwoPackets()') passed after 0.004 seconds.
+􁁛  Test "Multiple complete SysEx in single packet" (aka 'multipleSysExInSinglePacket()') passed after 0.004 seconds.
+􁁛  Test "Release all" (aka 'releaseAll()') passed after 0.004 seconds.
+􁁛  Test "Chunk for unknown request ID returns unknownRequestID" (aka 'chunkForUnknownRequestID()') passed after 0.004 seconds.
+􁁛  Test "Cancel releases ID" (aka 'cancelReleasesID()') passed after 0.004 seconds.
+􁁛  Test "MUID from byte array" (aka 'fromByteArray()') passed after 0.004 seconds.
+􁁛  Test "Random MUID generation" (aka 'randomGeneration()') passed after 0.004 seconds.
+􁁛  Test "SysEx after non-SysEx data" (aka 'sysExAfterNonSysExData()') passed after 0.004 seconds.
+􁁛  Test "F0 before F7 in continuation discards buffer" (aka 'f0BeforeF7InContinuationDiscardsBuffer()') passed after 0.004 seconds.
+􁁛  Test "Sequential processing preserves order" (aka 'sequentialProcessingPreservesOrder()') passed after 0.004 seconds.
+􁁛  Test "MUID from bytes" (aka 'fromBytes()') passed after 0.004 seconds.
+􁁛  Test "CIManager generates unique MUIDs" (aka 'uniqueMUIDs()') passed after 0.004 seconds.
+􁁛  Test "Broadcast MUID" (aka 'broadcast()') passed after 0.004 seconds.
+􁁛  Test "Empty packet returns no messages" (aka 'emptyPacketReturnsNoMessages()') passed after 0.004 seconds.
+􁁛  Test "Reserved MUID" (aka 'reserved()') passed after 0.004 seconds.
+􁁛  Test "PEManager starts and stops receiving" (aka 'startsAndStopsReceiving()') passed after 0.004 seconds.
+􁁛  Test "Transaction query returns nil for unknown ID" (aka 'transactionQueryUnknownID()') passed after 0.004 seconds.
+􁁛  Test "Cancel unknown ID is safe" (aka 'cancelUnknownIDIsSafe()') passed after 0.004 seconds.
+􁁛  Test "Non-SysEx data without buffer is ignored" (aka 'nonSysExDataWithoutBufferIsIgnored()') passed after 0.004 seconds.
+􁁛  Test "MUID from byte array with offset" (aka 'fromByteArrayWithOffset()') passed after 0.004 seconds.
+􁁛  Test "Cancel all" (aka 'cancelAll()') passed after 0.004 seconds.
+􁁛  Test "Request IDs can be reused after cancel" (aka 'requestIDReuseAfterCancel()') passed after 0.004 seconds.
+􁁛  Test "MUID to bytes round-trip" (aka 'bytesRoundTrip()') passed after 0.004 seconds.
+􁁛  Test "CIManager uses default configuration" (aka 'defaultConfiguration()') passed after 0.004 seconds.
+􁁛  Test "ID wraps around at 128" (aka 'wrapAround()') passed after 0.005 seconds.
+􁁛  Test "Begin transaction acquires ID" (aka 'beginAcquiresID()') passed after 0.004 seconds.
+􁁛  Test "Transaction query returns transaction info" (aka 'transactionQuery()') passed after 0.004 seconds.
+􁁛  Test "Multi-chunk assembly" (aka 'multiChunkAssembly()') passed after 0.004 seconds.
+􁁛  Test "Multiple transactions same resource get unique IDs" (aka 'multipleTransactionsSameResource()') passed after 0.004 seconds.
+􁁛  Test "hasTransaction returns correct value" (aka 'hasTransaction()') passed after 0.004 seconds.
+􁁛  Test "MUID insufficient bytes returns nil" (aka 'insufficientBytes()') passed after 0.004 seconds.
+􁁛  Test "PEManager initializes correctly" (aka 'initializesCorrectly()') passed after 0.004 seconds.
+􁁛  Test "Near exhaustion warning threshold" (aka 'nearExhaustionWarning()') passed after 0.005 seconds.
+􁁛  Test "PERequest factory methods create correct requests" (aka 'peRequestFactoryMethods()') passed after 0.004 seconds.
+􁁛  Test "Encode data with MSB set" (aka 'encodeMSBSet()') passed after 0.004 seconds.
+􁁛  Test "Encode empty data" (aka 'encodeEmpty()') passed after 0.004 seconds.
+􁁛  Test "Cancel all for device" (aka 'cancelAllForDevice()') passed after 0.004 seconds.
+􁁛  Test "Single chunk completes immediately" (aka 'singleChunkCompletesImmediately()') passed after 0.004 seconds.
+􁁛  Test "PERequest validation catches missing body" (aka 'peRequestValidationMissingBody()') passed after 0.005 seconds.
+􁁛  Test "Decode invalid data returns nil" (aka 'decodeInvalidData()') passed after 0.004 seconds.
+􁁛  Test "Decode empty data" (aka 'decodeEmpty()') passed after 0.004 seconds.
+􁁛  Test "Encode all 0xFF bytes" (aka 'encodeAllFF()') passed after 0.004 seconds.
+􁁛  Test "Not near exhaustion with sufficient IDs" (aka 'notNearExhaustion()') passed after 0.004 seconds.
+􁁛  Test "Encode partial group" (aka 'encodePartialGroup()') passed after 0.004 seconds.
+􁁛  Test "Diagnostics output" (aka 'diagnosticsOutput()') passed after 0.004 seconds.
+􁁛  Test "PERequest validation catches empty resource" (aka 'peRequestValidationEmptyResource()') passed after 0.004 seconds.
+􁁛  Test "Request ID released after chunk complete" (aka 'requestIDReleasedAfterChunkComplete()') passed after 0.004 seconds.
+􁁛  Test "isSuccess for 2xx status codes" (aka 'isSuccessFor2xx()') passed after 0.004 seconds.
+􁁛  Test "Round-trip encoding" (aka 'roundTrip()') passed after 0.004 seconds.
+􁁛  Test "Chunk after cancel returns unknownRequestID" (aka 'chunkAfterCancel()') passed after 0.004 seconds.
+􁁛  Test "Large data round-trip" (aka 'largeDataRoundTrip()') passed after 0.004 seconds.
+􁁛  Test "Custom maxInflightPerDevice is respected" (aka 'customMaxInflight()') passed after 0.003 seconds.
+􁁛  Test "Sequential processing assembles correctly" (aka 'sequentialProcessingAssemblesCorrectly()') passed after 0.005 seconds.
+􁁛  Test "CIManager initializes with random MUID" (aka 'initWithRandomMUID()') passed after 0.004 seconds.
+􁁛  Test "isError for 4xx and 5xx status codes" (aka 'isErrorFor4xx5xx()') passed after 0.004 seconds.
+􁁛  Test "MaxInflightPerDevice minimum is 1" (aka 'maxInflightMinimum()') passed after 0.004 seconds.
+􁁛  Test "Default maxInflightPerDevice is 2" (aka 'defaultMaxInflight()') passed after 0.004 seconds.
+􁁛  Test "Cancel is idempotent" (aka 'cancelIsIdempotent()') passed after 0.004 seconds.
+􁁛  Test "Multiple concurrent requests" (aka 'concurrentRequests()') passed after 0.004 seconds.
+􁁛  Test "PERequest validation catches invalid channel" (aka 'peRequestValidationInvalidChannel()') passed after 0.005 seconds.
+􁁛  Test "Cancel all pending" (aka 'cancelAll()') passed after 0.003 seconds.
+􁁛  Test "Encoded size calculation" (aka 'encodedSizeCalculation()') passed after 0.004 seconds.
+􁁛  Test "Inflight count tracks active transactions" (aka 'inflightCountTracksActive()') passed after 0.003 seconds.
+􁁛  Test "Encode 7-bit safe data unchanged" (aka 'encode7BitSafe()') passed after 0.004 seconds.
+􁁛  Test "bodyString returns UTF8 string" (aka 'bodyStringReturnsUTF8()') passed after 0.004 seconds.
+􁁛  Test "Reset clears buffer" (aka 'resetClearsBuffer()') passed after 0.004 seconds.
+􁁛  Test "Different devices have independent inflight counts" (aka 'independentInflightCounts()') passed after 0.004 seconds.
+􁁛  Test "Cancel all for device clears inflight state" (aka 'cancelAllClearsInflightState()') passed after 0.004 seconds.
+􁁛  Test "Diagnostics shows device states" (aka 'diagnosticsShowsDeviceStates()') passed after 0.004 seconds.
+􁁛  Test "Single chunk returns complete immediately" (aka 'singleChunk()') passed after 0.003 seconds.
+􁁛  Test "Multi-chunk assembly" (aka 'multiChunkAssembly()') passed after 0.003 seconds.
+􁁛  Test "Out of order chunks" (aka 'outOfOrderChunks()') passed after 0.003 seconds.
+􁁛  Test "Pending state tracking" (aka 'pendingStateTracking()') passed after 0.003 seconds.
+􁁛  Test "parseNAK with short message" (aka 'parseNAKWithMessage()') passed after 0.003 seconds.
+􁁛  Test "parseSubscribeReply with subscribeId" (aka 'parseSubscribeReplyWithSubscribeId()') passed after 0.003 seconds.
+􁁛  Test "parseDiscoveryReply minimum payload" (aka 'parseDiscoveryReplyMinimum()') passed after 0.003 seconds.
+􁁛  Test "parseNAK with zero-length message" (aka 'parseNAKZeroLengthMessage()') passed after 0.003 seconds.
+􁁛  Test "parseDiscoveryReply with optional fields" (aka 'parseDiscoveryReplyWithOptional()') passed after 0.003 seconds.
+􁁛  Test "parseInvalidateMUID too short" (aka 'parseInvalidateMUIDTooShort()') passed after 0.003 seconds.
+􁁛  Test "parseInvalidateMUID broadcast" (aka 'parseInvalidateMUIDBroadcast()') passed after 0.003 seconds.
+􁁛  Test "parseFullSubscribeReply complete message" (aka 'parseFullSubscribeReplyCompleteMessage()') passed after 0.003 seconds.
+􁁛  Test "parsePEReply with header and data" (aka 'parsePEReplyWithData()') passed after 0.002 seconds.
+􁁛  Test "parseNAK with 9 bytes (details but no message length)" (aka 'parseNAK9Bytes()') passed after 0.003 seconds.
+􁁛  Test "parseNAK with insufficient payload (2 bytes)" (aka 'parseNAKTooShort()') passed after 0.002 seconds.
+􁁛  Test "parseFullNotify complete message" (aka 'parseFullNotifyCompleteMessage()') passed after 0.003 seconds.
+􁁛  Test "parsePECapabilityReply valid" (aka 'parsePECapabilityReplyValid()') passed after 0.002 seconds.
+􁁛  Test "parsePECapabilityReply too short" (aka 'parsePECapabilityReplyTooShort()') passed after 0.002 seconds.
+􁁛  Test "parseNAK with long message (14-bit length)" (aka 'parseNAKLongMessage()') passed after 0.002 seconds.
+􁁛  Test "parseNAK with empty payload" (aka 'parseNAKEmpty()') passed after 0.003 seconds.
+􁁛  Test "parseSubscribeReply without subscribeId" (aka 'parseSubscribeReplyWithoutSubscribeId()') passed after 0.003 seconds.
+􁁛  Test "parseNAK with truncated message" (aka 'parseNAKTruncatedMessage()') passed after 0.002 seconds.
+􁁛  Test "Header preserved from first non-empty chunk" (aka 'headerPreservation()') passed after 0.004 seconds.
+􁁛  Test "parsePEReply too short" (aka 'parsePEReplyTooShort()') passed after 0.002 seconds.
+􁁛  Test "parseNAK with minimum payload (3 bytes)" (aka 'parseNAKMinimum()') passed after 0.003 seconds.
+􁁛  Test "parseNotify with subscribeId and resource" (aka 'parseNotifyWithSubscribeIdAndResource()') passed after 0.002 seconds.
+􁁛  Test "parsePEReply minimum valid" (aka 'parsePEReplyMinimum()') passed after 0.002 seconds.
+􁁛  Test "parseInvalidateMUID valid" (aka 'parseInvalidateMUIDValid()') passed after 0.002 seconds.
+􁁛  Test "parseFullSubscribeReply wrong message type returns nil" (aka 'parseFullSubscribeReplyWrongMessageType()') passed after 0.002 seconds.
+􁁛  Test "parseDiscoveryReply too short" (aka 'parseDiscoveryReplyTooShort()') passed after 0.003 seconds.
+􁁛  Suite "PEDeviceHandle Tests" (aka 'PEDeviceHandleTests') passed after 0.007 seconds.
+􁁛  Test "parseNAK with partial NAK details (7 bytes)" (aka 'parseNAKPartialDetails()') passed after 0.002 seconds.
+􁁛  Test "parseNAK with full NAK details (8 bytes)" (aka 'parseNAKFullDetails()') passed after 0.002 seconds.
+􁁛  Test "parsePEReply with truncated header" (aka 'parsePEReplyTruncatedHeader()') passed after 0.003 seconds.
+􁁛  Test "parseNAK with message length but no message (10 bytes)" (aka 'parseNAKMessageLengthOnly()') passed after 0.002 seconds.
+􁁛  Suite "PERequestIDManager Tests" (aka 'PERequestIDManagerTests') passed after 0.007 seconds.
+􁁛  Suite "MUID Tests" (aka 'MUIDTests') passed after 0.007 seconds.
+􁁛  Suite "PEResponse Tests" (aka 'PEResponseTests') passed after 0.007 seconds.
+􁁛  Suite "Mcoded7 Tests" (aka 'Mcoded7Tests') passed after 0.007 seconds.
+􁁛  Suite "PEChunkAssembler Tests" (aka 'PEChunkAssemblerTests') passed after 0.007 seconds.
+􁁛  Suite "SysExAssembler Tests" (aka 'SysExAssemblerTests') passed after 0.007 seconds.
+􁁛  Suite "CIMessageParser Tests" (aka 'CIMessageParserTests') passed after 0.007 seconds.
+􁁛  Test "Diagnostics shows near exhaustion warning" (aka 'diagnosticsShowsExhaustionWarning()') passed after 0.005 seconds.
+􁁛  Test "Order tracker demonstrates race condition risk" (aka 'orderTrackerDemonstratesRaceConditionRisk()') passed after 0.011 seconds.
+􁁛  Suite "CoreMIDITransport Packet Order Tests" (aka 'CoreMIDITransportPacketOrderTests') passed after 0.012 seconds.
+􁁛  Test "stopReceiving is idempotent" (aka 'stopReceivingIsIdempotent()') passed after 0.038 seconds.
+􁁛  Test "Subscribe sends correct message format" (aka 'subscribeSendsCorrectMessage()') passed after 0.052 seconds.
+􁁛  Test "stopReceiving clears subscriptions and pending subscribe requests" (aka 'stopReceivingClearsSubscriptionsAndPendingRequests()') passed after 0.052 seconds.
+􁁛  Test "Subscribe receives reply with subscribeId" (aka 'subscribeReceivesReplyWithSubscribeId()') passed after 0.052 seconds.
+􁁛  Test "GET with DeviceHandle sends correct message" (aka 'getWithDeviceHandleSendsCorrectMessage()') passed after 0.054 seconds.
+􁁛  Test "SET sends correct message format" (aka 'setSendsCorrectMessage()') passed after 0.054 seconds.
+􁁛  Test "send(request:) works correctly" (aka 'sendRequestWorks()') passed after 0.054 seconds.
+􁁛  Test "Paginated GET sends offset and limit" (aka 'paginatedGetSendsOffsetAndLimit()') passed after 0.053 seconds.
+􁁛  Test "Waiter queued when at capacity and resumed on cancel" (aka 'waiterQueuedAndResumed()') passed after 0.052 seconds.
+􁁛  Suite "Per-Device Inflight Limiting Tests" (aka 'InflightLimitingTests') passed after 0.055 seconds.
+􁁛  Test "Request IDs can be reused after stopReceiving" (aka 'requestIDsCanBeReusedAfterStop()') passed after 0.072 seconds.
+􁁛  Test "Notify for unknown subscribeId is ignored" (aka 'notifyForUnknownSubscribeIdIsIgnored()') passed after 0.107 seconds.
+􁁛  Test "CIManager gets device by MUID" (aka 'getDeviceByMUID()') passed after 0.106 seconds.
+􁁛  Test "Unsubscribe sends correct message format" (aka 'unsubscribeSendsCorrectMessage()') passed after 0.107 seconds.
+􁁛  Test "CIManager can clear all devices" (aka 'clearDevices()') passed after 0.106 seconds.
+􁁛  Test "CIManager peDeviceHandles returns all PE-capable devices" (aka 'peDeviceHandlesReturnsAllPECapable()') passed after 0.107 seconds.
+􁁛  Test "CIManager creates PEDeviceHandle for discovered device" (aka 'createsPEDeviceHandle()') passed after 0.106 seconds.
+􁁛  Test "Task cancellation cancels pending request" (aka 'taskCancellationCancelsPendingRequest()') passed after 0.106 seconds.
+􁁛  Test "Subscribe times out when no reply" (aka 'subscribeTimesOut()') passed after 0.107 seconds.
+􁁛  Test "Active subscription is removed after successful unsubscribe" (aka 'activeSubscriptionRemovedAfterUnsubscribe()') passed after 0.106 seconds.
+􁁛  Test "Notify is received through notification stream" (aka 'notifyIsReceivedThroughStream()') passed after 0.158 seconds.
+􁁛  Suite "PEManager Subscribe/Notify Tests" (aka 'PEManagerSubscribeNotifyTests') passed after 0.159 seconds.
+􁁛  Test "GET times out when no reply" (aka 'getTimesOutWhenNoReply()') passed after 0.211 seconds.
+􁁛  Test "CIManager ignores Discovery Reply after stop" (aka 'ignoresReplyAfterStop()') passed after 0.211 seconds.
+􁁛  Test "CIManager discovers device from Discovery Reply" (aka 'discoversDeviceFromReply()') passed after 0.211 seconds.
+􁁛  Test "CIManager removes device on InvalidateMUID" (aka 'removesDeviceOnInvalidate()') passed after 0.211 seconds.
+􁁛  Suite "CIManager Tests" (aka 'CIManagerTests') passed after 0.213 seconds.
+􁁛  Test "stopReceiving releases all 

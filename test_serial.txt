@@ -1,0 +1,241 @@
+Building for debugging...
+[0/2] Write swift-version--58304C5D6DBC2206.txt
+Build complete! (0.17s)
+error: Exited with unexpected signal code 11
+Test Suite 'All tests' started at 2026-01-11 12:15:04.607.
+Test Suite 'All tests' passed at 2026-01-11 12:15:04.609.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.002) seconds
+􀟈  Test run started.
+􀄵  Testing Library Version: 1501
+􀄵  Target Platform: x86_64-apple-macos14.0
+􀟈  Suite "CIManager Tests" started.
+􀟈  Test "CIManager initializes with random MUID" started.
+􁁛  Test "CIManager initializes with random MUID" passed after 0.001 seconds.
+􀟈  Test "CIManager generates unique MUIDs" started.
+􁁛  Test "CIManager generates unique MUIDs" passed after 0.001 seconds.
+􀟈  Test "CIManager uses default configuration" started.
+􁁛  Test "CIManager uses default configuration" passed after 0.001 seconds.
+􀟈  Test "CIManager discovers device from Discovery Reply" started.
+􁁛  Test "CIManager discovers device from Discovery Reply" passed after 0.210 seconds.
+􀟈  Test "CIManager removes device on InvalidateMUID" started.
+􁁛  Test "CIManager removes device on InvalidateMUID" passed after 0.213 seconds.
+􀟈  Test "CIManager can clear all devices" started.
+􁁛  Test "CIManager can clear all devices" passed after 0.107 seconds.
+􀟈  Test "CIManager gets device by MUID" started.
+􁁛  Test "CIManager gets device by MUID" passed after 0.106 seconds.
+􁁛  Suite "CIManager Tests" passed after 0.639 seconds.
+􀟈  Suite "CIMessageParser Tests" started.
+􀟈  Test "parseNAK with minimum payload (3 bytes)" started.
+􁁛  Test "parseNAK with minimum payload (3 bytes)" passed after 0.001 seconds.
+􀟈  Test "parseNAK with insufficient payload (2 bytes)" started.
+􁁛  Test "parseNAK with insufficient payload (2 bytes)" passed after 0.001 seconds.
+􀟈  Test "parseNAK with empty payload" started.
+􁁛  Test "parseNAK with empty payload" passed after 0.001 seconds.
+􀟈  Test "parseNAK with partial NAK details (7 bytes)" started.
+􁁛  Test "parseNAK with partial NAK details (7 bytes)" passed after 0.001 seconds.
+􀟈  Test "parseNAK with full NAK details (8 bytes)" started.
+􁁛  Test "parseNAK with full NAK details (8 bytes)" passed after 0.001 seconds.
+􀟈  Test "parseNAK with 9 bytes (details but no message length)" started.
+􁁛  Test "parseNAK with 9 bytes (details but no message length)" passed after 0.001 seconds.
+􀟈  Test "parseNAK with message length but no message (10 bytes)" started.
+􁁛  Test "parseNAK with message length but no message (10 bytes)" passed after 0.001 seconds.
+􀟈  Test "parseNAK with zero-length message" started.
+􁁛  Test "parseNAK with zero-length message" passed after 0.001 seconds.
+􀟈  Test "parseNAK with short message" started.
+􁁛  Test "parseNAK with short message" passed after 0.001 seconds.
+􀟈  Test "parseNAK with long message (14-bit length)" started.
+􁁛  Test "parseNAK with long message (14-bit length)" passed after 0.001 seconds.
+􀟈  Test "parseNAK with truncated message" started.
+􁁛  Test "parseNAK with truncated message" passed after 0.001 seconds.
+􀟈  Test "parseDiscoveryReply minimum payload" started.
+􁁛  Test "parseDiscoveryReply minimum payload" passed after 0.001 seconds.
+􀟈  Test "parseDiscoveryReply with optional fields" started.
+􁁛  Test "parseDiscoveryReply with optional fields" passed after 0.001 seconds.
+􀟈  Test "parseDiscoveryReply too short" started.
+􁁛  Test "parseDiscoveryReply too short" passed after 0.001 seconds.
+􀟈  Test "parsePEReply minimum valid" started.
+􁁛  Test "parsePEReply minimum valid" passed after 0.001 seconds.
+􀟈  Test "parsePEReply with header and data" started.
+􁁛  Test "parsePEReply with header and data" passed after 0.001 seconds.
+􀟈  Test "parsePEReply too short" started.
+􁁛  Test "parsePEReply too short" passed after 0.001 seconds.
+􀟈  Test "parsePEReply with truncated header" started.
+􁁛  Test "parsePEReply with truncated header" passed after 0.001 seconds.
+􀟈  Test "parseInvalidateMUID valid" started.
+􁁛  Test "parseInvalidateMUID valid" passed after 0.001 seconds.
+􀟈  Test "parseInvalidateMUID too short" started.
+􁁛  Test "parseInvalidateMUID too short" passed after 0.001 seconds.
+􀟈  Test "parseInvalidateMUID broadcast" started.
+􁁛  Test "parseInvalidateMUID broadcast" passed after 0.001 seconds.
+􀟈  Test "parsePECapabilityReply valid" started.
+􁁛  Test "parsePECapabilityReply valid" passed after 0.001 seconds.
+􀟈  Test "parsePECapabilityReply too short" started.
+􁁛  Test "parsePECapabilityReply too short" passed after 0.001 seconds.
+􀟈  Test "parseSubscribeReply with subscribeId" started.
+􁁛  Test "parseSubscribeReply with subscribeId" passed after 0.001 seconds.
+􀟈  Test "parseSubscribeReply without subscribeId" started.
+􁁛  Test "parseSubscribeReply without subscribeId" passed after 0.001 seconds.
+􀟈  Test "parseNotify with subscribeId and resource" started.
+􁁛  Test "parseNotify with subscribeId and resource" passed after 0.001 seconds.
+􀟈  Test "parseFullSubscribeReply complete message" started.
+􁁛  Test "parseFullSubscribeReply complete message" passed after 0.001 seconds.
+􀟈  Test "parseFullSubscribeReply wrong message type returns nil" started.
+􁁛  Test "parseFullSubscribeReply wrong message type returns nil" passed after 0.001 seconds.
+􀟈  Test "parseFullNotify complete message" started.
+􁁛  Test "parseFullNotify complete message" passed after 0.001 seconds.
+􁁛  Suite "CIMessageParser Tests" passed after 0.005 seconds.
+􀟈  Suite "MUID Tests" started.
+􀟈  Test "Random MUID generation" started.
+􁁛  Test "Random MUID generation" passed after 0.001 seconds.
+􀟈  Test "Broadcast MUID" started.
+􁁛  Test "Broadcast MUID" passed after 0.001 seconds.
+􀟈  Test "Reserved MUID" started.
+􁁛  Test "Reserved MUID" passed after 0.001 seconds.
+􀟈  Test "MUID from bytes" started.
+􁁛  Test "MUID from bytes" passed after 0.001 seconds.
+􀟈  Test "MUID to bytes round-trip" started.
+􁁛  Test "MUID to bytes round-trip" passed after 0.001 seconds.
+􀟈  Test "Invalid raw value rejected" started.
+􁁛  Test "Invalid raw value rejected" passed after 0.001 seconds.
+􀟈  Test "MUID from byte array" started.
+􁁛  Test "MUID from byte array" passed after 0.001 seconds.
+􀟈  Test "MUID from byte array with offset" started.
+􁁛  Test "MUID from byte array with offset" passed after 0.001 seconds.
+􀟈  Test "MUID insufficient bytes returns nil" started.
+􁁛  Test "MUID insufficient bytes returns nil" passed after 0.001 seconds.
+􁁛  Suite "MUID Tests" passed after 0.001 seconds.
+􀟈  Suite "Mcoded7 Tests" started.
+􀟈  Test "Encode empty data" started.
+􁁛  Test "Encode empty data" passed after 0.001 seconds.
+􀟈  Test "Decode empty data" started.
+􁁛  Test "Decode empty data" passed after 0.001 seconds.
+􀟈  Test "Encode 7-bit safe data unchanged" started.
+􁁛  Test "Encode 7-bit safe data unchanged" passed after 0.001 seconds.
+􀟈  Test "Encode data with MSB set" started.
+􁁛  Test "Encode data with MSB set" passed after 0.001 seconds.
+􀟈  Test "Encode all 0xFF bytes" started.
+􁁛  Test "Encode all 0xFF bytes" passed after 0.001 seconds.
+􀟈  Test "Round-trip encoding" started.
+􁁛  Test "Round-trip encoding" passed after 0.001 seconds.
+􀟈  Test "Encoded size calculation" started.
+􁁛  Test "Encoded size calculation" passed after 0.001 seconds.
+􀟈  Test "Decode invalid data returns nil" started.
+􁁛  Test "Decode invalid data returns nil" passed after 0.001 seconds.
+􀟈  Test "Encode partial group" started.
+􁁛  Test "Encode partial group" passed after 0.001 seconds.
+􀟈  Test "Large data round-trip" started.
+􁁛  Test "Large data round-trip" passed after 0.001 seconds.
+􁁛  Suite "Mcoded7 Tests" passed after 0.001 seconds.
+􀟈  Suite "PEChunkAssembler Tests" started.
+􀟈  Test "Single chunk returns complete immediately" started.
+􁁛  Test "Single chunk returns complete immediately" passed after 0.001 seconds.
+􀟈  Test "Multi-chunk assembly" started.
+􁁛  Test "Multi-chunk assembly" passed after 0.001 seconds.
+􀟈  Test "Header preserved from first non-empty chunk" started.
+􁁛  Test "Header preserved from first non-empty chunk" passed after 0.001 seconds.
+􀟈  Test "Out of order chunks" started.
+􁁛  Test "Out of order chunks" passed after 0.001 seconds.
+􀟈  Test "Multiple concurrent requests" started.
+􁁛  Test "Multiple concurrent requests" passed after 0.001 seconds.
+􀟈  Test "Pending state tracking" started.
+􁁛  Test "Pending state tracking" passed after 0.001 seconds.
+􀟈  Test "Cancel all pending" started.
+􁁛  Test "Cancel all pending" passed after 0.001 seconds.
+􁁛  Suite "PEChunkAssembler Tests" passed after 0.001 seconds.
+􀟈  Suite "PEManager Tests" started.
+􀟈  Test "PEManager initializes correctly" started.
+􁁛  Test "PEManager initializes correctly" passed after 0.001 seconds.
+􀟈  Test "PEManager starts and stops receiving" started.
+􁁛  Test "PEManager starts and stops receiving" passed after 0.001 seconds.
+􀟈  Test "GET with DeviceHandle sends correct message" started.
+􁁛  Test "GET with DeviceHandle sends correct message" passed after 0.054 seconds.
+􀟈  Test "GET times out when no reply" started.
+􁁛  Test "GET times out when no reply" passed after 0.213 seconds.
+􀟈  Test "SET sends correct message format" started.
+􁁛  Test "SET sends correct message format" passed after 0.055 seconds.
+􀟈  Test "Paginated GET sends offset and limit" started.
+􁁛  Test "Paginated GET sends offset and limit" passed after 0.053 seconds.
+􀟈  Test "PERequest factory methods create correct requests" started.
+􁁛  Test "PERequest factory methods create correct requests" passed after 0.001 seconds.
+􀟈  Test "PERequest validation catches empty resource" started.
+􁁛  Test "PERequest validation catches empty resource" passed after 0.001 seconds.
+􀟈  Test "PERequest validation catches missing body" started.
+􁁛  Test "PERequest validation catches missing body" passed after 0.001 seconds.
+􀟈  Test "PERequest validation catches invalid channel" started.
+􁁛  Test "PERequest validation catches invalid channel" passed after 0.001 seconds.
+􀟈  Test "send(request:) works correctly" started.
+􁁛  Test "send(request:) works correctly" passed after 0.052 seconds.
+􀟈  Test "Task cancellation cancels pending request" started.
+􁁛  Test "Task cancellation cancels pending request" passed after 0.108 seconds.
+􀟈  Test "stopReceiving releases all Request IDs" started.
+􁁛  Test "stopReceiving releases all Request IDs" passed after 0.054 seconds.
+􀟈  Test "Request IDs can be reused after stopReceiving" started.
+􀢄  Test "Request IDs can be reused after stopReceiving" recorded an issue at PEManagerTests.swift:409:9: Expectation failed: (sent.count → 2) == 1
+􀢄  Test "Request IDs can be reused after stopReceiving" failed after 0.070 seconds with 1 issue.
+􀟈  Test "stopReceiving handles many concurrent requests safely" started.
+􁁛  Test "stopReceiving handles many concurrent requests safely" passed after 0.107 seconds.
+􀟈  Test "stopReceiving is idempotent" started.
+􁁛  Test "stopReceiving is idempotent" passed after 0.032 seconds.
+􀢄  Suite "PEManager Tests" failed after 0.804 seconds with 1 issue.
+􀟈  Suite "PEResponse Tests" started.
+􀟈  Test "isSuccess for 2xx status codes" started.
+􁁛  Test "isSuccess for 2xx status codes" passed after 0.001 seconds.
+􀟈  Test "isError for 4xx and 5xx status codes" started.
+􁁛  Test "isError for 4xx and 5xx status codes" passed after 0.001 seconds.
+􀟈  Test "bodyString returns UTF8 string" started.
+􁁛  Test "bodyString returns UTF8 string" passed after 0.001 seconds.
+􁁛  Suite "PEResponse Tests" passed after 0.001 seconds.
+􀟈  Suite "PEDeviceHandle Tests" started.
+􀟈  Test "PEDeviceHandle stores MUID and destination" started.
+􁁛  Test "PEDeviceHandle stores MUID and destination" passed after 0.001 seconds.
+􀟈  Test "PEDeviceHandle debugDescription" started.
+􁁛  Test "PEDeviceHandle debugDescription" passed after 0.001 seconds.
+􀟈  Test "PEDeviceHandle is Hashable" started.
+􁁛  Test "PEDeviceHandle is Hashable" passed after 0.001 seconds.
+􁁛  Suite "PEDeviceHandle Tests" passed after 0.001 seconds.
+􀟈  Suite "PEManager Subscribe/Notify Tests" started.
+􀟈  Test "Subscribe sends correct message format" started.
+􁁛  Test "Subscribe sends correct message format" passed after 0.055 seconds.
+􀟈  Test "Subscribe receives reply with subscribeId" started.
+􁁛  Test "Subscribe receives reply with subscribeId" passed after 0.051 seconds.
+􀟈  Test "Subscribe times out when no reply" started.
+􁁛  Test "Subscribe times out when no reply" passed after 0.107 seconds.
+􀟈  Test "Notify is received through notification stream" started.
+􁁛  Test "Notify is received through notification stream" passed after 0.159 seconds.
+􀟈  Test "Notify for unknown subscribeId is ignored" started.
+􁁛  Test "Notify for unknown subscribeId is ignored" passed after 0.104 seconds.
+􀟈  Test "Unsubscribe sends correct message format" started.
+􀢄  Test "Unsubscribe sends correct message format" recorded an issue at PEManagerTests.swift:1031:9: Expectation failed: (unsubSent.count → 2) == 1
+􀢄  Test "Unsubscribe sends correct message format" failed after 0.108 seconds with 1 issue.
+􀟈  Test "Unsubscribe for unknown subscribeId throws error" started.
+􁁛  Test "Unsubscribe for unknown subscribeId throws error" passed after 0.001 seconds.
+􀟈  Test "stopReceiving clears subscriptions and pending subscribe requests" started.
+􁁛  Test "stopReceiving clears subscriptions and pending subscribe requests" passed after 0.050 seconds.
+􀟈  Test "Active subscription is removed after successful unsubscribe" started.
+􀢄  Test "Active subscription is removed after successful unsubscribe" recorded an issue at PEManagerTests.swift:1113:6: Caught error: timeout(resource: "ProgramList")
+􀢄  Test "Active subscription is removed after successful unsubscribe" failed after 1.117 seconds with 1 issue.
+􀢄  Suite "PEManager Subscribe/Notify Tests" failed after 1.756 seconds with 2 issues.
+􀟈  Suite "PERequestIDManager Tests" started.
+􀟈  Test "Acquire returns valid 7-bit ID" started.
+􁁛  Test "Acquire returns valid 7-bit ID" passed after 0.001 seconds.
+􀟈  Test "Sequential IDs are unique" started.
+􁁛  Test "Sequential IDs are unique" passed after 0.001 seconds.
+􀟈  Test "Release allows reuse" started.
+􁁛  Test "Release allows reuse" passed after 0.001 seconds.
+􀟈  Test "All 128 IDs can be acquired" started.
+􁁛  Test "All 128 IDs can be acquired" passed after 0.001 seconds.
+􀟈  Test "Release multiple IDs" started.
+􁁛  Test "Release multiple IDs" passed after 0.001 seconds.
+􀟈  Test "IsInUse tracking" started.
+􁁛  Test "IsInUse tracking" passed after 0.001 seconds.
+􀟈  Test "Available count" started.
+􁁛  Test "Available count" passed after 0.001 seconds.
+􀟈  Test "Release all" started.
+􁁛  Test "Release all" passed after 0.001 seconds.
+􀟈  Test "ID wraps around at 128" started.
+􁁛  Test "ID wraps around at 128" passed after 0.001 seconds.
+􀟈  Test "7-bit masking on release" started.
+􁁛  Test "7-bit masking on release" passed after 0.001 seconds.
+􁁛  Suite "PERequestIDManager Tests" passed after 0.002 seconds.
+􀟈  Suite "PETransactionManager Tests" started.
+􀟈  Test "Begin transaction acquires ID" started.
