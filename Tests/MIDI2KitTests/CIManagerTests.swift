@@ -15,6 +15,7 @@ struct CIManagerTests {
     @Test("CIManager initializes with random MUID")
     func initWithRandomMUID() async {
         let transport = MockMIDITransport()
+        defer { Task { await transport.shutdown() } }
         let manager = CIManager(transport: transport)
         
         let muid = manager.muid
@@ -25,6 +26,7 @@ struct CIManagerTests {
     @Test("CIManager generates unique MUIDs")
     func uniqueMUIDs() async {
         let transport = MockMIDITransport()
+        defer { Task { await transport.shutdown() } }
         let manager1 = CIManager(transport: transport)
         let manager2 = CIManager(transport: transport)
         
@@ -49,6 +51,7 @@ struct CIManagerTests {
     @Test("CIManager discovers device from Discovery Reply")
     func discoversDeviceFromReply() async throws {
         let transport = MockMIDITransport()
+        defer { Task { await transport.shutdown() } }
         await transport.addDestination(MIDIDestinationInfo(
             destinationID: MIDIDestinationID(1),
             name: "Test"
@@ -90,6 +93,7 @@ struct CIManagerTests {
     @Test("CIManager removes device on InvalidateMUID")
     func removesDeviceOnInvalidate() async throws {
         let transport = MockMIDITransport()
+        defer { Task { await transport.shutdown() } }
         await transport.addDestination(MIDIDestinationInfo(
             destinationID: MIDIDestinationID(1),
             name: "Test"
@@ -135,6 +139,7 @@ struct CIManagerTests {
     @Test("CIManager can clear all devices")
     func clearDevices() async throws {
         let transport = MockMIDITransport()
+        defer { Task { await transport.shutdown() } }
         await transport.addDestination(MIDIDestinationInfo(
             destinationID: MIDIDestinationID(1),
             name: "Test"
@@ -173,6 +178,7 @@ struct CIManagerTests {
     @Test("CIManager gets device by MUID")
     func getDeviceByMUID() async throws {
         let transport = MockMIDITransport()
+        defer { Task { await transport.shutdown() } }
         await transport.addDestination(MIDIDestinationInfo(
             destinationID: MIDIDestinationID(1),
             name: "Test"

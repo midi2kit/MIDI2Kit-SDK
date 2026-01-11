@@ -27,6 +27,7 @@ struct PEManagerTests {
     @Test("PEManager initializes correctly")
     func initializesCorrectly() async {
         let transport = MockMIDITransport()
+        defer { Task { await transport.shutdown() } }
         let manager = PEManager(
             transport: transport,
             sourceMUID: sourceMUID
@@ -40,6 +41,7 @@ struct PEManagerTests {
     @Test("PEManager starts and stops receiving")
     func startsAndStopsReceiving() async {
         let transport = MockMIDITransport()
+        defer { Task { await transport.shutdown() } }
         let manager = PEManager(
             transport: transport,
             sourceMUID: sourceMUID
@@ -59,6 +61,7 @@ struct PEManagerTests {
     @Test("GET with DeviceHandle sends correct message")
     func getWithDeviceHandleSendsCorrectMessage() async throws {
         let transport = MockMIDITransport()
+        defer { Task { await transport.shutdown() } }
         let manager = PEManager(
             transport: transport,
             sourceMUID: sourceMUID
@@ -94,6 +97,7 @@ struct PEManagerTests {
     @Test("GET times out when no reply")
     func getTimesOutWhenNoReply() async throws {
         let transport = MockMIDITransport()
+        defer { Task { await transport.shutdown() } }
         let manager = PEManager(
             transport: transport,
             sourceMUID: sourceMUID
@@ -120,6 +124,7 @@ struct PEManagerTests {
     @Test("SET sends correct message format")
     func setSendsCorrectMessage() async throws {
         let transport = MockMIDITransport()
+        defer { Task { await transport.shutdown() } }
         let manager = PEManager(
             transport: transport,
             sourceMUID: sourceMUID
@@ -151,6 +156,7 @@ struct PEManagerTests {
     @Test("Paginated GET sends offset and limit")
     func paginatedGetSendsOffsetAndLimit() async throws {
         let transport = MockMIDITransport()
+        defer { Task { await transport.shutdown() } }
         let manager = PEManager(
             transport: transport,
             sourceMUID: sourceMUID
@@ -249,6 +255,7 @@ struct PEManagerTests {
     @Test("send(request:) works correctly")
     func sendRequestWorks() async throws {
         let transport = MockMIDITransport()
+        defer { Task { await transport.shutdown() } }
         let manager = PEManager(
             transport: transport,
             sourceMUID: sourceMUID
@@ -276,6 +283,7 @@ struct PEManagerTests {
     @Test("Task cancellation cancels pending request")
     func taskCancellationCancelsPendingRequest() async throws {
         let transport = MockMIDITransport()
+        defer { Task { await transport.shutdown() } }
         let manager = PEManager(
             transport: transport,
             sourceMUID: sourceMUID
@@ -325,6 +333,7 @@ struct PEManagerTests {
     @Test("stopReceiving releases all Request IDs")
     func stopReceivingReleasesAllRequestIDs() async throws {
         let transport = MockMIDITransport()
+        defer { Task { await transport.shutdown() } }
         let manager = PEManager(
             transport: transport,
             sourceMUID: sourceMUID
@@ -374,6 +383,7 @@ struct PEManagerTests {
     @Test("Request IDs can be reused after stopReceiving")
     func requestIDsCanBeReusedAfterStop() async throws {
         let transport = MockMIDITransport()
+        defer { Task { await transport.shutdown() } }
         let manager = PEManager(
             transport: transport,
             sourceMUID: sourceMUID
@@ -418,6 +428,7 @@ struct PEManagerTests {
     @Test("stopReceiving handles many concurrent requests safely")
     func stopReceivingHandlesManyConcurrentRequests() async throws {
         let transport = MockMIDITransport()
+        defer { Task { await transport.shutdown() } }
         let manager = PEManager(
             transport: transport,
             sourceMUID: sourceMUID
@@ -468,6 +479,7 @@ struct PEManagerTests {
     @Test("stopReceiving is idempotent")
     func stopReceivingIsIdempotent() async throws {
         let transport = MockMIDITransport()
+        defer { Task { await transport.shutdown() } }
         let manager = PEManager(
             transport: transport,
             sourceMUID: sourceMUID
@@ -724,6 +736,7 @@ struct PEManagerSubscribeNotifyTests {
     @Test("Subscribe sends correct message format")
     func subscribeSendsCorrectMessage() async throws {
         let transport = MockMIDITransport()
+        defer { Task { await transport.shutdown() } }
         let manager = PEManager(
             transport: transport,
             sourceMUID: sourceMUID
@@ -773,6 +786,7 @@ struct PEManagerSubscribeNotifyTests {
     @Test("Subscribe receives reply with subscribeId")
     func subscribeReceivesReplyWithSubscribeId() async throws {
         let transport = MockMIDITransport()
+        defer { Task { await transport.shutdown() } }
         let manager = PEManager(
             transport: transport,
             sourceMUID: sourceMUID
@@ -830,6 +844,7 @@ struct PEManagerSubscribeNotifyTests {
     @Test("Subscribe times out when no reply")
     func subscribeTimesOut() async throws {
         let transport = MockMIDITransport()
+        defer { Task { await transport.shutdown() } }
         let manager = PEManager(
             transport: transport,
             sourceMUID: sourceMUID
@@ -860,6 +875,7 @@ struct PEManagerSubscribeNotifyTests {
     @Test("Notify is received through notification stream")
     func notifyIsReceivedThroughStream() async throws {
         let transport = MockMIDITransport()
+        defer { Task { await transport.shutdown() } }
         let manager = PEManager(
             transport: transport,
             sourceMUID: sourceMUID
@@ -932,6 +948,7 @@ struct PEManagerSubscribeNotifyTests {
     @Test("Notify for unknown subscribeId is ignored")
     func notifyForUnknownSubscribeIdIsIgnored() async throws {
         let transport = MockMIDITransport()
+        defer { Task { await transport.shutdown() } }
         let manager = PEManager(
             transport: transport,
             sourceMUID: sourceMUID
@@ -978,6 +995,7 @@ struct PEManagerSubscribeNotifyTests {
     @Test("Unsubscribe sends correct message format")
     func unsubscribeSendsCorrectMessage() async throws {
         let transport = MockMIDITransport()
+        defer { Task { await transport.shutdown() } }
         let manager = PEManager(
             transport: transport,
             sourceMUID: sourceMUID
@@ -1047,6 +1065,7 @@ struct PEManagerSubscribeNotifyTests {
     @Test("Unsubscribe for unknown subscribeId throws error")
     func unsubscribeForUnknownIdThrows() async throws {
         let transport = MockMIDITransport()
+        defer { Task { await transport.shutdown() } }
         let manager = PEManager(
             transport: transport,
             sourceMUID: sourceMUID
@@ -1073,6 +1092,7 @@ struct PEManagerSubscribeNotifyTests {
     @Test("stopReceiving clears subscriptions and pending subscribe requests")
     func stopReceivingClearsSubscriptionsAndPendingRequests() async throws {
         let transport = MockMIDITransport()
+        defer { Task { await transport.shutdown() } }
         let manager = PEManager(
             transport: transport,
             sourceMUID: sourceMUID
@@ -1119,6 +1139,7 @@ struct PEManagerSubscribeNotifyTests {
     @Test("Active subscription is removed after successful unsubscribe")
     func activeSubscriptionRemovedAfterUnsubscribe() async throws {
         let transport = MockMIDITransport()
+        defer { Task { await transport.shutdown() } }
         let manager = PEManager(
             transport: transport,
             sourceMUID: sourceMUID

@@ -218,6 +218,12 @@ public actor PEManager {
     /// Each request has its own timeout Task. This is more precise than
     /// periodic monitoring and ensures exact timeout semantics.
     private var timeoutTasks: [UInt8: Task<Void, Never>] = [:]
+
+    /// Send tasks for pending requests (keyed by Request ID)
+    ///
+    /// We track send Tasks so that `stopReceiving()` can cancel them deterministically.
+    /// Without this, a send may occur *after* stop/ID reuse, causing flakey tests and subtle races.
+    private var sendTasks: [UInt8: Task<Void, Never>] = [:]
     
     // MARK: - Subscribe State
     
@@ -281,6 +287,13 @@ public actor PEManager {
     
     /// Stop receiving and cancel all pending requests
     public func stopReceiving() async {
+        // Cancel any pending send tasks first.
+        // This prevents a send from firing after stopReceiving()/RequestID reuse.
+        for (_, task) in sendTasks {
+            task.cancel()
+        }
+        sendTasks.removeAll()
+
         // Stop receive loop
         receiveTask?.cancel()
         receiveTask = nil
@@ -354,7 +367,7 @@ public actor PEManager {
         guard let requestID = await transactionManager.begin(
             resource: request.resource,
             destinationMUID: request.device.muid,
-            timeout: request.timeout.timeInterval
+            timeout: request.timeout
         ) else {
             throw PEError.requestIDExhausted
         }
@@ -675,7 +688,7 @@ public actor PEManager {
         guard let requestID = await transactionManager.begin(
             resource: resource,
             destinationMUID: device.muid,
-            timeout: timeout.timeInterval
+            timeout: timeout
         ) else {
             throw PEError.requestIDExhausted
         }
@@ -730,6 +743,7 @@ public actor PEManager {
     
     /// Cancel a pending subscribe request
     private func cancelSubscribeRequest(requestID: UInt8) async {
+        cancelSendTask(requestID: requestID)
         timeoutTasks[requestID]?.cancel()
         timeoutTasks.removeValue(forKey: requestID)
         
@@ -754,7 +768,7 @@ public actor PEManager {
         guard let requestID = await transactionManager.begin(
             resource: subscription.resource,
             destinationMUID: subscription.device.muid,
-            timeout: timeout.timeInterval
+            timeout: timeout
         ) else {
             throw PEError.requestIDExhausted
         }
@@ -1033,20 +1047,14 @@ public actor PEManager {
             }
         }
         timeoutTasks[requestID] = timeoutTask
-        
+
         // Wait for response
         return try await withCheckedThrowingContinuation { continuation in
             pendingContinuations[requestID] = continuation
-            
-            Task { [weak self] in
-                do {
-                    try await self?.transport.send(message, to: destination)
-                } catch {
-                    await self?.handleSendError(requestID: requestID, error: error)
-                }
-            }
+            scheduleSendForRequest(requestID: requestID, message: message, destination: destination)
         }
     }
+
     
     /// Perform a Subscribe/Unsubscribe request with timeout
     private func performSubscribeRequest(
@@ -1065,23 +1073,70 @@ public actor PEManager {
             }
         }
         timeoutTasks[requestID] = timeoutTask
-        
+
         return try await withCheckedThrowingContinuation { continuation in
             pendingSubscribeContinuations[requestID] = continuation
-            
-            Task { [weak self] in
-                do {
-                    try await self?.transport.send(message, to: destination)
-                } catch {
-                    await self?.handleSubscribeSendError(requestID: requestID, error: error)
-                }
-            }
+            scheduleSendForSubscribe(requestID: requestID, message: message, destination: destination)
         }
     }
+
     
+    // MARK: - Private: Send Task Tracking
+
+    private func scheduleSendForRequest(
+        requestID: UInt8,
+        message: [UInt8],
+        destination: MIDIDestinationID
+    ) {
+        cancelSendTask(requestID: requestID)
+
+        let transport = self.transport
+        sendTasks[requestID] = Task { [weak self] in
+            if Task.isCancelled { return }
+            do {
+                try await transport.send(message, to: destination)
+            } catch {
+                guard let self else { return }
+                await self.handleSendError(requestID: requestID, error: error)
+            }
+            await self?.clearSendTask(requestID: requestID)
+        }
+    }
+
+    private func scheduleSendForSubscribe(
+        requestID: UInt8,
+        message: [UInt8],
+        destination: MIDIDestinationID
+    ) {
+        cancelSendTask(requestID: requestID)
+
+        let transport = self.transport
+        sendTasks[requestID] = Task { [weak self] in
+            if Task.isCancelled { return }
+            do {
+                try await transport.send(message, to: destination)
+            } catch {
+                guard let self else { return }
+                await self.handleSubscribeSendError(requestID: requestID, error: error)
+            }
+            await self?.clearSendTask(requestID: requestID)
+        }
+    }
+
+    private func cancelSendTask(requestID: UInt8) {
+        if let task = sendTasks.removeValue(forKey: requestID) {
+            task.cancel()
+        }
+    }
+
+    private func clearSendTask(requestID: UInt8) {
+        sendTasks.removeValue(forKey: requestID)
+    }
+
     // MARK: - Private: Timeout Handling
     
     private func handleTimeout(requestID: UInt8, resource: String) {
+        clearSendTask(requestID: requestID)
         timeoutTasks.removeValue(forKey: requestID)
         
         guard let continuation = pendingContinuations.removeValue(forKey: requestID) else {
@@ -1098,6 +1153,7 @@ public actor PEManager {
     }
     
     private func handleSubscribeTimeout(requestID: UInt8, resource: String) {
+        clearSendTask(requestID: requestID)
         timeoutTasks.removeValue(forKey: requestID)
         
         guard let continuation = pendingSubscribeContinuations.removeValue(forKey: requestID) else {
@@ -1116,6 +1172,7 @@ public actor PEManager {
     // MARK: - Private: Send Error Handling
     
     private func handleSendError(requestID: UInt8, error: Error) async {
+        clearSendTask(requestID: requestID)
         timeoutTasks[requestID]?.cancel()
         timeoutTasks.removeValue(forKey: requestID)
         
@@ -1127,6 +1184,7 @@ public actor PEManager {
     }
     
     private func handleSubscribeSendError(requestID: UInt8, error: Error) async {
+        clearSendTask(requestID: requestID)
         timeoutTasks[requestID]?.cancel()
         timeoutTasks.removeValue(forKey: requestID)
         
@@ -1208,6 +1266,8 @@ public actor PEManager {
         // Cancel timeout
         timeoutTasks[requestID]?.cancel()
         timeoutTasks.removeValue(forKey: requestID)
+
+        clearSendTask(requestID: requestID)
         
         // Release Request ID
         Task {
@@ -1241,6 +1301,8 @@ public actor PEManager {
     private func handleChunkTimeout(requestID: UInt8) {
         timeoutTasks[requestID]?.cancel()
         timeoutTasks.removeValue(forKey: requestID)
+
+        clearSendTask(requestID: requestID)
         
         Task {
             await transactionManager.cancel(requestID: requestID)
@@ -1256,6 +1318,8 @@ public actor PEManager {
         
         timeoutTasks[requestID]?.cancel()
         timeoutTasks.removeValue(forKey: requestID)
+
+        clearSendTask(requestID: requestID)
         
         Task {
             await transactionManager.cancel(requestID: requestID)
@@ -1343,15 +1407,5 @@ public actor PEManager {
             lines.append(await transactionManager.diagnostics)
             return lines.joined(separator: "\n")
         }
-    }
-}
-
-// MARK: - Duration Extension
-
-extension Duration {
-    /// Convert to TimeInterval
-    var timeInterval: TimeInterval {
-        let (seconds, attoseconds) = self.components
-        return Double(seconds) + Double(attoseconds) / 1_000_000_000_000_000_000
     }
 }
