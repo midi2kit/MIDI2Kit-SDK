@@ -1,0 +1,201 @@
+Building for debugging...
+[0/3] Write sources
+[1/3] Write swift-version--58304C5D6DBC2206.txt
+[3/5] Emitting module MIDI2Transport
+[4/5] Compiling MIDI2Transport MockMIDITransport.swift
+/Users/hakaru/Desktop/MIDI2Kit/Sources/MIDI2Transport/MockMIDITransport.swift:50:18: [1;31merror: [1;39minstance method 'lock' is unavailable from asynchronous contexts; Use async-safe scoped locking instead[0;0m
+ [0;36m48 |[0;0m     public var sources: [MIDISourceInfo] {
+ [0;36m49 |[0;0m         get async {
+ [0;36m50 |[0;0m             lock.lock()
+    [0;36m|[0;0m                  `- [1;31merror: [1;39minstance method 'lock' is unavailable from asynchronous contexts; Use async-safe scoped locking instead[0;0m
+ [0;36m51 |[0;0m             defer { lock.unlock() }
+ [0;36m52 |[0;0m             return mockSources
+
+Foundation.NSLock.lock:2:11: [1;39mnote: [1;39m'lock()' declared here[0;0m
+[0;36m1 |[0;0m class NSLock {
+[0;36m2 |[0;0m open func lock()}
+  [0;36m|[0;0m           `- [1;39mnote: [1;39m'lock()' declared here[0;0m
+[0;36m3 |[0;0m 
+
+/Users/hakaru/Desktop/MIDI2Kit/Sources/MIDI2Transport/MockMIDITransport.swift:51:26: [1;31merror: [1;39minstance method 'unlock' is unavailable from asynchronous contexts; Use async-safe scoped locking instead[0;0m
+ [0;36m49 |[0;0m         get async {
+ [0;36m50 |[0;0m             lock.lock()
+ [0;36m51 |[0;0m             defer { lock.unlock() }
+    [0;36m|[0;0m                          `- [1;31merror: [1;39minstance method 'unlock' is unavailable from asynchronous contexts; Use async-safe scoped locking instead[0;0m
+ [0;36m52 |[0;0m             return mockSources
+ [0;36m53 |[0;0m         }
+
+Foundation.NSLock.unlock:2:11: [1;39mnote: [1;39m'unlock()' declared here[0;0m
+[0;36m1 |[0;0m class NSLock {
+[0;36m2 |[0;0m open func unlock()}
+  [0;36m|[0;0m           `- [1;39mnote: [1;39m'unlock()' declared here[0;0m
+[0;36m3 |[0;0m 
+
+/Users/hakaru/Desktop/MIDI2Kit/Sources/MIDI2Transport/MockMIDITransport.swift:58:18: [1;31merror: [1;39minstance method 'lock' is unavailable from asynchronous contexts; Use async-safe scoped locking instead[0;0m
+ [0;36m56 |[0;0m     public var destinations: [MIDIDestinationInfo] {
+ [0;36m57 |[0;0m         get async {
+ [0;36m58 |[0;0m             lock.lock()
+    [0;36m|[0;0m                  `- [1;31merror: [1;39minstance method 'lock' is unavailable from asynchronous contexts; Use async-safe scoped locking instead[0;0m
+ [0;36m59 |[0;0m             defer { lock.unlock() }
+ [0;36m60 |[0;0m             return mockDestinations
+
+Foundation.NSLock.lock:2:11: [1;39mnote: [1;39m'lock()' declared here[0;0m
+[0;36m1 |[0;0m class NSLock {
+[0;36m2 |[0;0m open func lock()}
+  [0;36m|[0;0m           `- [1;39mnote: [1;39m'lock()' declared here[0;0m
+[0;36m3 |[0;0m 
+
+/Users/hakaru/Desktop/MIDI2Kit/Sources/MIDI2Transport/MockMIDITransport.swift:59:26: [1;31merror: [1;39minstance method 'unlock' is unavailable from asynchronous contexts; Use async-safe scoped locking instead[0;0m
+ [0;36m57 |[0;0m         get async {
+ [0;36m58 |[0;0m             lock.lock()
+ [0;36m59 |[0;0m             defer { lock.unlock() }
+    [0;36m|[0;0m                          `- [1;31merror: [1;39minstance method 'unlock' is unavailable from asynchronous contexts; Use async-safe scoped locking instead[0;0m
+ [0;36m60 |[0;0m             return mockDestinations
+ [0;36m61 |[0;0m         }
+
+Foundation.NSLock.unlock:2:11: [1;39mnote: [1;39m'unlock()' declared here[0;0m
+[0;36m1 |[0;0m class NSLock {
+[0;36m2 |[0;0m open func unlock()}
+  [0;36m|[0;0m           `- [1;39mnote: [1;39m'unlock()' declared here[0;0m
+[0;36m3 |[0;0m 
+
+/Users/hakaru/Desktop/MIDI2Kit/Sources/MIDI2Transport/MockMIDITransport.swift:103:14: [1;31merror: [1;39minstance method 'lock' is unavailable from asynchronous contexts; Use async-safe scoped locking instead[0;0m
+[0;36m101 |[0;0m             timestamp: Date()
+[0;36m102 |[0;0m         )
+[0;36m103 |[0;0m         lock.lock()
+    [0;36m|[0;0m              `- [1;31merror: [1;39minstance method 'lock' is unavailable from asynchronous contexts; Use async-safe scoped locking instead[0;0m
+[0;36m104 |[0;0m         sentMessages.append(message)
+[0;36m105 |[0;0m         lock.unlock()
+
+Foundation.NSLock.lock:2:11: [1;39mnote: [1;39m'lock()' declared here[0;0m
+[0;36m1 |[0;0m class NSLock {
+[0;36m2 |[0;0m open func lock()}
+  [0;36m|[0;0m           `- [1;39mnote: [1;39m'lock()' declared here[0;0m
+[0;36m3 |[0;0m 
+
+/Users/hakaru/Desktop/MIDI2Kit/Sources/MIDI2Transport/MockMIDITransport.swift:105:14: [1;31merror: [1;39minstance method 'unlock' is unavailable from asynchronous contexts; Use async-safe scoped locking instead[0;0m
+[0;36m103 |[0;0m         lock.lock()
+[0;36m104 |[0;0m         sentMessages.append(message)
+[0;36m105 |[0;0m         lock.unlock()
+    [0;36m|[0;0m              `- [1;31merror: [1;39minstance method 'unlock' is unavailable from asynchronous contexts; Use async-safe scoped locking instead[0;0m
+[0;36m106 |[0;0m     }
+[0;36m107 |[0;0m     
+
+Foundation.NSLock.unlock:2:11: [1;39mnote: [1;39m'unlock()' declared here[0;0m
+[0;36m1 |[0;0m class NSLock {
+[0;36m2 |[0;0m open func unlock()}
+  [0;36m|[0;0m           `- [1;39mnote: [1;39m'unlock()' declared here[0;0m
+[0;36m3 |[0;0m 
+
+/Users/hakaru/Desktop/MIDI2Kit/Sources/MIDI2Transport/MockMIDITransport.swift:109:14: [1;31merror: [1;39minstance method 'lock' is unavailable from asynchronous contexts; Use async-safe scoped locking instead[0;0m
+[0;36m107 |[0;0m     
+[0;36m108 |[0;0m     public func connect(to source: MIDISourceID) async throws {
+[0;36m109 |[0;0m         lock.lock()
+    [0;36m|[0;0m              `- [1;31merror: [1;39minstance method 'lock' is unavailable from asynchronous contexts; Use async-safe scoped locking instead[0;0m
+[0;36m110 |[0;0m         connectedSources.insert(source)
+[0;36m111 |[0;0m         lock.unlock()
+
+Foundation.NSLock.lock:2:11: [1;39mnote: [1;39m'lock()' declared here[0;0m
+[0;36m1 |[0;0m class NSLock {
+[0;36m2 |[0;0m open func lock()}
+  [0;36m|[0;0m           `- [1;39mnote: [1;39m'lock()' declared here[0;0m
+[0;36m3 |[0;0m 
+
+/Users/hakaru/Desktop/MIDI2Kit/Sources/MIDI2Transport/MockMIDITransport.swift:111:14: [1;31merror: [1;39minstance method 'unlock' is unavailable from asynchronous contexts; Use async-safe scoped locking instead[0;0m
+[0;36m109 |[0;0m         lock.lock()
+[0;36m110 |[0;0m         connectedSources.insert(source)
+[0;36m111 |[0;0m         lock.unlock()
+    [0;36m|[0;0m              `- [1;31merror: [1;39minstance method 'unlock' is unavailable from asynchronous contexts; Use async-safe scoped locking instead[0;0m
+[0;36m112 |[0;0m     }
+[0;36m113 |[0;0m     
+
+Foundation.NSLock.unlock:2:11: [1;39mnote: [1;39m'unlock()' declared here[0;0m
+[0;36m1 |[0;0m class NSLock {
+[0;36m2 |[0;0m open func unlock()}
+  [0;36m|[0;0m           `- [1;39mnote: [1;39m'unlock()' declared here[0;0m
+[0;36m3 |[0;0m 
+
+/Users/hakaru/Desktop/MIDI2Kit/Sources/MIDI2Transport/MockMIDITransport.swift:115:14: [1;31merror: [1;39minstance method 'lock' is unavailable from asynchronous contexts; Use async-safe scoped locking instead[0;0m
+[0;36m113 |[0;0m     
+[0;36m114 |[0;0m     public func disconnect(from source: MIDISourceID) async throws {
+[0;36m115 |[0;0m         lock.lock()
+    [0;36m|[0;0m              `- [1;31merror: [1;39minstance method 'lock' is unavailable from asynchronous contexts; Use async-safe scoped locking instead[0;0m
+[0;36m116 |[0;0m         connectedSources.remove(source)
+[0;36m117 |[0;0m         lock.unlock()
+
+Foundation.NSLock.lock:2:11: [1;39mnote: [1;39m'lock()' declared here[0;0m
+[0;36m1 |[0;0m class NSLock {
+[0;36m2 |[0;0m open func lock()}
+  [0;36m|[0;0m           `- [1;39mnote: [1;39m'lock()' declared here[0;0m
+[0;36m3 |[0;0m 
+
+/Users/hakaru/Desktop/MIDI2Kit/Sources/MIDI2Transport/MockMIDITransport.swift:117:14: [1;31merror: [1;39minstance method 'unlock' is unavailable from asynchronous contexts; Use async-safe scoped locking instead[0;0m
+[0;36m115 |[0;0m         lock.lock()
+[0;36m116 |[0;0m         connectedSources.remove(source)
+[0;36m117 |[0;0m         lock.unlock()
+    [0;36m|[0;0m              `- [1;31merror: [1;39minstance method 'unlock' is unavailable from asynchronous contexts; Use async-safe scoped locking instead[0;0m
+[0;36m118 |[0;0m     }
+[0;36m119 |[0;0m     
+
+Foundation.NSLock.unlock:2:11: [1;39mnote: [1;39m'unlock()' declared here[0;0m
+[0;36m1 |[0;0m class NSLock {
+[0;36m2 |[0;0m open func unlock()}
+  [0;36m|[0;0m           `- [1;39mnote: [1;39m'unlock()' declared here[0;0m
+[0;36m3 |[0;0m 
+
+/Users/hakaru/Desktop/MIDI2Kit/Sources/MIDI2Transport/MockMIDITransport.swift:121:14: [1;31merror: [1;39minstance method 'lock' is unavailable from asynchronous contexts; Use async-safe scoped locking instead[0;0m
+[0;36m119 |[0;0m     
+[0;36m120 |[0;0m     public func connectToAllSources() async throws {
+[0;36m121 |[0;0m         lock.lock()
+    [0;36m|[0;0m              `- [1;31merror: [1;39minstance method 'lock' is unavailable from asynchronous contexts; Use async-safe scoped locking instead[0;0m
+[0;36m122 |[0;0m         for source in mockSources {
+[0;36m123 |[0;0m             connectedSources.insert(source.sourceID)
+
+Foundation.NSLock.lock:2:11: [1;39mnote: [1;39m'lock()' declared here[0;0m
+[0;36m1 |[0;0m class NSLock {
+[0;36m2 |[0;0m open func lock()}
+  [0;36m|[0;0m           `- [1;39mnote: [1;39m'lock()' declared here[0;0m
+[0;36m3 |[0;0m 
+
+/Users/hakaru/Desktop/MIDI2Kit/Sources/MIDI2Transport/MockMIDITransport.swift:125:14: [1;31merror: [1;39minstance method 'unlock' is unavailable from asynchronous contexts; Use async-safe scoped locking instead[0;0m
+[0;36m123 |[0;0m             connectedSources.insert(source.sourceID)
+[0;36m124 |[0;0m         }
+[0;36m125 |[0;0m         lock.unlock()
+    [0;36m|[0;0m              `- [1;31merror: [1;39minstance method 'unlock' is unavailable from asynchronous contexts; Use async-safe scoped locking instead[0;0m
+[0;36m126 |[0;0m     }
+[0;36m127 |[0;0m     
+
+Foundation.NSLock.unlock:2:11: [1;39mnote: [1;39m'unlock()' declared here[0;0m
+[0;36m1 |[0;0m class NSLock {
+[0;36m2 |[0;0m open func unlock()}
+  [0;36m|[0;0m           `- [1;39mnote: [1;39m'unlock()' declared here[0;0m
+[0;36m3 |[0;0m 
+
+/Users/hakaru/Desktop/MIDI2Kit/Sources/MIDI2Transport/MockMIDITransport.swift:129:14: [1;31merror: [1;39minstance method 'lock' is unavailable from asynchronous contexts; Use async-safe scoped locking instead[0;0m
+[0;36m127 |[0;0m     
+[0;36m128 |[0;0m     public func findMatchingDestination(for source: MIDISourceID) async -> MIDIDestinationID? {
+[0;36m129 |[0;0m         lock.lock()
+    [0;36m|[0;0m              `- [1;31merror: [1;39minstance method 'lock' is unavailable from asynchronous contexts; Use async-safe scoped locking instead[0;0m
+[0;36m130 |[0;0m         defer { lock.unlock() }
+[0;36m131 |[0;0m         
+
+Foundation.NSLock.lock:2:11: [1;39mnote: [1;39m'lock()' declared here[0;0m
+[0;36m1 |[0;0m class NSLock {
+[0;36m2 |[0;0m open func lock()}
+  [0;36m|[0;0m           `- [1;39mnote: [1;39m'lock()' declared here[0;0m
+[0;36m3 |[0;0m 
+
+/Users/hakaru/Desktop/MIDI2Kit/Sources/MIDI2Transport/MockMIDITransport.swift:130:22: [1;31merror: [1;39minstance method 'unlock' is unavailable from asynchronous contexts; Use async-safe scoped locking instead[0;0m
+[0;36m128 |[0;0m     public func findMatchingDestination(for source: MIDISourceID) async -> MIDIDestinationID? {
+[0;36m129 |[0;0m         lock.lock()
+[0;36m130 |[0;0m         defer { lock.unlock() }
+    [0;36m|[0;0m                      `- [1;31merror: [1;39minstance method 'unlock' is unavailable from asynchronous contexts; Use async-safe scoped locking instead[0;0m
+[0;36m131 |[0;0m         
+[0;36m132 |[0;0m         guard let sourceInfo = mockSources.first(where: { $0.sourceID == source }) else {
+
+Foundation.NSLock.unlock:2:11: [1;39mnote: [1;39m'unlock()' declared here[0;0m
+[0;36m1 |[0;0m class NSLock {
+[0;36m2 |[0;0m open func unlock()}
+  [0;36m|[0;0m           `- [1;39mnote: [1;39m'unlock()' declared here[0;0m
+[0;36m3 |[0;0m 
+error: fatalError

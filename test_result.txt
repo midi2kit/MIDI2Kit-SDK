@@ -1,0 +1,130 @@
+Building for debugging...
+[0/2] Write swift-version--58304C5D6DBC2206.txt
+Build complete! (0.17s)
+error: Exited with unexpected signal code 11
+Test Suite 'All tests' started at 2026-01-11 12:13:20.676.
+Test Suite 'All tests' passed at 2026-01-11 12:13:20.678.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.002) seconds
+􀟈  Test run started.
+􀄵  Testing Library Version: 1501
+􀄵  Target Platform: x86_64-apple-macos14.0
+􀟈  Suite "Mcoded7 Tests" started.
+􀟈  Suite "CIManager Tests" started.
+􀟈  Suite "CoreMIDITransport Packet Order Tests" started.
+􀟈  Suite "Per-Device Inflight Limiting Tests" started.
+􀟈  Suite "PEManager Tests" started.
+􀟈  Suite "MUID Tests" started.
+􀟈  Suite "PERequestIDManager Tests" started.
+􀟈  Suite "PEResponse Tests" started.
+􀟈  Suite "SysExAssembler Tests" started.
+􀟈  Suite "CIMessageParser Tests" started.
+􀟈  Suite "PEDeviceHandle Tests" started.
+􀟈  Suite "PETransactionManager Tests" started.
+􀟈  Suite "PEChunkAssembler Tests" started.
+􀟈  Suite "PEManager Subscribe/Notify Tests" started.
+􀟈  Test "Encode all 0xFF bytes" started.
+􀟈  Test "Encode partial group" started.
+􀟈  Test "Decode invalid data returns nil" started.
+􀟈  Test "CIManager gets device by MUID" started.
+􀟈  Test "CIManager can clear all devices" started.
+􀟈  Test "Round-trip encoding" started.
+􀟈  Test "Different devices have independent inflight counts" started.
+􀟈  Test "Encoded size calculation" started.
+􀟈  Test "CIManager initializes with random MUID" started.
+􀟈  Test "Encode empty data" started.
+􀟈  Test "Order tracker demonstrates race condition risk" started.
+􀟈  Test "Encode data with MSB set" started.
+􀟈  Test "Simulated packet list maintains order" started.
+􀟈  Test "Cancel all for device clears inflight state" started.
+􀟈  Test "CIManager uses default configuration" started.
+􀟈  Test "GET times out when no reply" started.
+􀟈  Test "Custom maxInflightPerDevice is respected" started.
+􀟈  Test "Waiter queued when at capacity and resumed on cancel" started.
+􀟈  Test "CIManager discovers device from Discovery Reply" started.
+􀟈  Test "Sequential processing assembles correctly" started.
+􀟈  Test "Default maxInflightPerDevice is 2" started.
+􀟈  Test "Request IDs can be reused after stopReceiving" started.
+􀟈  Test "CIManager generates unique MUIDs" started.
+􀟈  Test "Large data round-trip" started.
+􀟈  Test "MUID from bytes" started.
+􀟈  Test "Fixed approach guarantees order" started.
+􀟈  Test "MUID from byte array" started.
+􀟈  Test "CIManager removes device on InvalidateMUID" started.
+􀟈  Test "MUID to bytes round-trip" started.
+􀟈  Test "Inflight count tracks active transactions" started.
+􀟈  Test "Encode 7-bit safe data unchanged" started.
+􀟈  Test "stopReceiving handles many concurrent requests safely" started.
+􀟈  Test "send(request:) works correctly" started.
+􀟈  Test "GET with DeviceHandle sends correct message" started.
+􀟈  Test "Invalid raw value rejected" started.
+􀟈  Test "PERequest validation catches invalid channel" started.
+􀟈  Test "MaxInflightPerDevice minimum is 1" started.
+􀟈  Test "Broadcast MUID" started.
+􀟈  Test "MUID from byte array with offset" started.
+􀟈  Test "Paginated GET sends offset and limit" started.
+􀟈  Test "Random MUID generation" started.
+􀟈  Test "MUID insufficient bytes returns nil" started.
+􀟈  Test "PEManager starts and stops receiving" started.
+􀟈  Test "stopReceiving releases all Request IDs" started.
+􀟈  Test "isSuccess for 2xx status codes" started.
+􀟈  Test "Reserved MUID" started.
+􀟈  Test "Decode empty data" started.
+􀟈  Test "PERequest validation catches empty resource" started.
+􀟈  Test "SET sends correct message format" started.
+􀟈  Test "bodyString returns UTF8 string" started.
+􀟈  Test "PEManager initializes correctly" started.
+􀟈  Test "Diagnostics shows device states" started.
+􀟈  Test "PERequest factory methods create correct requests" started.
+􀟈  Test "IsInUse tracking" started.
+􀟈  Test "PERequest validation catches missing body" started.
+􀟈  Test "parsePEReply too short" started.
+􀟈  Test "parseNAK with 9 bytes (details but no message length)" started.
+􀟈  Test "parseInvalidateMUID broadcast" started.
+􀟈  Test "parseNAK with empty payload" started.
+􀟈  Test "ID wraps around at 128" started.
+􀟈  Test "Release all" started.
+􀟈  Test "isError for 4xx and 5xx status codes" started.
+􀟈  Test "Sequential IDs are unique" started.
+􀟈  Test "parseFullSubscribeReply wrong message type returns nil" started.
+􀟈  Test "stopReceiving is idempotent" started.
+􀟈  Test "PEDeviceHandle debugDescription" started.
+􀟈  Test "Acquire returns valid 7-bit ID" started.
+􀟈  Test "Non-SysEx data without buffer is ignored" started.
+􀟈  Test "Release multiple IDs" started.
+􀟈  Test "parseNAK with zero-length message" started.
+􀟈  Test "7-bit masking on release" started.
+􀟈  Test "parseNotify with subscribeId and resource" started.
+􀟈  Test "Release allows reuse" started.
+􀟈  Test "Available count" started.
+􀟈  Test "PEDeviceHandle is Hashable" started.
+􀟈  Test "parseNAK with long message (14-bit length)" started.
+􀟈  Test "New F0 during buffering discards incomplete message" started.
+􀟈  Test "parsePEReply with header and data" started.
+􀟈  Test "Complete SysEx in single packet" started.
+􀟈  Test "parsePECapabilityReply too short" started.
+􀟈  Test "SysEx split across three packets" started.
+􀟈  Test "parsePECapabilityReply valid" started.
+􀟈  Test "parseNAK with full NAK details (8 bytes)" started.
+􀟈  Test "parseDiscoveryReply minimum payload" started.
+􀟈  Test "Task cancellation cancels pending request" started.
+􀟈  Test "parseNAK with insufficient payload (2 bytes)" started.
+􀟈  Test "parseDiscoveryReply too short" started.
+􀟈  Test "Reset clears buffer" started.
+􀟈  Test "PEDeviceHandle stores MUID and destination" started.
+􀟈  Test "All 128 IDs can be acquired" started.
+􀟈  Test "parseInvalidateMUID too short" started.
+􀟈  Test "Wrong packet order corrupts SysEx assembly" started.
+􀟈  Test "parseDiscoveryReply with optional fields" started.
+􀟈  Test "parsePEReply minimum valid" started.
+􀟈  Test "F0 before F7 in continuation discards buffer" started.
+􀟈  Test "parseFullNotify complete message" started.
+􀟈  Test "Large SysEx message assembly" started.
+􀟈  Test "Sequential processing preserves order" started.
+􀟈  Test "Empty packet returns no messages" started.
+􀟈  Test "SysEx split across two packets" started.
+􀟈  Test "parseNAK with short message" started.
+􀟈  Test "Pending state tracking" started.
+􀟈  Test "Multiple concurrent requests" started.
+􀟈  Test "Multi-chunk assembly" started.
+􀟈  Test "parseNAK with minimum payload (3 bytes)" started.
+􀟈  Test "Packet order matters for fragmented SysEx" started.
