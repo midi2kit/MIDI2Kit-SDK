@@ -392,6 +392,9 @@ struct PEManagerTests {
         // Wait for cancellation
         _ = try? await task1.value
         
+        // Wait for any pending async operations to complete
+        try await Task.sleep(for: .milliseconds(50))
+        
         // Clear sent messages
         await transport.clearSentMessages()
         
@@ -1013,6 +1016,9 @@ struct PEManagerSubscribeNotifyTests {
         
         _ = try await subscribeTask.value
         
+        // Wait for any pending async operations to complete
+        try await Task.sleep(for: .milliseconds(50))
+        
         // Clear sent messages
         await transport.clearSentMessages()
         
@@ -1154,6 +1160,9 @@ struct PEManagerSubscribeNotifyTests {
         // Verify subscription exists
         var subscriptions = await manager.subscriptions
         #expect(subscriptions.count == 1)
+        
+        // Wait for any pending async operations to complete
+        try await Task.sleep(for: .milliseconds(50))
         
         // Clear and unsubscribe
         await transport.clearSentMessages()

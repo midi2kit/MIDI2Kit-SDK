@@ -263,10 +263,15 @@ public actor PEManager {
     public func startReceiving() async {
         guard receiveTask == nil else { return }
         
+        // Reset transaction manager state (clear isStopped flag)
+        await transactionManager.reset()
+        
         receiveTask = Task { [weak self] in
             guard let self = self else { return }
             
             for await received in transport.received {
+                // Check cancellation inside loop since AsyncStream doesn't throw on cancel
+                if Task.isCancelled { break }
                 await self.handleReceived(received.data)
             }
         }

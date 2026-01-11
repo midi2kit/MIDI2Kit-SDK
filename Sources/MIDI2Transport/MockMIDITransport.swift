@@ -152,6 +152,16 @@ public actor MockMIDITransport: MIDITransport {
         setupChangedContinuation?.yield(())
     }
     
+    /// Shutdown the transport and finish all streams
+    ///
+    /// Call this at the end of tests to ensure all async loops terminate.
+    public func shutdown() {
+        receivedContinuation?.finish()
+        setupChangedContinuation?.finish()
+        receivedContinuation = nil
+        setupChangedContinuation = nil
+    }
+    
     /// Clear recorded sent messages
     public func clearSentMessages() {
         sentMessages.removeAll()

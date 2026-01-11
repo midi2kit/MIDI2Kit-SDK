@@ -184,6 +184,8 @@ public actor CIManager {
         receiveTask = Task { [weak self] in
             guard let self else { return }
             for await received in transport.received {
+                // Check cancellation inside loop since AsyncStream doesn't throw on cancel
+                if Task.isCancelled { break }
                 await self.handleReceived(received)
             }
         }

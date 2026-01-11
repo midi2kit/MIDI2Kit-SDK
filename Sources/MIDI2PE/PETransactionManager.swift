@@ -125,6 +125,15 @@ public actor PETransactionManager {
     
     // MARK: - State
     
+    /// Flag indicating manager has been stopped (cancelAll was called)
+    /// When true, begin() returns nil immediately to prevent new transactions
+    private var isStopped = false
+    
+    /// Generation counter to detect stale waiters after cancelAll()
+    /// Incremented on each cancelAll() call. Waiters check if generation changed
+    /// while they were waiting to detect if they should abort.
+    private var generation: UInt64 = 0
+    
     /// Request ID manager
     private var requestIDManager = PERequestIDManager()
     
@@ -186,8 +195,17 @@ public actor PETransactionManager {
         destinationMUID: MUID,
         timeout: TimeInterval = 5.0
     ) async -> UInt8? {
+        // Record current generation before waiting
+        let startGeneration = generation
+        
         // Wait for device slot if at capacity
         await waitForDeviceSlot(destinationMUID)
+        
+        // Check if manager was stopped while waiting (either by flag or generation change)
+        if isStopped || generation != startGeneration {
+            // Don't release slot - cancelAll() will clear deviceInflightState
+            return nil
+        }
         
         // Warn if near exhaustion
         if isNearExhaustion {
@@ -349,6 +367,12 @@ public actor PETransactionManager {
     /// - Returns: Number of cancelled transactions
     @discardableResult
     public func cancelAll() -> Int {
+        // Set flag before resuming waiters to prevent them from starting new transactions
+        isStopped = true
+        
+        // Increment generation to invalidate any waiters that resume after reset()
+        generation &+= 1
+        
         let count = activeTransactions.count
         let allIDs = Array(activeTransactions.keys)
         
@@ -372,6 +396,13 @@ public actor PETransactionManager {
         }
         
         return count
+    }
+    
+    /// Reset the stopped state
+    ///
+    /// Call this when starting to receive again after a stop.
+    public func reset() {
+        isStopped = false
     }
     
     // MARK: - Chunk Processing
