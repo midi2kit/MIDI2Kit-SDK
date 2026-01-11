@@ -8,6 +8,16 @@
 import Foundation
 
 /// Standard Property Exchange resource names
+///
+/// Use these constants with PEManager to avoid typos:
+/// ```swift
+/// let response = try await peManager.get(.deviceInfo, from: device)
+/// ```
+///
+/// For custom/vendor-specific resources, use String directly:
+/// ```swift
+/// let response = try await peManager.get("X-MyVendorResource", from: device)
+/// ```
 public enum PEResource: String, Sendable, CaseIterable {
     
     // MARK: - Standard Resources (MIDI-CI 1.2)
@@ -39,13 +49,24 @@ public enum PEResource: String, Sendable, CaseIterable {
     /// JSON schema for a resource
     case jsonSchema = "JSONSchema"
     
-    // MARK: - Vendor Extensions
+    // MARK: - Extended Resources (X- prefix)
+    
+    /// Extended channel list with additional info
+    case xChannelList = "X-ChannelList"
+    
+    /// Extended program info
+    case xProgramInfo = "X-ProgramInfo"
     
     /// KORG X-ParameterList (CC name mappings)
     case xParameterList = "X-ParameterList"
     
     /// KORG X-CustomUI
     case xCustomUI = "X-CustomUI"
+    
+    // MARK: - Properties
+    
+    /// Resource name string
+    public var name: String { rawValue }
 }
 
 /// Resource list entry from device

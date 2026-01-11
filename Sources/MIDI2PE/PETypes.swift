@@ -7,6 +7,7 @@
 
 import Foundation
 import MIDI2Core
+import MIDI2CI
 import MIDI2Transport
 
 // MARK: - Device Handle
@@ -525,5 +526,314 @@ public struct PEHeader: Sendable, Codable {
     public var isMcoded7: Bool {
         mutualEncoding?.lowercased() == "mcoded7" ||
         mediaType?.lowercased() == "mcoded7"
+    }
+}
+
+// MARK: - NAK Details
+
+/// MIDI-CI NAK (Negative Acknowledge) reason codes
+///
+/// These codes indicate why a MIDI-CI request was rejected.
+public enum NAKStatusCode: UInt8, Sendable, CaseIterable, CustomStringConvertible {
+    /// General CI rejection
+    case ciNAK = 0x00
+    
+    /// Message type not supported
+    case messageNotSupported = 0x01
+    
+    /// CI version mismatch
+    case ciVersionMismatch = 0x02
+    
+    /// Reserved for future use
+    case reserved = 0x03
+    
+    /// Unknown status code
+    case unknown = 0xFF
+    
+    public init(rawValue: UInt8) {
+        switch rawValue {
+        case 0x00: self = .ciNAK
+        case 0x01: self = .messageNotSupported
+        case 0x02: self = .ciVersionMismatch
+        case 0x03: self = .reserved
+        default: self = .unknown
+        }
+    }
+    
+    public var description: String {
+        switch self {
+        case .ciNAK: return "CI NAK"
+        case .messageNotSupported: return "Message Not Supported"
+        case .ciVersionMismatch: return "CI Version Mismatch"
+        case .reserved: return "Reserved"
+        case .unknown: return "Unknown"
+        }
+    }
+}
+
+/// MIDI-CI NAK detail codes (status data interpretation)
+public enum NAKDetailCode: UInt8, Sendable, CaseIterable, CustomStringConvertible {
+    /// No additional information
+    case none = 0x00
+    
+    /// Device is busy
+    case busy = 0x01
+    
+    /// Resource not found
+    case notFound = 0x02
+    
+    /// Permission denied
+    case permissionDenied = 0x03
+    
+    /// Too many requests
+    case tooManyRequests = 0x04
+    
+    /// Unknown detail code
+    case unknown = 0xFF
+    
+    public init(rawValue: UInt8) {
+        switch rawValue {
+        case 0x00: self = .none
+        case 0x01: self = .busy
+        case 0x02: self = .notFound
+        case 0x03: self = .permissionDenied
+        case 0x04: self = .tooManyRequests
+        default: self = .unknown
+        }
+    }
+    
+    public var description: String {
+        switch self {
+        case .none: return "No additional info"
+        case .busy: return "Device busy"
+        case .notFound: return "Not found"
+        case .permissionDenied: return "Permission denied"
+        case .tooManyRequests: return "Too many requests"
+        case .unknown: return "Unknown"
+        }
+    }
+}
+
+/// Detailed NAK (Negative Acknowledge) information
+///
+/// Contains parsed NAK response details from a MIDI-CI device.
+public struct PENAKDetails: Sendable, CustomStringConvertible {
+    /// Original message type that was rejected
+    public let originalTransaction: UInt8
+    
+    /// NAK status code (reason category)
+    public let statusCode: NAKStatusCode
+    
+    /// NAK detail code (specific reason)
+    public let detailCode: NAKDetailCode
+    
+    /// Raw status code value
+    public let rawStatusCode: UInt8
+    
+    /// Raw status data value
+    public let rawStatusData: UInt8
+    
+    /// Additional NAK details (up to 5 bytes)
+    public let additionalDetails: [UInt8]
+    
+    /// Human-readable error message from device
+    public let message: String?
+    
+    public init(
+        originalTransaction: UInt8,
+        statusCode: UInt8,
+        statusData: UInt8,
+        additionalDetails: [UInt8] = [],
+        message: String? = nil
+    ) {
+        self.originalTransaction = originalTransaction
+        self.rawStatusCode = statusCode
+        self.rawStatusData = statusData
+        self.statusCode = NAKStatusCode(rawValue: statusCode)
+        self.detailCode = NAKDetailCode(rawValue: statusData)
+        self.additionalDetails = additionalDetails
+        self.message = message
+    }
+    
+    public var description: String {
+        var parts: [String] = []
+        parts.append("NAK: \(statusCode)")
+        
+        if detailCode != .none {
+            parts.append("(\(detailCode))")
+        }
+        
+        if let msg = message {
+            parts.append("\"\(msg)\"")
+        }
+        
+        return parts.joined(separator: " ")
+    }
+    
+    /// Whether this NAK indicates a transient error (retry might succeed)
+    public var isTransient: Bool {
+        detailCode == .busy || detailCode == .tooManyRequests
+    }
+    
+    /// Whether this NAK indicates a permanent error (retry won't help)
+    public var isPermanent: Bool {
+        statusCode == .messageNotSupported || detailCode == .notFound || detailCode == .permissionDenied
+    }
+}
+
+// MARK: - PENAKDetails CIMessageParser Integration
+
+extension PENAKDetails {
+    /// Create from CIMessageParser.NAKPayload
+    public init(from payload: CIMessageParser.NAKPayload) {
+        self.init(
+            originalTransaction: payload.originalTransaction,
+            statusCode: payload.statusCode,
+            statusData: payload.statusData,
+            additionalDetails: payload.nakDetails,
+            message: payload.messageText
+        )
+    }
+    
+    /// Create from CIMessageParser.FullNAK
+    public init(from nak: CIMessageParser.FullNAK) {
+        self.init(
+            originalTransaction: nak.originalTransaction,
+            statusCode: nak.statusCode,
+            statusData: nak.statusData,
+            additionalDetails: nak.nakDetails,
+            message: nak.messageText
+        )
+    }
+}
+
+// MARK: - Channel Info
+
+/// Channel information from X-ChannelList resource
+///
+/// Represents a single MIDI channel's configuration and state.
+public struct PEChannelInfo: Sendable, Codable, Identifiable {
+    public var id: Int { channel }
+    
+    /// Channel number (0-15 for standard MIDI, 0-255 for MIDI 2.0)
+    public let channel: Int
+    
+    /// Channel title/name
+    public let title: String?
+    
+    /// Current program number (0-127)
+    public let programNumber: Int?
+    
+    /// Current bank MSB (CC#0)
+    public let bankMSB: Int?
+    
+    /// Current bank LSB (CC#32)
+    public let bankLSB: Int?
+    
+    /// Current program name
+    public let programTitle: String?
+    
+    /// Cluster type ("channel", "group", etc.)
+    public let clusterType: String?
+    
+    /// Cluster index within group
+    public let clusterIndex: Int?
+    
+    /// Number of channels in cluster
+    public let clusterLength: Int?
+    
+    /// Whether channel is muted
+    public let mute: Bool?
+    
+    /// Whether channel is solo'd
+    public let solo: Bool?
+    
+    enum CodingKeys: String, CodingKey {
+        case channel
+        case title
+        case programNumber = "program"
+        case bankMSB = "bankPC"
+        case bankLSB = "bankCC"
+        case programTitle
+        case clusterType
+        case clusterIndex
+        case clusterLength
+        case mute
+        case solo
+    }
+    
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        
+        // Channel can be Int or String
+        if let intValue = try? container.decode(Int.self, forKey: .channel) {
+            channel = intValue
+        } else if let stringValue = try? container.decode(String.self, forKey: .channel),
+                  let parsed = Int(stringValue) {
+            channel = parsed
+        } else {
+            channel = 0
+        }
+        
+        title = try container.decodeIfPresent(String.self, forKey: .title)
+        programNumber = try container.decodeIfPresent(Int.self, forKey: .programNumber)
+        bankMSB = try container.decodeIfPresent(Int.self, forKey: .bankMSB)
+        bankLSB = try container.decodeIfPresent(Int.self, forKey: .bankLSB)
+        programTitle = try container.decodeIfPresent(String.self, forKey: .programTitle)
+        clusterType = try container.decodeIfPresent(String.self, forKey: .clusterType)
+        clusterIndex = try container.decodeIfPresent(Int.self, forKey: .clusterIndex)
+        clusterLength = try container.decodeIfPresent(Int.self, forKey: .clusterLength)
+        mute = try container.decodeIfPresent(Bool.self, forKey: .mute)
+        solo = try container.decodeIfPresent(Bool.self, forKey: .solo)
+    }
+    
+    public init(
+        channel: Int,
+        title: String? = nil,
+        programNumber: Int? = nil,
+        bankMSB: Int? = nil,
+        bankLSB: Int? = nil,
+        programTitle: String? = nil,
+        clusterType: String? = nil,
+        clusterIndex: Int? = nil,
+        clusterLength: Int? = nil,
+        mute: Bool? = nil,
+        solo: Bool? = nil
+    ) {
+        self.channel = channel
+        self.title = title
+        self.programNumber = programNumber
+        self.bankMSB = bankMSB
+        self.bankLSB = bankLSB
+        self.programTitle = programTitle
+        self.clusterType = clusterType
+        self.clusterIndex = clusterIndex
+        self.clusterLength = clusterLength
+        self.mute = mute
+        self.solo = solo
+    }
+    
+    /// Display name (title or "Ch {channel}")
+    public var displayName: String {
+        title ?? "Ch \(channel)"
+    }
+    
+    /// Full program description ("Bank MSB-LSB Program: Name")
+    public var programDescription: String? {
+        guard let prog = programNumber else { return nil }
+        
+        var parts: [String] = []
+        
+        if let msb = bankMSB, let lsb = bankLSB {
+            parts.append("\(msb)-\(lsb)")
+        }
+        
+        parts.append("#\(prog)")
+        
+        if let name = programTitle {
+            parts.append(name)
+        }
+        
+        return parts.joined(separator: " ")
     }
 }

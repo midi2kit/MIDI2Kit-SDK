@@ -404,6 +404,41 @@ public enum CIMessageParser {
     }
 }
 
+// MARK: - Full NAK Parser
+
+extension CIMessageParser {
+    
+    /// Full NAK structure (including MUIDs)
+    public struct FullNAK: Sendable {
+        public let sourceMUID: MUID
+        public let destinationMUID: MUID
+        public let originalTransaction: UInt8
+        public let statusCode: UInt8
+        public let statusData: UInt8
+        public let nakDetails: [UInt8]
+        public let messageText: String?
+    }
+    
+    /// Parse complete NAK SysEx message
+    /// - Parameter data: Complete SysEx bytes including F0 and F7
+    /// - Returns: Full NAK, or nil if invalid or not a NAK
+    public static func parseFullNAK(_ data: [UInt8]) -> FullNAK? {
+        guard let parsed = parse(data) else { return nil }
+        guard parsed.messageType == .nak else { return nil }
+        guard let payload = parseNAK(parsed.payload) else { return nil }
+        
+        return FullNAK(
+            sourceMUID: parsed.sourceMUID,
+            destinationMUID: parsed.destinationMUID,
+            originalTransaction: payload.originalTransaction,
+            statusCode: payload.statusCode,
+            statusData: payload.statusData,
+            nakDetails: payload.nakDetails,
+            messageText: payload.messageText
+        )
+    }
+}
+
 // MARK: - Convenience Extensions
 
 extension CIMessageParser.ParsedMessage: CustomStringConvertible {

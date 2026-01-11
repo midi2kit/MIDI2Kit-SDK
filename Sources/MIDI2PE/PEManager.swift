@@ -92,6 +92,44 @@ public enum PEError: Error, Sendable {
     
     /// Request validation failed
     case validationFailed(PERequestError)
+    
+    /// Device returned NAK (Negative Acknowledge)
+    ///
+    /// Contains detailed information about why the request was rejected.
+    /// Check `details.isTransient` to determine if retry might succeed.
+    case nak(PENAKDetails)
+}
+
+// MARK: - PEError Description
+
+extension PEError: CustomStringConvertible {
+    public var description: String {
+        switch self {
+        case .timeout(let resource):
+            return "Timeout waiting for response: \(resource)"
+        case .cancelled:
+            return "Request was cancelled"
+        case .requestIDExhausted:
+            return "All 128 request IDs are in use"
+        case .deviceError(let status, let message):
+            if let msg = message {
+                return "Device error (\(status)): \(msg)"
+            }
+            return "Device error: status \(status)"
+        case .deviceNotFound(let muid):
+            return "Device not found: \(muid)"
+        case .invalidResponse(let reason):
+            return "Invalid response: \(reason)"
+        case .transportError(let error):
+            return "Transport error: \(error)"
+        case .noDestination:
+            return "No destination configured"
+        case .validationFailed(let error):
+            return "Validation failed: \(error)"
+        case .nak(let details):
+            return details.description
+        }
+    }
 }
 
 // MARK: - PE Notification
@@ -1222,7 +1260,15 @@ public actor PEManager {
     // MARK: - Private: Receive Handling
     
     private func handleReceived(_ data: [UInt8]) async {
-        // Try Subscribe Reply first
+        // Try NAK first (device rejection)
+        if let nak = CIMessageParser.parseFullNAK(data) {
+            if nak.destinationMUID == sourceMUID {
+                handleNAK(nak)
+            }
+            return
+        }
+        
+        // Try Subscribe Reply
         if let subscribeReply = CIMessageParser.parseFullSubscribeReply(data) {
             if subscribeReply.destinationMUID == sourceMUID {
                 handleSubscribeReply(subscribeReply)
@@ -1365,6 +1411,62 @@ public actor PEManager {
         )
         
         continuation.resume(returning: response)
+    }
+    
+    private func handleNAK(_ nak: CIMessageParser.FullNAK) {
+        let details = PENAKDetails(from: nak)
+        
+        logger.warning(
+            "Received NAK: \(details)",
+            category: Self.logCategory
+        )
+        
+        // NAK doesn't include requestID, so we can't directly map it to a pending request.
+        // For PE operations, the device typically returns a PE Reply with error status instead of NAK.
+        // NAK is used for protocol-level rejections (unsupported message type, version mismatch, etc.)
+        //
+        // If there's only one pending request, we can reasonably assume it's for that request.
+        // Otherwise, we log the NAK for debugging purposes.
+        
+        if pendingContinuations.count == 1,
+           let (requestID, continuation) = pendingContinuations.first {
+            // Single pending request - assume NAK is for this request
+            timeoutTasks[requestID]?.cancel()
+            timeoutTasks.removeValue(forKey: requestID)
+            clearSendTask(requestID: requestID)
+            pendingContinuations.removeValue(forKey: requestID)
+            
+            Task {
+                await transactionManager.cancel(requestID: requestID)
+            }
+            
+            continuation.resume(throwing: PEError.nak(details))
+            
+            logger.notice(
+                "NAK matched to request [\(requestID)]",
+                category: Self.logCategory
+            )
+        } else if pendingSubscribeContinuations.count == 1,
+                  let (requestID, continuation) = pendingSubscribeContinuations.first {
+            // Single pending subscribe request
+            timeoutTasks[requestID]?.cancel()
+            timeoutTasks.removeValue(forKey: requestID)
+            clearSendTask(requestID: requestID)
+            pendingSubscribeContinuations.removeValue(forKey: requestID)
+            
+            Task {
+                await transactionManager.cancel(requestID: requestID)
+            }
+            
+            continuation.resume(throwing: PEError.nak(details))
+            
+            logger.notice(
+                "NAK matched to subscribe request [\(requestID)]",
+                category: Self.logCategory
+            )
+        }
+        // If multiple requests are pending, we can't determine which one the NAK is for.
+        // The request will eventually timeout.
     }
     
     private func handleNotify(_ notify: CIMessageParser.FullNotify) {
