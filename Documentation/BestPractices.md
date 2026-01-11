@@ -549,3 +549,159 @@ Organize logs by category:
 - `PEManager`: Request/response flow
 - `CIManager`: Device discovery
 - `CoreMIDI`: Low-level MIDI operations
+
+---
+
+## MIDI 2.0 UMP Best Practices
+
+### Choosing Between MIDI 1.0 and MIDI 2.0
+
+```swift
+// Check device capability before sending
+if transport.supportsMIDI2(destination) {
+    // Use MIDI 2.0 for high-resolution data
+    let words = UMPBuilder.midi2ControlChange(
+        group: 0, channel: 0, controller: 74, value: 0x80000000
+    )
+    try await transport.sendUMP(words, to: destination, protocol: ._2_0)
+} else {
+    // Fallback to MIDI 1.0
+    let words = UMPBuilder.midi1ControlChange(
+        group: 0, channel: 0, controller: 74, value: 64
+    )
+    try await transport.sendUMP(words, to: destination, protocol: ._1_0)
+}
+```
+
+### Value Scaling Considerations
+
+**7-bit to 32-bit**:
+- Maps to upper 7 bits (preserves original resolution)
+- Value 64 → 0x80000000
+- Value 127 → 0xFE000000 (not 0xFFFFFFFF)
+
+**When to use normalized values**:
+```swift
+// For UI sliders (0.0 - 1.0 range)
+let normalized = slider.value  // Float 0.0-1.0
+let words = UMPBuilder.midi2ControlChangeNormalized(
+    group: 0, channel: 0, controller: 74, normalizedValue: Double(normalized)
+)
+
+// For precise 32-bit values from device
+let value32: UInt32 = 0x80000000
+let words = UMPBuilder.midi2ControlChange(
+    group: 0, channel: 0, controller: 74, value: value32
+)
+```
+
+### MIDI 2.0 Note On Considerations
+
+**Velocity 0 in MIDI 2.0**:
+- MIDI 1.0: Velocity 0 = Note Off
+- MIDI 2.0: Velocity 0 is valid (silent articulation)
+- Use explicit Note Off for release
+
+```swift
+// ✅ CORRECT: Explicit Note Off
+let noteOff = UMPBuilder.midi2NoteOff(group: 0, channel: 0, note: 60)
+
+// ⚠️ MIDI 2.0: This is NOT a Note Off
+let noteOn = UMPBuilder.midi2NoteOn(group: 0, channel: 0, note: 60, velocity: 0)
+```
+
+### Per-Note Controllers (MPE)
+
+```swift
+// Per-note pitch bend for MPE
+let perNotePB = UMPBuilder.midi2PerNotePitchBend(
+    group: 0,
+    channel: 1,  // Note's channel in MPE zone
+    note: 60,
+    value: PitchBendValue.center
+)
+
+// Per-note management (detach controllers)
+let management = UMPBuilder.midi2PerNoteManagement(
+    group: 0,
+    channel: 1,
+    note: 60,
+    detach: true,  // Detach from channel controllers
+    reset: false
+)
+```
+
+---
+
+## MIDITracer Best Practices
+
+### Development Debugging
+
+```swift
+// Configure at app launch
+MIDITracer.shared = MIDITracer(capacity: 500)
+
+// In your transport code
+func sendMessage(_ data: [UInt8], to destination: MIDIDestinationID) {
+    MIDITracer.shared.recordSend(to: destination.value, data: data)
+    // ... actual send
+}
+
+func handleReceived(_ data: [UInt8], from source: MIDISourceID) {
+    let label = MIDITraceEntry.detectLabel(for: data)
+    MIDITracer.shared.recordReceive(from: source.value, data: data, label: label)
+    // ... process data
+}
+```
+
+### Production Monitoring
+
+```swift
+// Disable in production (default is enabled)
+MIDITracer.shared.isEnabled = false
+
+// Enable temporarily for debugging
+func enableDebugMode() {
+    MIDITracer.shared.isEnabled = true
+    MIDITracer.shared.clear()  // Start fresh
+}
+
+func disableDebugMode() {
+    // Export before disabling
+    if let json = try? MIDITracer.shared.exportJSON() {
+        saveDebugLog(json)
+    }
+    MIDITracer.shared.isEnabled = false
+}
+```
+
+### Filtering and Analysis
+
+```swift
+// Get only sent messages
+let sent = MIDITracer.shared.entries(direction: .send)
+
+// Get messages for specific endpoint
+let deviceMessages = MIDITracer.shared.entries(endpoint: device.destination.value)
+
+// Get messages in time range
+let recent = MIDITracer.shared.entries(from: startTime, to: Date())
+
+// Quick dump for debugging
+print(MIDITracer.shared.dump(last: 20))
+```
+
+### Memory Considerations
+
+```swift
+// Large capacity for long debugging sessions
+let tracer = MIDITracer(capacity: 1000)
+
+// Small capacity for continuous monitoring
+let tracer = MIDITracer(capacity: 50)
+
+// Clear periodically to prevent memory bloat
+Timer.scheduledTimer(withTimeInterval: 3600, repeats: true) { _ in
+    MIDITracer.shared.clear()
+}
+```

@@ -61,6 +61,7 @@ private final class ConnectionState: @unchecked Sendable {
 /// - SysEx assembly for fragmented messages
 /// - Source ID tracking for received messages
 /// - Optional message tracing for diagnostics
+/// - MIDI 2.0 UMP support via `sendUMP` method
 public final class CoreMIDITransport: MIDITransport, @unchecked Sendable {
     
     // MARK: - Private State
@@ -597,6 +598,129 @@ public final class CoreMIDITransport: MIDITransport, @unchecked Sendable {
         }
         
         return nil
+    }
+    
+    // MARK: - MIDI 2.0 UMP Support
+    
+    /// Send UMP (Universal MIDI Packet) words to a destination
+    ///
+    /// This method uses `MIDIEventList` for MIDI 2.0 protocol transmission.
+    /// Use this for sending high-resolution MIDI 2.0 Channel Voice messages.
+    ///
+    /// ## Usage Example
+    ///
+    /// ```swift
+    /// import MIDI2Core
+    ///
+    /// // Build a MIDI 2.0 Control Change message
+    /// let words = UMPBuilder.midi2ControlChange(
+    ///     group: 0,
+    ///     channel: 0,
+    ///     controller: 74,
+    ///     value: 0x80000000
+    /// )
+    ///
+    /// // Send via UMP
+    /// try await transport.sendUMP(words, to: destination)
+    /// ```
+    ///
+    /// - Parameters:
+    ///   - words: Array of 32-bit UMP words (1, 2, or 4 words depending on message type)
+    ///   - destination: Destination endpoint ID
+    ///   - protocol: MIDI protocol version (default: MIDI 2.0)
+    /// - Throws: `MIDITransportError` if send fails
+    public func sendUMP(
+        _ words: [UInt32],
+        to destination: MIDIDestinationID,
+        protocol midiProtocol: MIDIProtocolID = ._2_0
+    ) async throws {
+        guard !words.isEmpty else { return }
+        
+        let destRef = MIDIEndpointRef(destination.value)
+        
+        // Trace send (convert words to bytes for logging)
+        if let tracer = tracer {
+            var bytes: [UInt8] = []
+            for word in words {
+                bytes.append(UInt8((word >> 24) & 0xFF))
+                bytes.append(UInt8((word >> 16) & 0xFF))
+                bytes.append(UInt8((word >> 8) & 0xFF))
+                bytes.append(UInt8(word & 0xFF))
+            }
+            tracer.recordSend(to: destination.value, data: bytes, label: "UMP")
+        }
+        
+        // Build MIDIEventList
+        var eventList = MIDIEventList()
+        var packet = MIDIEventPacket()
+        packet.timeStamp = 0
+        packet.wordCount = UInt32(words.count)
+        
+        // Copy words to packet
+        withUnsafeMutablePointer(to: &packet.words) { ptr in
+            let wordsPtr = UnsafeMutableRawPointer(ptr).assumingMemoryBound(to: UInt32.self)
+            for (index, word) in words.enumerated() {
+                wordsPtr[index] = word
+            }
+        }
+        
+        eventList.protocol = midiProtocol
+        eventList.numPackets = 1
+        eventList.packet = packet
+        
+        let status = MIDISendEventList(outputPort, destRef, &eventList)
+        
+        guard status == noErr else {
+            throw MIDITransportError.sendFailed(status)
+        }
+    }
+    
+    /// Send multiple UMP messages in a single call
+    ///
+    /// - Parameters:
+    ///   - messages: Array of UMP word arrays
+    ///   - destination: Destination endpoint ID
+    ///   - protocol: MIDI protocol version (default: MIDI 2.0)
+    /// - Throws: `MIDITransportError` if send fails
+    public func sendUMPBatch(
+        _ messages: [[UInt32]],
+        to destination: MIDIDestinationID,
+        protocol midiProtocol: MIDIProtocolID = ._2_0
+    ) async throws {
+        for words in messages {
+            try await sendUMP(words, to: destination, protocol: midiProtocol)
+        }
+    }
+    
+    /// Check if a destination supports MIDI 2.0 protocol
+    ///
+    /// - Parameter destination: Destination endpoint ID
+    /// - Returns: `true` if the destination supports MIDI 2.0
+    public func supportsMIDI2(_ destination: MIDIDestinationID) -> Bool {
+        let destRef = MIDIEndpointRef(destination.value)
+        var protocolID: Int32 = 0
+        let status = MIDIObjectGetIntegerProperty(destRef, kMIDIPropertyProtocolID, &protocolID)
+        
+        if status == noErr {
+            // kMIDIProtocol_2_0 = 2
+            return protocolID == 2
+        }
+        return false
+    }
+    
+    /// Get the supported MIDI protocol for a destination
+    ///
+    /// - Parameter destination: Destination endpoint ID
+    /// - Returns: The protocol ID, or `._1_0` if unavailable
+    public func midiProtocol(for destination: MIDIDestinationID) -> MIDIProtocolID {
+        let destRef = MIDIEndpointRef(destination.value)
+        var protocolID: Int32 = 0
+        let status = MIDIObjectGetIntegerProperty(destRef, kMIDIPropertyProtocolID, &protocolID)
+        
+        if status == noErr, protocolID == 2 {
+            return ._2_0
+        }
+        return ._1_0
     }
 }
 
