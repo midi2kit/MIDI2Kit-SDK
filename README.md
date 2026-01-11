@@ -1,6 +1,6 @@
 # MIDI2Kit
 
-A modern Swift library for MIDI 2.0 / MIDI-CI / Property Exchange.
+A modern Swift library for MIDI 2.0 / MIDI-CI / Property Exchange / UMP.
 
 [![Swift 6.0](https://img.shields.io/badge/Swift-6.0-orange.svg)](https://swift.org)
 [![Platforms](https://img.shields.io/badge/Platforms-iOS%2017%20|%20macOS%2014-blue.svg)](https://developer.apple.com)
@@ -8,10 +8,10 @@ A modern Swift library for MIDI 2.0 / MIDI-CI / Property Exchange.
 
 ## Features
 
-- **MIDI2Core** - Foundation types (MUID, DeviceIdentity, Mcoded7)
+- **MIDI2Core** - Foundation types (MUID, DeviceIdentity, Mcoded7, **UMP Builder/Parser**)
 - **MIDI2CI** - Capability Inquiry (Discovery, Protocol Negotiation, Profiles)
 - **MIDI2PE** - Property Exchange (Get/Set resources, Subscriptions, Transaction management)
-- **MIDI2Transport** - CoreMIDI integration with duplicate connection prevention
+- **MIDI2Transport** - CoreMIDI integration with duplicate connection prevention, **UMP support**
 - **Per-device rate limiting** - Prevents overwhelming slow devices
 - **Auto-reconnecting subscriptions** - Survives device disconnections
 
@@ -34,6 +34,168 @@ dependencies: [
 ```
 
 Or in Xcode: File → Add Package Dependencies → Enter repository URL.
+
+## MIDI 2.0 UMP Support
+
+MIDI2Kit provides full support for MIDI 2.0 Universal MIDI Packet (UMP) messages with high-resolution data.
+
+### UMP Builder
+
+Build MIDI 2.0 messages easily:
+
+```swift
+import MIDI2Core
+
+// MIDI 2.0 Control Change (32-bit resolution)
+let ccWords = UMPBuilder.midi2ControlChange(
+    group: 0,
+    channel: 0,
+    controller: 74,  // Filter cutoff
+    value: 0x80000000  // Full 32-bit value
+)
+
+// With normalized value (0.0-1.0)
+let normalizedCC = UMPBuilder.midi2ControlChangeNormalized(
+    group: 0,
+    channel: 0,
+    controller: 74,
+    normalizedValue: 0.5
+)
+
+// MIDI 2.0 Note On (16-bit velocity)
+let noteWords = UMPBuilder.midi2NoteOn(
+    group: 0,
+    channel: 0,
+    note: 60,
+    velocity: 0xC000,
+    attributeType: .pitch7_9,
+    attributeData: 0x1234
+)
+
+// Program Change with bank select
+let pcWords = UMPBuilder.midi2ProgramChange(
+    group: 0,
+    channel: 0,
+    program: 10,
+    bank: ProgramBank(msb: 0, lsb: 32)
+)
+
+// Per-Note Pitch Bend (MPE)
+let perNotePB = UMPBuilder.midi2PerNotePitchBend(
+    group: 0,
+    channel: 1,
+    note: 60,
+    value: PitchBendValue.center
+)
+
+// RPN with 32-bit value
+let rpnWords = UMPBuilder.midi2RegisteredController(
+    group: 0,
+    channel: 0,
+    address: RegisteredController.pitchBendSensitivity,
+    value: 0x30000000
+)
+
+// MIDI 1.0 over UMP (for compatibility)
+let midi1Words = UMPBuilder.midi1ControlChange(
+    group: 0,
+    channel: 0,
+    controller: 1,
+    value: 64
+)
+```
+
+### UMP Parser
+
+Parse received UMP messages:
+
+```swift
+import MIDI2Core
+
+let words: [UInt32] = [0x40903C00, 0xC0000000]
+
+if let message = UMPParser.parse(words) {
+    switch message {
+    case .midi2ChannelVoice(let cv):
+        print("Status: \(cv.status)")
+        print("Channel: \(cv.channel)")
+        
+        switch cv.status {
+        case .noteOn:
+            print("Note: \(cv.noteNumber), Velocity: \(cv.velocity16)")
+        case .controlChange:
+            print("CC \(cv.controllerNumber): \(cv.controllerValue32)")
+        case .pitchBend:
+            print("Pitch Bend: \(cv.pitchBendValue32)")
+        default:
+            break
+        }
+        
+    case .midi1ChannelVoice(let cv):
+        print("MIDI 1.0: \(cv.statusByte), \(cv.data1), \(cv.data2)")
+        
+    case .utility(let group, let status, let data):
+        print("Utility message: \(status)")
+        
+    default:
+        break
+    }
+}
+```
+
+### Sending UMP via Transport
+
+```swift
+import MIDI2Transport
+import MIDI2Core
+
+let transport = try CoreMIDITransport(clientName: "MyApp")
+
+// Build MIDI 2.0 message
+let words = UMPBuilder.midi2ControlChange(
+    group: 0,
+    channel: 0,
+    controller: 74,
+    value: 0x80000000
+)
+
+// Send via UMP
+try await transport.sendUMP(words, to: destination)
+
+// Check if destination supports MIDI 2.0
+if transport.supportsMIDI2(destination) {
+    try await transport.sendUMP(words, to: destination, protocol: ._2_0)
+} else {
+    // Fallback to MIDI 1.0
+    let midi1Words = UMPBuilder.midi1ControlChange(
+        group: 0, channel: 0, controller: 74, value: 64
+    )
+    try await transport.sendUMP(midi1Words, to: destination, protocol: ._1_0)
+}
+```
+
+### Value Scaling Utilities
+
+```swift
+import MIDI2Core
+
+// 7-bit ↔ 32-bit scaling
+let value32 = UMPValueScaling.scale7To32(64)    // 0x80000000
+let value7 = UMPValueScaling.scale32To7(0x80000000)  // 64
+
+// 14-bit ↔ 32-bit scaling (for pitch bend)
+let pb32 = UMPValueScaling.scale14To32(8192)   // Center
+let pb14 = UMPValueScaling.scale32To14(0x80000000)
+
+// Velocity scaling
+let vel16 = UMPValueScaling.scaleVelocity7To16(100)
+let vel7 = UMPValueScaling.scaleVelocity16To7(0xC000)
+
+// Normalized values
+let normalized = UMPValueScaling.normalizedTo32(0.5)  // ~2^31
+```
+
+---
 
 ## Minimal Example
 
@@ -271,6 +433,14 @@ let identity = DeviceIdentity(
 // Mcoded7 encoding (8-bit → 7-bit for SysEx)
 let encoded = Mcoded7.encode(originalData)
 let decoded = Mcoded7.decode(encodedData)
+
+// UMP Message Building
+let words = UMPBuilder.midi2ControlChange(group: 0, channel: 0, controller: 74, value: 0x80000000)
+
+// UMP Message Parsing
+if let message = UMPParser.parse(words) {
+    // Handle parsed message
+}
 ```
 
 ### MIDI2CI
@@ -334,7 +504,7 @@ print(await transactionManager.diagnostics)
 
 ### MIDI2Transport
 
-CoreMIDI abstraction with connection management.
+CoreMIDI abstraction with connection management and UMP support.
 
 ```swift
 import MIDI2Transport
@@ -350,6 +520,15 @@ let count = await transport.connectedSourceCount
 
 // Full reconnection when needed
 try await transport.reconnectAllSources()
+
+// Send UMP messages (MIDI 2.0)
+let words = UMPBuilder.midi2ControlChange(group: 0, channel: 0, controller: 74, value: 0x80000000)
+try await transport.sendUMP(words, to: destination)
+
+// Check MIDI 2.0 support
+if transport.supportsMIDI2(destination) {
+    // Use MIDI 2.0 features
+}
 ```
 
 ## Architecture
@@ -387,11 +566,16 @@ Contributions welcome! Please read the architecture documentation before submitt
 
 See [Documentation/CHANGELOG.md](Documentation/CHANGELOG.md) for detailed version history.
 
-### Latest (2026-01-10)
+### Latest (2026-01-11)
 
+- **Added MIDI 2.0 UMP support**
+  - `UMPBuilder` for constructing UMP messages
+  - `UMPParser` for parsing received UMP messages
+  - `UMPTypes` with message types, status codes, and value scaling
+  - `CoreMIDITransport.sendUMP()` for UMP transmission
+  - MIDI 2.0 protocol detection via `supportsMIDI2()`
 - Added `PESubscriptionManager` for auto-reconnecting subscriptions
 - Added per-device inflight limiting (`maxInflightPerDevice`)
 - Added `CIManagerEvent` for event-driven device discovery
 - Fixed Source-to-Destination mapping via Entity
 - Improved responsibility separation between `PETransactionManager` and `PEManager`
-- 142+ tests passing
