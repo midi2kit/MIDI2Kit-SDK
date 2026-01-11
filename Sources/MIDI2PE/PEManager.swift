@@ -823,8 +823,17 @@ public actor PEManager {
     }
     
     /// Get stream of notifications from all subscriptions
+    ///
+    /// Only one listener is supported at a time. Calling this method
+    /// again will finish the previous stream.
+    ///
+    /// - Returns: AsyncStream of notifications
     public func startNotificationStream() -> AsyncStream<PENotification> {
-        notificationContinuation?.finish()
+        // Store and clear old continuation atomically before finishing
+        // This prevents handleNotify() from yielding to a finishing continuation
+        let oldContinuation = notificationContinuation
+        notificationContinuation = nil
+        oldContinuation?.finish()
         
         return AsyncStream { continuation in
             self.notificationContinuation = continuation

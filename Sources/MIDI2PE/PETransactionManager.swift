@@ -195,28 +195,13 @@ public actor PETransactionManager {
         destinationMUID: MUID,
         timeout: TimeInterval = 5.0
     ) async -> UInt8? {
-        // Record current generation before waiting
-        let startGeneration = generation
-        
-        // Wait for device slot if at capacity
-        // Fail fast when Request IDs are exhausted.
-        //
-        // Rationale:
-        // - When maxInflightPerDevice == 128 and all IDs are in use, waiting for a device slot first
-        //   can deadlock tests (and can also hang production calls) because no one will ever release
-        //   an inflight slot if the caller is waiting forever.
-        // - If there are no IDs available, this operation cannot succeed anyway, so return nil
-        //   immediately instead of waiting.
-        guard await requestIDManager.availableCount > 0 else {
-            return nil
-        }
-
-
-        await waitForDeviceSlot(destinationMUID)
-        
-        // Check if manager was stopped while waiting (either by flag or generation change)
-        if isStopped || generation != startGeneration {
-            // Don't release slot - cancelAll() will clear deviceInflightState
+        // Acquire Request ID first (atomic, no TOCTOU)
+        // This ensures we don't wait for device slot only to find IDs exhausted
+        guard let requestID = requestIDManager.acquire() else {
+            logger.error(
+                "Request ID exhausted: all 128 IDs in use",
+                category: Self.logCategory
+            )
             return nil
         }
         
@@ -228,14 +213,16 @@ public actor PETransactionManager {
             )
         }
         
-        // Acquire Request ID
-        guard let requestID = requestIDManager.acquire() else {
-            logger.error(
-                "Request ID exhausted: all 128 IDs in use",
-                category: Self.logCategory
-            )
-            // Release the device slot we just acquired
-            releaseDeviceSlot(destinationMUID)
+        // Record current generation before waiting
+        let startGeneration = generation
+        
+        // Wait for device slot if at capacity
+        await waitForDeviceSlot(destinationMUID)
+        
+        // Check if manager was stopped while waiting (either by flag or generation change)
+        if isStopped || generation != startGeneration {
+            // Release the ID we acquired since we're aborting
+            requestIDManager.release(requestID)
             return nil
         }
         

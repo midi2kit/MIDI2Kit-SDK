@@ -233,6 +233,45 @@ Also added:
 - `withDevice(name:manufacturer:) async` generic helper
 - `setSourceToDestinationMapping(_:to:)` for explicit routing
 
+#### PETransactionManager.begin() - TOCTOU Race Condition
+**Problem:** `availableCount > 0` check followed by `waitForDeviceSlot()` allowed IDs to be exhausted during the wait.
+
+**Fix:** Acquire Request ID first (atomic), then wait for device slot:
+```swift
+// Before (TOCTOU vulnerable)
+guard await requestIDManager.availableCount > 0 else { return nil }
+await waitForDeviceSlot(destinationMUID)
+guard let requestID = requestIDManager.acquire() else { ... }
+
+// After (atomic acquisition first)
+guard let requestID = requestIDManager.acquire() else { return nil }
+await waitForDeviceSlot(destinationMUID)
+if isStopped || generation != startGeneration {
+    requestIDManager.release(requestID)  // Release if cancelled
+    return nil
+}
+```
+
+#### PEManager.startNotificationStream() - Continuation Race
+**Problem:** `finish()` called on old continuation, then new AsyncStream created - gap allowed yield to finishing continuation.
+
+**Fix:** Clear reference before finishing:
+```swift
+// Before
+notificationContinuation?.finish()
+return AsyncStream { continuation in
+    self.notificationContinuation = continuation
+}
+
+// After
+let oldContinuation = notificationContinuation
+notificationContinuation = nil  // Clear first
+oldContinuation?.finish()       // Then finish
+return AsyncStream { continuation in
+    self.notificationContinuation = continuation
+}
+```
+
 ---
 
 ## 2026-01-10 (Session 4-6)
