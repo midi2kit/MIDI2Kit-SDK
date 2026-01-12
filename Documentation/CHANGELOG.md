@@ -2,6 +2,28 @@
 
 ## 2026-01-12
 
+### Fixed
+
+#### UMPGroup / UMPMessageType Ambiguous Type Error
+**Problem:** Xcode reported ambiguous type lookup errors:
+- `'UMPGroup' is ambiguous for type lookup in this context`
+- `'UMPMessageType' is ambiguous for type lookup in this context`
+
+**Root Cause:** Duplicate type definitions in same module (MIDI2Core):
+- `Sources/MIDI2Core/UMPTypes.swift` - canonical definitions
+- `Sources/MIDI2Core/UMP/UMPMessage.swift` - duplicate definitions
+
+**Fix:**
+1. Removed duplicate `UMPMessageType` enum from `UMPMessage.swift`
+2. Removed duplicate `UMPGroup` struct from `UMPMessage.swift`
+3. Replaced all `group.value` → `group.rawValue` for API compatibility
+4. Added comment noting types are defined in `UMPTypes.swift`
+
+**Files Changed:**
+- `Sources/MIDI2Core/UMP/UMPMessage.swift` - removed duplicates
+- `Sources/MIDI2Core/UMP/UMPSystemMessages.swift` - `.value` → `.rawValue`
+- `Sources/MIDI2Core/UMP/UMPMIDI1ChannelVoice.swift` - `.value` → `.rawValue`
+
 ### Added
 
 #### Batch Request API - Parallel PE Operations

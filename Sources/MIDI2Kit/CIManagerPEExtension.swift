@@ -25,20 +25,21 @@ extension CIManager {
     /// // Discovery → PE workflow
     /// for await event in ciManager.events {
     ///     if case .deviceDiscovered(let device) = event,
-    ///        device.supportsPropertyExchange,
-    ///        let handle = await ciManager.peDeviceHandle(for: device.muid) {
+    ///        device.supportsPropertyExchange {
     ///         
-    ///         let response = try await peManager.get("DeviceInfo", from: handle)
-    ///         print(response.bodyString ?? "")
+    ///         if let handle = await ciManager.peDeviceHandle(for: device.muid) {
+    ///             let response = try await peManager.get("DeviceInfo", from: handle)
+    ///             print(response.bodyString ?? "")
+    ///         }
     ///     }
     /// }
     /// ```
     ///
     /// - Parameter muid: The MUID of the discovered device
     /// - Returns: A `PEDeviceHandle` if the device exists and has a destination, nil otherwise
-    public func peDeviceHandle(for muid: MUID) async -> PEDeviceHandle? {
-        guard let device = await device(for: muid),
-              let destination = await destination(for: muid) else {
+    public func peDeviceHandle(for muid: MUID) -> PEDeviceHandle? {
+        guard let device = device(for: muid),
+              let destination = destination(for: muid) else {
             return nil
         }
         
@@ -58,7 +59,7 @@ extension CIManager {
     /// ```swift
     /// let devices = await ciManager.peCapableDevices
     /// for device in devices {
-    ///     if let handle = await ciManager.peDeviceHandle(for: device) {
+    ///     if let handle = ciManager.peDeviceHandle(for: device) {
     ///         let info = try await peManager.get("DeviceInfo", from: handle)
     ///     }
     /// }
@@ -66,8 +67,8 @@ extension CIManager {
     ///
     /// - Parameter device: The discovered device
     /// - Returns: A `PEDeviceHandle` if the device has a destination, nil otherwise
-    public func peDeviceHandle(for device: DiscoveredDevice) async -> PEDeviceHandle? {
-        guard let destination = await destination(for: device.muid) else {
+    public func peDeviceHandle(for device: DiscoveredDevice) -> PEDeviceHandle? {
+        guard let destination = destination(for: device.muid) else {
             return nil
         }
         
@@ -92,15 +93,13 @@ extension CIManager {
     /// }
     /// ```
     public var peDeviceHandles: [PEDeviceHandle] {
-        get async {
-            var handles: [PEDeviceHandle] = []
-            for device in peCapableDevices {
-                if let handle = await peDeviceHandle(for: device) {
-                    handles.append(handle)
-                }
+        var handles: [PEDeviceHandle] = []
+        for device in peCapableDevices {
+            if let handle = peDeviceHandle(for: device) {
+                handles.append(handle)
             }
-            return handles
         }
+        return handles
     }
 }
 

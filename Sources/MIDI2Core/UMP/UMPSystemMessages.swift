@@ -31,7 +31,7 @@ public enum UMPSystemRealTime: UMPMessage, Sendable {
     
     // MARK: - UMPMessage Protocol
     
-    public var messageType: UMPMessageType { .systemRealTime }
+    public var messageType: UMPMessageType { .system }
     
     public var group: UMPGroup {
         switch self {
@@ -68,8 +68,8 @@ public enum UMPSystemRealTime: UMPMessage, Sendable {
         case .systemReset: status = 0xFF
         }
         
-        let mt = UInt32(UMPMessageType.systemRealTime.rawValue) << 28
-        let grp = UInt32(group.value) << 24
+        let mt = UInt32(UMPMessageType.system.rawValue) << 28
+        let grp = UInt32(group.rawValue) << 24
         let sts = UInt32(status) << 16
         return mt | grp | sts
     }
@@ -93,7 +93,7 @@ public enum UMPSystemCommon: UMPMessage, Sendable {
     
     // MARK: - UMPMessage Protocol
     
-    public var messageType: UMPMessageType { .systemRealTime }
+    public var messageType: UMPMessageType { .system }
     
     public var group: UMPGroup {
         switch self {
@@ -118,8 +118,8 @@ public enum UMPSystemCommon: UMPMessage, Sendable {
     
     /// Convert to 32-bit word
     public func toWord() -> UInt32 {
-        let mt = UInt32(UMPMessageType.systemRealTime.rawValue) << 28
-        let grp = UInt32(group.value) << 24
+        let mt = UInt32(UMPMessageType.system.rawValue) << 28
+        let grp = UInt32(group.rawValue) << 24
         
         switch self {
         case .mtcQuarterFrame(_, let data):
@@ -185,7 +185,7 @@ public enum UMPUtility: UMPMessage, Sendable {
     /// Convert to 32-bit word
     public func toWord() -> UInt32 {
         let mt = UInt32(UMPMessageType.utility.rawValue) << 28
-        let grp = UInt32(group.value) << 24
+        let grp = UInt32(group.rawValue) << 24
         
         switch self {
         case .noop:

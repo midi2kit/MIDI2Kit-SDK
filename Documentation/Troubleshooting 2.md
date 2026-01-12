@@ -470,38 +470,6 @@ for device in devices {
 
 ---
 
-### 9. Ambiguous Type Lookup Errors
-
-**Symptoms:**
-- Xcode error: `'UMPGroup' is ambiguous for type lookup in this context`
-- Xcode error: `'UMPMessageType' is ambiguous for type lookup in this context`
-- Build fails with ambiguous type errors
-
-**Causes:**
-- Duplicate type definitions in same module
-- Both `UMPTypes.swift` and `UMPMessage.swift` defining same types
-
-**Solutions:**
-
-1. **Apply the fix patch**: The canonical definitions are in `UMPTypes.swift`. Remove any duplicate definitions from `UMPMessage.swift`.
-
-2. **Check for `.value` vs `.rawValue`**:
-   ```swift
-   // Wrong (old duplicate struct had .value)
-   let grp = UInt32(group.value) << 24
-   
-   // Correct (UMPTypes.swift uses .rawValue)
-   let grp = UInt32(group.rawValue) << 24
-   ```
-
-3. **Verify single definition**: Ensure `UMPGroup` and `UMPMessageType` are only defined in `UMPTypes.swift`.
-
-**Prevention:**
-- When adding new types, always check if they already exist in `UMPTypes.swift`
-- Use `// Note: Type defined in UMPTypes.swift` comments for clarity
-
----
-
 ## Getting Help
 
 1. **Check Diagnostics First**: Use the built-in diagnostic tools above

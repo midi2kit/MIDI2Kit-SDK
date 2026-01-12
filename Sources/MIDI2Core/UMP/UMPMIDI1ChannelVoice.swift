@@ -91,7 +91,7 @@ public enum UMPMIDI1ChannelVoice: UMPMessage, Sendable {
     
     private func makeWord(group: UMPGroup, status: UInt8, data1: UInt8, data2: UInt8) -> UInt32 {
         let mt = UInt32(UMPMessageType.midi1ChannelVoice.rawValue) << 28
-        let grp = UInt32(group.value) << 24
+        let grp = UInt32(group.rawValue) << 24
         let sts = UInt32(status) << 16
         let d1 = UInt32(data1 & 0x7F) << 8
         let d2 = UInt32(data2 & 0x7F)
