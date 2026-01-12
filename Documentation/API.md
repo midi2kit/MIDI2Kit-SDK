@@ -875,6 +875,8 @@ public struct PEControllerDef: Sendable, Codable, Identifiable {
     public let units: String?
     
     public var displayName: String
+public mutating func cancelAll()
+
 }
 ```
 
@@ -884,6 +886,7 @@ public struct PEControllerDef: Sendable, Codable, Identifiable {
 public enum PEChunkResult: Sendable {
     case incomplete(received: Int, total: Int)
     case complete(header: Data, body: Data)
+    case unknownRequestID(requestID: UInt8)
     case timeout(requestID: UInt8, received: Int, total: Int, partial: Data?)
 }
 
