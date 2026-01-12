@@ -2,6 +2,27 @@
 
 ## 2026-01-12
 
+### Documentation
+
+#### Comprehensive Module Documentation (DocC Compatible)
+**Added detailed documentation to all module entry points:**
+
+- `MIDI2Kit.swift` - Overview, quick start, module structure, requirements
+- `MIDI2Core.swift` - MUID, UMP messages, Mcoded7, logging system
+- `MIDI2CI.swift` - Device discovery, destination mapping, message building/parsing
+- `MIDI2PE.swift` - GET/SET operations, subscriptions, batch requests, error handling
+- `MIDI2Transport.swift` - Connection management, UMP sending, setup changes, testing
+
+All documentation follows DocC format with:
+- Overview sections explaining module purpose
+- Code examples for common use cases  
+- Topics sections organizing related types
+- Cross-references between related APIs
+
+#### Updated Test Count
+- README now reflects 150 passing tests (up from 142+)
+- Test coverage includes new UMP, batch, and subscription APIs
+
 ### Added
 
 #### Batch Request API - Parallel PE Operations
