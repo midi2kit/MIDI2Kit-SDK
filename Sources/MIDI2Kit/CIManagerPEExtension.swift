@@ -27,7 +27,7 @@ extension CIManager {
     ///     if case .deviceDiscovered(let device) = event,
     ///        device.supportsPropertyExchange {
     ///         
-    ///         if let handle = await ciManager.peDeviceHandle(for: device.muid) {
+    ///         if let handle = ciManager.peDeviceHandle(for: device.muid) {
     ///             let response = try await peManager.get("DeviceInfo", from: handle)
     ///             print(response.bodyString ?? "")
     ///         }
@@ -57,7 +57,7 @@ extension CIManager {
     /// ## Example
     ///
     /// ```swift
-    /// let devices = await ciManager.peCapableDevices
+    /// let devices = ciManager.peCapableDevices
     /// for device in devices {
     ///     if let handle = ciManager.peDeviceHandle(for: device) {
     ///         let info = try await peManager.get("DeviceInfo", from: handle)
@@ -87,7 +87,7 @@ extension CIManager {
     /// ## Example
     ///
     /// ```swift
-    /// let handles = await ciManager.peDeviceHandles
+    /// let handles = ciManager.peDeviceHandles
     /// for handle in handles {
     ///     print("Ready for PE: \(handle.debugDescription)")
     /// }

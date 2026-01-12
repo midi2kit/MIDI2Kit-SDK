@@ -2,6 +2,19 @@
 
 ## 2026-01-12
 
+### Documentation
+
+#### Doc Comment `await` Cleanup (v4)
+Removed unnecessary `await` keywords from doc comments in `CIManagerPEExtension.swift`.
+The actual implementations are non-async, so sample code in documentation should match.
+
+**Changes:**
+- `await ciManager.peDeviceHandle(for: device.muid)` → `ciManager.peDeviceHandle(for: device.muid)`
+- `await ciManager.peCapableDevices` → `ciManager.peCapableDevices`
+- `await ciManager.peDeviceHandles` → `ciManager.peDeviceHandles`
+
+**File:** `Sources/MIDI2Kit/CIManagerPEExtension.swift`
+
 ### Fixed
 
 #### UMPGroup / UMPMessageType Ambiguous Type Error
