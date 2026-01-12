@@ -88,9 +88,10 @@ struct UMPValueScalingTests {
         #expect(UMPValueScaling.normalizedTo32(0.0) == 0)
         #expect(UMPValueScaling.normalizedTo32(1.0) == UInt32.max)
         
+        // 0.5 should map to approximately mid-range (allowing for floating-point rounding)
         let halfValue = UMPValueScaling.normalizedTo32(0.5)
-        #expect(halfValue > 0x7FFFFFFF)
-        #expect(halfValue < 0x80000001)
+        #expect(halfValue >= 0x7FFFFFFF)
+        #expect(halfValue <= 0x80000000)
     }
 }
 

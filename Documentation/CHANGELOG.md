@@ -1,5 +1,60 @@
 # MIDI2Kit Changelog
 
+## 2026-01-13
+
+### Added
+
+#### PE Notify Multi-Chunk Assembly Support
+**Support for multi-chunk Property Exchange Notify messages:**
+
+When Notify messages are sent in multiple chunks, the `subscribeId` and `resource` fields may only exist in chunk 1. This patch assembles all chunks before dispatching to the notification stream.
+
+**New Component:**
+- `PENotifyAssemblyManager` - Manages chunk assembly per source device
+
+**Features:**
+- Out-of-order chunk reassembly
+- Duplicate chunk handling (yields only once)
+- Timeout for incomplete assemblies (`pollTimeouts()`)
+- Per-device isolation (different devices can have same requestID)
+
+**Files:**
+- `Sources/MIDI2PE/PENotifyAssemblyManager.swift` (new)
+- `Sources/MIDI2PE/PEManager.swift` (modified - Notify handling)
+- `Tests/MIDI2KitTests/PENotifyAssemblyTests.swift` (new)
+
+### Fixed
+
+#### UMP Value Scaling Test - Boundary Condition
+**Problem:** `Normalized to 32-bit scaling` test failed due to floating-point rounding.
+
+**Error:** `(halfValue → 2147483647) > (0x7FFFFFFF → 2147483647)` - equal values failed `>` check
+
+**Fix:** Changed strict inequality to inclusive:
+```swift
+// Before
+#expect(halfValue > 0x7FFFFFFF)
+#expect(halfValue < 0x80000001)
+
+// After
+#expect(halfValue >= 0x7FFFFFFF)
+#expect(halfValue <= 0x80000000)
+```
+
+#### PE Notify Assembly Tests - Hang Fix
+**Problem:** Tests hung indefinitely waiting on `AsyncStream.next()`.
+
+**Root Cause:**
+- `defer { Task { await cleanup() } }` - async tasks in defer are not guaranteed to execute
+- `while let n = await it.next()` blocks until stream finishes
+
+**Fix:**
+- Explicit cleanup calls at test end (not in defer)
+- Timeout wrapper for stream operations
+- Cancellation checks in collector loops
+
+---
+
 ## 2026-01-12
 
 ### Documentation
