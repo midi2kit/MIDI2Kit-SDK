@@ -394,4 +394,4 @@ See [Documentation/CHANGELOG.md](Documentation/CHANGELOG.md) for detailed versio
 - Added `CIManagerEvent` for event-driven device discovery
 - Fixed Source-to-Destination mapping via Entity
 - Improved responsibility separation between `PETransactionManager` and `PEManager`
-- 142+ tests passing
+- 150 tests passing
