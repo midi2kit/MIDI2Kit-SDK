@@ -83,7 +83,7 @@ for await _ in transport.setupChanged {
 let count = await transport.connectedSourceCount
 print("Connected to \(count) sources")
 ```
-
+ 
 ---
 
 ### 3. PE Chunk Assembly Failures
@@ -318,6 +318,11 @@ try await subscriptionManager.subscribe(
 
 **Solutions:**
 
+**Tip: Ensure deterministic cleanup**
+
+`PEManager` does not automatically stop its receive loop when it is deallocated. Always call `await peManager.stopReceiving()` before releasing it (and call `await transport.shutdown()` in tests to terminate AsyncStreams). If you want a single place to manage this lifecycle, use `PEManagerSession` and call `await session.stop()`.
+
+
 ```swift
 // ✅ Clear tracer periodically
 Timer.scheduledTimer(withTimeInterval: 3600, repeats: true) { _ in
@@ -363,6 +368,8 @@ peManager.destinationResolver = { [weak ciManager] muid in
 - RequestID exhaustion with high maxInflightPerDevice
 
 **Solutions:**
+If your tests still hang, prefer wrapping setup in `PEManagerSession` and call `await session.stop()` in teardown so `stopReceiving()` and `shutdown()` are not forgotten.
+
 
 ```swift
 // ✅ Use valid 28-bit MUIDs in tests
