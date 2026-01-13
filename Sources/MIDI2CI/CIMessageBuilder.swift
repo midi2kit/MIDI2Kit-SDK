@@ -159,6 +159,13 @@ public enum CIMessageBuilder {
     }
     
     /// Build PE Get Inquiry message
+    /// 
+    /// MIDI-CI 1.2 PE Get Inquiry format (M2-105-UM Section 6.4.1):
+    /// - requestID (1 byte, 7-bit)
+    /// - headerLength (2 bytes, 14-bit)
+    /// - headerData (variable)
+    /// 
+    /// Note: Unlike PE Reply, PE Get Inquiry does NOT include numChunks/thisChunk/dataSize
     public static func peGetInquiry(
         sourceMUID: MUID,
         destinationMUID: MUID,
@@ -185,15 +192,7 @@ public enum CIMessageBuilder {
         message.append(UInt8(headerSize & 0x7F))
         message.append(UInt8((headerSize >> 7) & 0x7F))
         
-        // Number of chunks (1 for inquiry)
-        message.append(0x01)
-        message.append(0x00)
-        
-        // This chunk (1)
-        message.append(0x01)
-        message.append(0x00)
-        
-        // Header data
+        // Header data (immediately after headerSize - no numChunks/thisChunk in inquiry)
         message.append(contentsOf: headerData)
         
         message.append(MIDICIConstants.sysExEnd)
@@ -280,6 +279,13 @@ public enum CIMessageBuilder {
     // MARK: - Property Exchange Subscribe
     
     /// Build PE Subscribe Inquiry message
+    /// 
+    /// MIDI-CI 1.2 PE Subscribe format (M2-105-UM Section 6.5):
+    /// - requestID (1 byte, 7-bit)
+    /// - headerLength (2 bytes, 14-bit)
+    /// - headerData (variable)
+    /// 
+    /// Note: Like PE Get Inquiry, Subscribe does NOT include numChunks/thisChunk/dataSize
     public static func peSubscribeInquiry(
         sourceMUID: MUID,
         destinationMUID: MUID,
@@ -306,19 +312,7 @@ public enum CIMessageBuilder {
         message.append(UInt8(headerSize & 0x7F))
         message.append(UInt8((headerSize >> 7) & 0x7F))
         
-        // Number of chunks (1 for inquiry)
-        message.append(0x01)
-        message.append(0x00)
-        
-        // This chunk (1)
-        message.append(0x01)
-        message.append(0x00)
-        
-        // Property data size (0 for subscribe inquiry)
-        message.append(0x00)
-        message.append(0x00)
-        
-        // Header data
+        // Header data (immediately after headerSize)
         message.append(contentsOf: headerData)
         
         message.append(MIDICIConstants.sysExEnd)

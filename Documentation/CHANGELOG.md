@@ -295,6 +295,79 @@ return AsyncStream { continuation in
 
 ---
 
+## 2026-01-11
+
+### Added
+
+#### MIDI 2.0 UMP Support
+**Full support for MIDI 2.0 Universal MIDI Packet messages:**
+
+- **UMPBuilder**: Build MIDI 2.0 and MIDI 1.0 UMP messages
+  - MIDI 2.0 Channel Voice (64-bit): Control Change, Note On/Off, Pitch Bend, Program Change, etc.
+  - Per-Note controllers for MPE: Per-Note Pitch Bend, Per-Note Management
+  - RPN/NRPN with 32-bit resolution
+  - MIDI 1.0 over UMP (32-bit): Wrapped MIDI 1.0 messages
+  - Utility messages: NOOP, JR Clock, JR Timestamp
+
+- **UMPParser**: Parse received UMP messages
+  - Parse into structured `ParsedUMPMessage` enum
+  - Convenience properties for note/velocity/CC values
+  - Automatic value scaling to different resolutions
+
+- **UMPTypes**: Type definitions
+  - `UMPMessageType`: Message types with word counts
+  - `MIDI2ChannelVoiceStatus`: Status codes
+  - `NoteAttributeType`: Note attributes
+  - `ProgramBank`, `ControllerAddress`: Bank/controller types
+  - `RegisteredController`: Common RPN addresses
+  - `PitchBendValue`: Constants for pitch bend
+
+- **UMPValueScaling**: Value conversion utilities
+  - 7-bit ↔ 32-bit scaling
+  - 14-bit ↔ 32-bit scaling
+  - Velocity scaling (7-bit ↔ 16-bit)
+  - Normalized (0.0-1.0) ↔ 32-bit
+
+```swift
+// Build MIDI 2.0 Control Change
+let words = UMPBuilder.midi2ControlChange(
+    group: 0, channel: 0, controller: 74, value: 0x80000000
+)
+
+// Parse received UMP
+if let message = UMPParser.parse(words),
+   case .midi2ChannelVoice(let cv) = message {
+    print("CC \(cv.controllerNumber): \(cv.controllerValue32)")
+}
+```
+
+#### MIDITracer - Diagnostics System
+**Ring buffer for MIDI message tracing:**
+
+- Thread-safe recording (NSLock based)
+- Configurable capacity (default: 200 entries)
+- Enable/disable at runtime
+- Auto-detect MIDI-CI message labels
+- Multiple output formats: `dump()`, `dumpFull()`, `exportJSON()`
+- Time-based and endpoint-based filtering
+- Shared global instance: `MIDITracer.shared`
+
+```swift
+let tracer = MIDITracer(capacity: 100)
+tracer.recordSend(to: destination, data: message)
+tracer.recordReceive(from: source, data: response)
+print(tracer.dump(last: 20))
+```
+
+### Documentation
+
+- Added `Troubleshooting.md` with common issues and solutions
+- Updated API.md with UMP and MIDITracer documentation
+- Updated Architecture.md with UMP component overview
+- Updated BestPractices.md with UMP and MIDITracer guidance
+
+---
+
 ## 2026-01-10 (Session 4-6)
 
 ### Added

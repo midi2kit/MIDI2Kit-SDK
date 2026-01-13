@@ -7,55 +7,6 @@
 
 import Foundation
 
-// MARK: - UMP Message Type
-
-/// MIDI 2.0 UMP Message Type (4-bit field in message header)
-public enum UMPMessageType: UInt8, Sendable {
-    /// Utility messages (32-bit)
-    case utility = 0x0
-    
-    /// System Real Time and System Common (32-bit)
-    case systemRealTime = 0x1
-    
-    /// MIDI 1.0 Channel Voice (32-bit)
-    case midi1ChannelVoice = 0x2
-    
-    /// Data Messages including SysEx (64-bit)
-    case data64 = 0x3
-    
-    /// MIDI 2.0 Channel Voice (64-bit)
-    case midi2ChannelVoice = 0x4
-    
-    /// Data Messages (128-bit)
-    case data128 = 0x5
-    
-    /// Flex Data (128-bit)
-    case flexData = 0xD
-    
-    /// UMP Stream (128-bit)
-    case umpStream = 0xF
-}
-
-// MARK: - UMP Group
-
-/// MIDI 2.0 Group (0-15)
-public struct UMPGroup: Sendable, Hashable, ExpressibleByIntegerLiteral {
-    public let value: UInt8
-    
-    public init(_ value: UInt8) {
-        self.value = value & 0x0F
-    }
-    
-    public init(integerLiteral value: UInt8) {
-        self.init(value)
-    }
-    
-    public static let group0: UMPGroup = 0
-    public static let group1: UMPGroup = 1
-    public static let group2: UMPGroup = 2
-    public static let group3: UMPGroup = 3
-}
-
 // MARK: - UMP Channel
 
 /// MIDI Channel (0-15)
@@ -252,7 +203,7 @@ public enum UMPMIDI2ChannelVoice: UMPMessage, Sendable {
     
     private func makeHeader(status: UInt8, group: UMPGroup, channel: UMPChannel, byte3: UInt8, byte4: UInt8) -> UInt32 {
         let mt = UInt32(UMPMessageType.midi2ChannelVoice.rawValue) << 28
-        let grp = UInt32(group.value) << 24
+        let grp = UInt32(group.rawValue) << 24
         let sts = UInt32(status | channel.value) << 16
         let b3 = UInt32(byte3) << 8
         let b4 = UInt32(byte4)

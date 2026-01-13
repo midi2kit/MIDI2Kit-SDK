@@ -97,6 +97,12 @@ public struct PEResourceEntry: Sendable, Codable, Identifiable {
     /// Encoding type ("ASCII" or "Mcoded7")
     public let mediaType: String?
     
+    /// Supported media types (array format)
+    public let mediaTypes: [String]?
+    
+    /// Column definitions for tabular resources
+    public let columns: [[String: String]]?
+    
     // MARK: - Codable
     
     enum CodingKeys: String, CodingKey {
@@ -108,6 +114,8 @@ public struct PEResourceEntry: Sendable, Codable, Identifiable {
         case canSubscribe
         case requireResId
         case mediaType
+        case mediaTypes
+        case columns
     }
     
     public init(from decoder: Decoder) throws {
@@ -121,6 +129,8 @@ public struct PEResourceEntry: Sendable, Codable, Identifiable {
         canSubscribe = try container.decodeIfPresent(Bool.self, forKey: .canSubscribe) ?? false
         requireResId = try container.decodeIfPresent(Bool.self, forKey: .requireResId) ?? false
         mediaType = try container.decodeIfPresent(String.self, forKey: .mediaType)
+        mediaTypes = try container.decodeIfPresent([String].self, forKey: .mediaTypes)
+        columns = try container.decodeIfPresent([[String: String]].self, forKey: .columns)
     }
     
     public init(
@@ -131,7 +141,9 @@ public struct PEResourceEntry: Sendable, Codable, Identifiable {
         canSet: Bool = false,
         canSubscribe: Bool = false,
         requireResId: Bool = false,
-        mediaType: String? = nil
+        mediaType: String? = nil,
+        mediaTypes: [String]? = nil,
+        columns: [[String: String]]? = nil
     ) {
         self.resource = resource
         self.name = name
@@ -141,5 +153,69 @@ public struct PEResourceEntry: Sendable, Codable, Identifiable {
         self.canSubscribe = canSubscribe
         self.requireResId = requireResId
         self.mediaType = mediaType
+        self.mediaTypes = mediaTypes
+        self.columns = columns
+    }
+}
+
+// MARK: - KORG X-ParameterList
+
+/// KORG proprietary X-ParameterList parameter definition
+///
+/// This represents a parameter from KORG's X-ParameterList resource,
+/// which maps CC numbers to parameter names and default values.
+///
+/// ## JSON Format
+/// ```json
+/// {"name": "EQ High", "controlcc": 100, "default": 64}
+/// ```
+///
+/// ## Usage
+/// ```swift
+/// let response = try await peManager.get(.xParameterList, from: device)
+/// let parameters = try JSONDecoder().decode([XParameterDef].self, from: response.body)
+///
+/// // Build CC name lookup
+/// let ccNames = parameters
+///     .filter { $0.hasCCMapping }
+///     .reduce(into: [Int: String]()) { $0[$1.controlCC] = $1.name }
+/// ```
+public struct XParameterDef: Sendable, Codable, Identifiable {
+    public var id: String { name }
+    
+    /// Parameter display name
+    public let name: String
+    
+    /// CC number (-1 if not assigned to CC)
+    public let controlCC: Int
+    
+    /// Default value (0-127)
+    public let defaultValue: Int
+    
+    /// Whether this parameter is mapped to a CC (0-127)
+    public var hasCCMapping: Bool {
+        controlCC >= 0 && controlCC <= 127
+    }
+    
+    // MARK: - Codable
+    
+    enum CodingKeys: String, CodingKey {
+        case name
+        case controlCC = "controlcc"
+        case defaultValue = "default"
+    }
+    
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        
+        name = try container.decode(String.self, forKey: .name)
+        controlCC = try container.decodeIfPresent(Int.self, forKey: .controlCC) ?? -1
+        defaultValue = try container.decodeIfPresent(Int.self, forKey: .defaultValue) ?? 64
+    }
+    
+    public init(name: String, controlCC: Int, defaultValue: Int = 64) {
+        self.name = name
+        self.controlCC = controlCC
+        self.defaultValue = defaultValue
     }
 }

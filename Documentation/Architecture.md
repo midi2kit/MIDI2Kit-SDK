@@ -84,6 +84,71 @@ MIDI2Kit ──────┬────────────────�
 - `MUID` validates 28-bit constraint (0x0000_0000 - 0x0FFF_FFFF)
 - `Mcoded7` handles encoding in 7-byte groups
 
+**UMP (MIDI 2.0) Support**:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     UMP Components                           │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  UMPBuilder                                                  │
+│    • Build MIDI 2.0 messages (64-bit high resolution)       │
+│    • Build MIDI 1.0 wrapped in UMP (32-bit)                 │
+│    • Build Utility messages (NOOP, JR Clock/Timestamp)      │
+│                                                              │
+│  UMPParser                                                   │
+│    • Parse UMP words into structured messages               │
+│    • Extract message type, group, channel                   │
+│    • Convenience properties for note/velocity/CC values     │
+│                                                              │
+│  UMPTypes                                                    │
+│    • Message type definitions (0x0-0xF)                     │
+│    • Channel Voice status codes                              │
+│    • Note attributes, Bank/Address types                     │
+│                                                              │
+│  UMPValueScaling                                             │
+│    • 7-bit ↔ 32-bit scaling                                 │
+│    • 14-bit ↔ 32-bit scaling (pitch bend)                   │
+│    • Velocity scaling (7-bit ↔ 16-bit)                      │
+│    • Normalized (0.0-1.0) ↔ 32-bit                          │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**MIDITracer (Diagnostics)**:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     MIDITracer                               │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  Ring buffer for MIDI message tracing                        │
+│    • Thread-safe (NSLock based)                             │
+│    • Configurable capacity (default: 200 entries)           │
+│    • Enable/disable at runtime                               │
+│                                                              │
+│  Recording:                                                  │
+│    • record(direction, endpoint, data, label)               │
+│    • recordSend() / recordReceive()                         │
+│                                                              │
+│  Retrieval:                                                  │
+│    • entries / lastEntries(n)                               │
+│    • entries(direction:) / entries(endpoint:)               │
+│    • entries(from:to:) for time range                       │
+│                                                              │
+│  Output:                                                     │
+│    • dump() / dump(last:) / dumpFull()                      │
+│    • exportJSON() for external analysis                     │
+│                                                              │
+│  Auto-label detection:                                       │
+│    • Recognizes MIDI-CI message types                       │
+│    • "Discovery", "PE GET", "PE SET Reply", etc.           │
+│                                                              │
+│  Shared instance: MIDITracer.shared                         │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
 ### MIDI2CI
 
 **Purpose**: MIDI Capability Inquiry message building, parsing, and device management.
@@ -398,6 +463,15 @@ MIDI2Kit uses Swift 6 strict concurrency:
 | `CoreMIDITransport` | `@unchecked Sendable` (uses internal locking) |
 | `ConnectionState` | `@unchecked Sendable` (NSLock for sync access) |
 
+**CoreMIDITransport locking**
+
+`CoreMIDITransport` is marked `@unchecked Sendable` and protects its CoreMIDI client/ports with `shutdownLock`.
+`send()` performs the `MIDISend` call while holding `shutdownLock`, so a concurrent `shutdownSync()` cannot dispose the
+output port mid-send (prevents use-after-dispose crashes). If shutdown has started, `send()` throws
+`MIDITransportError.notInitialized`.
+
+
+
 ## Error Handling
 
 ```swift
@@ -502,6 +576,7 @@ XCTAssert(await mock.wasSent(ciMessageType: 0x70))
 
 ## Version History
 
+- **2026-01-11**: Added MIDI 2.0 UMP support (`UMPBuilder`, `UMPParser`, `UMPTypes`, `UMPValueScaling`), `MIDITracer` for diagnostics
 - **2026-01-10**: Added per-device inflight limiting, `PESubscriptionManager`, `CIManagerEvent`, fixed Source-to-Destination mapping via Entity
 - **2025-01-10**: Added `unknownRequestID` to `PEChunkResult`, improved `MIDITransportError`, responsibility separation between `PETransactionManager` and `PEManager`
 - **2025-01-09**: Initial release with MIDI2Core, MIDI2CI, MIDI2PE, MIDI2Transport
