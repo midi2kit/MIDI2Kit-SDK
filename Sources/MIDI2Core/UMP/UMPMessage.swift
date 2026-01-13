@@ -7,6 +7,9 @@
 
 import Foundation
 
+=======
+// Note: UMPMessageType and UMPGroup are defined in UMPTypes.swift
+
 // MARK: - UMP Channel
 
 /// MIDI Channel (0-15)

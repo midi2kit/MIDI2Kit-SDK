@@ -83,7 +83,7 @@ for await _ in transport.setupChanged {
 let count = await transport.connectedSourceCount
 print("Connected to \(count) sources")
 ```
- 
+
 ---
 
 ### 3. PE Chunk Assembly Failures
@@ -318,11 +318,6 @@ try await subscriptionManager.subscribe(
 
 **Solutions:**
 
-**Tip: Ensure deterministic cleanup**
-
-`PEManager` does not automatically stop its receive loop when it is deallocated. Always call `await peManager.stopReceiving()` before releasing it (and call `await transport.shutdown()` in tests to terminate AsyncStreams). If you want a single place to manage this lifecycle, use `PEManagerSession` and call `await session.stop()`.
-
-
 ```swift
 // ✅ Clear tracer periodically
 Timer.scheduledTimer(withTimeInterval: 3600, repeats: true) { _ in
@@ -368,8 +363,6 @@ peManager.destinationResolver = { [weak ciManager] muid in
 - RequestID exhaustion with high maxInflightPerDevice
 
 **Solutions:**
-If your tests still hang, prefer wrapping setup in `PEManagerSession` and call `await session.stop()` in teardown so `stopReceiving()` and `shutdown()` are not forgotten.
-
 
 ```swift
 // ✅ Use valid 28-bit MUIDs in tests
@@ -474,38 +467,6 @@ for device in devices {
     print("  Dest: \(await ciManager.destination(for: device.muid) ?? "nil")")
 }
 ```
-
----
-
-### 9. Ambiguous Type Lookup Errors
-
-**Symptoms:**
-- Xcode error: `'UMPGroup' is ambiguous for type lookup in this context`
-- Xcode error: `'UMPMessageType' is ambiguous for type lookup in this context`
-- Build fails with ambiguous type errors
-
-**Causes:**
-- Duplicate type definitions in same module
-- Both `UMPTypes.swift` and `UMPMessage.swift` defining same types
-
-**Solutions:**
-
-1. **Apply the fix patch**: The canonical definitions are in `UMPTypes.swift`. Remove any duplicate definitions from `UMPMessage.swift`.
-
-2. **Check for `.value` vs `.rawValue`**:
-   ```swift
-   // Wrong (old duplicate struct had .value)
-   let grp = UInt32(group.value) << 24
-   
-   // Correct (UMPTypes.swift uses .rawValue)
-   let grp = UInt32(group.rawValue) << 24
-   ```
-
-3. **Verify single definition**: Ensure `UMPGroup` and `UMPMessageType` are only defined in `UMPTypes.swift`.
-
-**Prevention:**
-- When adding new types, always check if they already exist in `UMPTypes.swift`
-- Use `// Note: Type defined in UMPTypes.swift` comments for clarity
 
 ---
 

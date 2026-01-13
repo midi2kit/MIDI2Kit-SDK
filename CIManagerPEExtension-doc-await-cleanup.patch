@@ -1,0 +1,33 @@
+diff --git a/Sources/MIDI2Kit/CIManagerPEExtension.swift b/Sources/MIDI2Kit/CIManagerPEExtension.swift
+index 0000000..0000000 100644
+--- a/Sources/MIDI2Kit/CIManagerPEExtension.swift
++++ b/Sources/MIDI2Kit/CIManagerPEExtension.swift
+@@ -29,7 +29,7 @@ extension CIManager {
+     ///     if case .deviceDiscovered(let device) = event,
+     ///        device.supportsPropertyExchange {
+     ///         
+-    ///         if let handle = await ciManager.peDeviceHandle(for: device.muid) {
++    ///         if let handle = ciManager.peDeviceHandle(for: device.muid) {
+     ///             let response = try await peManager.get("DeviceInfo", from: handle)
+     ///             print(response.bodyString ?? "")
+     ///         }
+@@ -57,7 +57,7 @@ extension CIManager {
+     ///
+     /// ```swift
+     /// let devices = await ciManager.peCapableDevices
+     /// for device in devices {
+-    ///     if let handle = ciManager.peDeviceHandle(for: device) {
++    ///     if let handle = ciManager.peDeviceHandle(for: device) {
+     ///         let info = try await peManager.get("DeviceInfo", from: handle)
+     ///     }
+     /// }
+@@ -82,7 +82,7 @@ extension CIManager {
+     ///
+     /// ## Example
+     ///
+     /// ```swift
+-    /// let handles = await ciManager.peDeviceHandles
++    /// let handles = ciManager.peDeviceHandles
+     /// for handle in handles {
+     ///     print("Ready for PE: \(handle.debugDescription)")
+     /// }

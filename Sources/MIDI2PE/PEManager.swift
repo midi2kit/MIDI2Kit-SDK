@@ -223,6 +223,7 @@ public actor PEManager {
     private let transport: any MIDITransport
     private let sourceMUID: MUID
     private let transactionManager: PETransactionManager
+    private let notifyAssemblyManager: PENotifyAssemblyManager
     private let logger: any MIDI2Logger
     
     /// Destination resolver: given a MUID, returns the corresponding destination
@@ -286,11 +287,13 @@ public actor PEManager {
         transport: any MIDITransport,
         sourceMUID: MUID,
         maxInflightPerDevice: Int = 2,
+        notifyAssemblyTimeout: TimeInterval = 2.0,
         logger: any MIDI2Logger = NullMIDI2Logger()
     ) {
         self.transport = transport
         self.sourceMUID = sourceMUID
         self.logger = logger
+        self.notifyAssemblyManager = PENotifyAssemblyManager(timeout: notifyAssemblyTimeout, logger: logger)
         self.transactionManager = PETransactionManager(
             maxInflightPerDevice: maxInflightPerDevice,
             logger: logger
@@ -324,6 +327,7 @@ public actor PEManager {
         
         // Reset transaction manager state (clear isStopped flag)
         await transactionManager.reset()
+        await notifyAssemblyManager.cancelAll()
         
         receiveTask = Task { [weak self] in
             guard let self = self else { return }
@@ -378,6 +382,9 @@ public actor PEManager {
         
         // Release all Request IDs
         await transactionManager.cancelAll()
+
+        // Drop any pending Notify assemblies
+        await notifyAssemblyManager.cancelAll()
         
         logger.info("Stopped receiving", category: Self.logCategory)
     }
@@ -1279,7 +1286,44 @@ public actor PEManager {
         // Try Notify
         if let notify = CIMessageParser.parseFullNotify(data) {
             if notify.destinationMUID == sourceMUID {
-                handleNotify(notify)
+                // Notify may be multi-chunk. For multi-chunk, the subscribeId/resource
+                // may only exist in chunk 1, so we must assemble before dispatch.
+                if notify.numChunks <= 1 {
+                    handleNotify(notify)
+                } else {
+                    let result = await notifyAssemblyManager.processChunk(
+                        sourceMUID: notify.sourceMUID,
+                        requestID: notify.requestID,
+                        thisChunk: notify.thisChunk,
+                        numChunks: notify.numChunks,
+                        headerData: notify.headerData,
+                        propertyData: notify.propertyData
+                    )
+
+                    switch result {
+                    case .complete(let header, let body):
+                        let info = parseNotifyHeaderInfo(header)
+                        handleNotifyParts(
+                            sourceMUID: notify.sourceMUID,
+                            subscribeId: info.subscribeId,
+                            resource: info.resource,
+                            headerData: header,
+                            propertyData: body
+                        )
+                    case .incomplete:
+                        break
+                    case .timeout(let id, let received, let expected, _):
+                        logger.warning(
+                            "Notify chunk timeout [\(id)]: \(received)/\(expected) chunks",
+                            category: Self.logCategory
+                        )
+                    case .unknownRequestID(let id):
+                        logger.debug(
+                            "Ignoring notify for unknown [\(id)]",
+                            category: Self.logCategory
+                        )
+                    }
+                }
             }
             return
         }
@@ -1470,44 +1514,81 @@ public actor PEManager {
     }
     
     private func handleNotify(_ notify: CIMessageParser.FullNotify) {
-        guard let subscribeId = notify.subscribeId else {
+        handleNotifyParts(
+            sourceMUID: notify.sourceMUID,
+            subscribeId: notify.subscribeId,
+            resource: notify.resource,
+            headerData: notify.headerData,
+            propertyData: notify.propertyData
+        )
+    }
+
+    private func handleNotifyParts(
+        sourceMUID: MUID,
+        subscribeId: String?,
+        resource: String?,
+        headerData: Data,
+        propertyData: Data
+    ) {
+        guard let subscribeId = subscribeId else {
             logger.warning("Notify without subscribeId", category: Self.logCategory)
             return
         }
-        
+
         guard let subscription = activeSubscriptions[subscribeId] else {
             logger.debug("Notify for unknown subscription: \(subscribeId)", category: Self.logCategory)
             return
         }
-        
+
         let parsedHeader: PEHeader?
-        if !notify.headerData.isEmpty {
-            parsedHeader = try? JSONDecoder().decode(PEHeader.self, from: notify.headerData)
+        if !headerData.isEmpty {
+            parsedHeader = try? JSONDecoder().decode(PEHeader.self, from: headerData)
         } else {
             parsedHeader = nil
         }
-        
+
         let decodedData: Data
         if parsedHeader?.isMcoded7 == true {
-            decodedData = Mcoded7.decode(notify.propertyData) ?? notify.propertyData
+            decodedData = Mcoded7.decode(propertyData) ?? propertyData
         } else {
-            decodedData = notify.propertyData
+            decodedData = propertyData
         }
-        
+
         let notification = PENotification(
-            resource: notify.resource ?? subscription.resource,
+            resource: resource ?? subscription.resource,
             subscribeId: subscribeId,
             header: parsedHeader,
             data: decodedData,
-            sourceMUID: notify.sourceMUID
+            sourceMUID: sourceMUID
         )
-        
+
         logger.debug(
             "Notify \(notification.resource) [\(subscribeId)] \(decodedData.count)B",
             category: Self.logCategory
         )
-        
+
         notificationContinuation?.yield(notification)
+    }
+
+    private func parseNotifyHeaderInfo(_ headerData: Data) -> (subscribeId: String?, resource: String?) {
+        guard !headerData.isEmpty,
+              let json = try? JSONSerialization.jsonObject(with: headerData) as? [String: Any] else {
+            return (nil, nil)
+        }
+        return (
+            json["subscribeId"] as? String,
+            json["resource"] as? String
+        )
+    }
+
+    // MARK: - Testing Hooks (internal)
+
+    internal func pollNotifyTimeoutsForTesting() async -> [PENotifyTimeout] {
+        await notifyAssemblyManager.pollTimeouts()
+    }
+
+    internal func notifyPendingCountForTesting() async -> Int {
+        await notifyAssemblyManager.pendingCount
     }
     
     // MARK: - Diagnostics
