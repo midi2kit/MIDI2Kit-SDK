@@ -464,11 +464,27 @@ public final class CoreMIDITransport: MIDITransport, @unchecked Sendable {
         }
     }
     
-    private func getEndpointName(_ endpoint: MIDIEndpointRef) -> String {
-        var name: Unmanaged<CFString>?
-        MIDIObjectGetStringProperty(endpoint, kMIDIPropertyDisplayName, &name)
-        return (name?.takeRetainedValue() as String?) ?? "Unknown"
+private func getEndpointName(_ endpoint: MIDIEndpointRef) -> String {
+    func read(_ prop: CFString) -> String? {
+        var unmanaged: Unmanaged<CFString>?
+        let status = MIDIObjectGetStringProperty(endpoint, prop, &unmanaged)
+        guard status == noErr, let cf = unmanaged?.takeRetainedValue() else { return nil }
+        let s = (cf as String).trimmingCharacters(in: .whitespacesAndNewlines)
+        return s.isEmpty ? nil : s
     }
+
+    // Prefer the raw name (often closer to a “port/module name”)
+    if let name = read(kMIDIPropertyName) {
+        return name
+    }
+    // Fallback to display name
+    if let display = read(kMIDIPropertyDisplayName) {
+        return display
+    }
+    return "Unknown"
+}
+
+
     
     private func getEndpointManufacturer(_ endpoint: MIDIEndpointRef) -> String? {
         var manufacturer: Unmanaged<CFString>?
