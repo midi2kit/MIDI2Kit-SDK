@@ -6,8 +6,6 @@
 //
 
 import Foundation
-
-=======
 // Note: UMPMessageType and UMPGroup are defined in UMPTypes.swift
 
 // MARK: - UMP Channel

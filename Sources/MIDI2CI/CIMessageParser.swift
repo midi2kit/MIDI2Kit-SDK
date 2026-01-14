@@ -141,39 +141,36 @@ public enum CIMessageParser {
     /// MIDI-CI 1.2 PE Reply format (M2-105-UM Section 6.4.2):
     /// - requestID (1 byte)
     /// - headerLength (2 bytes, 14-bit encoded)
-    /// - headerData (headerLength bytes)
     /// - numChunks (2 bytes, 14-bit encoded)
     /// - thisChunk (2 bytes, 14-bit encoded)
     /// - dataLength (2 bytes, 14-bit encoded)
+    /// - headerData (headerLength bytes)
     /// - propertyData (dataLength bytes)
     public static func parsePEReply(_ payload: [UInt8]) -> PEReplyPayload? {
-        // Minimum: requestID(1) + headerSize(2) = 3 bytes
-        guard payload.count >= 3 else { return nil }
+        // Minimum: requestID(1) + headerSize(2) + numChunks(2) + thisChunk(2) + dataSize(2) = 9 bytes
+        guard payload.count >= 9 else { return nil }
         
         let requestID = payload[0] & 0x7F
         
         // Header size (14-bit)
         let headerSize = Int(payload[1]) | (Int(payload[2]) << 7)
         
-        // Extract header data (comes immediately after headerSize)
-        let headerStart = 3
-        let headerEnd = headerStart + headerSize
-        guard payload.count >= headerEnd + 6 else { return nil } // Need 6 more bytes for chunks/dataSize
-        let headerData = Data(payload[headerStart..<headerEnd])
-        
-        // Number of chunks (14-bit) - after header data
-        let numChunks = Int(payload[headerEnd]) | (Int(payload[headerEnd + 1]) << 7)
+        // Number of chunks (14-bit)
+        let numChunks = Int(payload[3]) | (Int(payload[4]) << 7)
         
         // This chunk (14-bit)
-        let thisChunk = Int(payload[headerEnd + 2]) | (Int(payload[headerEnd + 3]) << 7)
+        let thisChunk = Int(payload[5]) | (Int(payload[6]) << 7)
         
         // Property data size (14-bit)
-        let dataSize = Int(payload[headerEnd + 4]) | (Int(payload[headerEnd + 5]) << 7)
+        let dataSize = Int(payload[7]) | (Int(payload[8]) << 7)
         
-        // Extract property data
-        let dataStart = headerEnd + 6
+        // Extract header data (comes after the size fields)
+        let headerStart = 9
+        let headerEnd = headerStart + headerSize
+        let dataStart = headerEnd
         let dataEnd = dataStart + dataSize
         guard payload.count >= dataEnd else { return nil }
+        let headerData = Data(payload[headerStart..<headerEnd])
         let propertyData = Data(payload[dataStart..<dataEnd])
         
         return PEReplyPayload(
