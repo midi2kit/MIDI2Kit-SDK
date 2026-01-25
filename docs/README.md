@@ -14,6 +14,12 @@ MIDI2Kit プロジェクトの開発ドキュメント集です。
 |------------|------|
 | [API Reference](./API_Reference.md) | 全モジュールのAPI仕様書 |
 
+## UIモックアップ
+
+| モックアップ | 説明 |
+|------------|------|
+| [Demo App](./mockups/demo-app.html) | MIDI2Kit Explorer デモアプリUI |
+
 ## プロジェクト概要
 
 **MIDI2Kit** は、MIDI 2.0 (UMP, MIDI-CI等) を扱うためのクロスプラットフォーム開発ライブラリ/SDKです。
