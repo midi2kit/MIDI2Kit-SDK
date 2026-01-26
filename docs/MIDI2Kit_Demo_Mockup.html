@@ -1,0 +1,1180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MIDI2Kit - Demo App Mockup</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=SF+Pro+Display:wght@300;400;500;600;700&family=SF+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #1c1c1e;
+            --bg-secondary: #2c2c2e;
+            --bg-tertiary: #3a3a3c;
+            --bg-elevated: #48484a;
+            --text-primary: #ffffff;
+            --text-secondary: rgba(255, 255, 255, 0.7);
+            --text-tertiary: rgba(255, 255, 255, 0.5);
+            --accent-blue: #0a84ff;
+            --accent-blue-light: #409cff;
+            --accent-green: #30d158;
+            --accent-orange: #ff9f0a;
+            --accent-red: #ff453a;
+            --accent-purple: #bf5af2;
+            --border-color: rgba(255, 255, 255, 0.1);
+            --glass-bg: rgba(255, 255, 255, 0.05);
+            --shadow-color: rgba(0, 0, 0, 0.3);
+            --ump-word-bg: rgba(10, 132, 255, 0.15);
+            --ump-accent: #0a84ff;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Helvetica Neue', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* App Container */
+        .app-container {
+            display: grid;
+            grid-template-columns: 280px 1fr 320px;
+            grid-template-rows: 52px 1fr;
+            height: 100vh;
+            gap: 1px;
+            background: var(--border-color);
+        }
+
+        /* Title Bar */
+        .title-bar {
+            grid-column: 1 / -1;
+            background: var(--bg-secondary);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 16px;
+            -webkit-app-region: drag;
+        }
+
+        .window-controls {
+            display: flex;
+            gap: 8px;
+            -webkit-app-region: no-drag;
+        }
+
+        .window-btn {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            border: none;
+            cursor: pointer;
+        }
+
+        .window-btn.close { background: #ff5f57; }
+        .window-btn.minimize { background: #ffbd2e; }
+        .window-btn.maximize { background: #28c840; }
+
+        .app-title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-secondary);
+        }
+
+        .app-logo {
+            width: 24px;
+            height: 24px;
+            background: linear-gradient(135deg, #e8f4fc 0%, #c5dff0 100%);
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            font-weight: 700;
+            color: #1c1c1e;
+        }
+
+        .connection-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .status-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--accent-green);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* Sidebar - Device List */
+        .sidebar {
+            background: var(--bg-secondary);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .sidebar-header {
+            padding: 16px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .sidebar-title {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-tertiary);
+            margin-bottom: 12px;
+        }
+
+        .search-box {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+            padding: 8px 12px;
+        }
+
+        .search-box svg {
+            width: 14px;
+            height: 14px;
+            color: var(--text-tertiary);
+        }
+
+        .search-box input {
+            flex: 1;
+            background: none;
+            border: none;
+            color: var(--text-primary);
+            font-size: 13px;
+            outline: none;
+        }
+
+        .search-box input::placeholder {
+            color: var(--text-tertiary);
+        }
+
+        .device-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px;
+        }
+
+        .device-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin-bottom: 4px;
+        }
+
+        .device-item:hover {
+            background: var(--glass-bg);
+        }
+
+        .device-item.active {
+            background: var(--accent-blue);
+        }
+
+        .device-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            background: var(--bg-tertiary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+        }
+
+        .device-item.active .device-icon {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .device-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .device-name {
+            font-size: 13px;
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .device-meta {
+            font-size: 11px;
+            color: var(--text-tertiary);
+            margin-top: 2px;
+        }
+
+        .device-item.active .device-meta {
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .device-badges {
+            display: flex;
+            gap: 4px;
+        }
+
+        .badge {
+            font-size: 9px;
+            font-weight: 600;
+            padding: 2px 6px;
+            border-radius: 4px;
+            background: var(--bg-tertiary);
+            color: var(--text-secondary);
+        }
+
+        .badge.pe {
+            background: rgba(48, 209, 88, 0.2);
+            color: var(--accent-green);
+        }
+
+        .device-item.active .badge {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+        }
+
+        /* Main Content */
+        .main-content {
+            background: var(--bg-primary);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .content-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .device-title-section {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .device-title-icon {
+            width: 56px;
+            height: 56px;
+            border-radius: 14px;
+            background: linear-gradient(135deg, var(--accent-blue) 0%, var(--accent-purple) 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+        }
+
+        .device-title-text h1 {
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .device-title-text p {
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 16px;
+            border-radius: 8px;
+            border: none;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-primary {
+            background: var(--accent-blue);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--accent-blue-light);
+        }
+
+        .btn-secondary {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        .btn-secondary:hover {
+            background: var(--bg-elevated);
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 4px;
+            padding: 0 24px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .tab {
+            padding: 12px 16px;
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s ease;
+        }
+
+        .tab:hover {
+            color: var(--text-primary);
+        }
+
+        .tab.active {
+            color: var(--accent-blue);
+            border-bottom-color: var(--accent-blue);
+        }
+
+        /* Content Scroll Area */
+        .content-scroll {
+            flex: 1;
+            overflow-y: auto;
+            padding: 24px;
+        }
+
+        /* Property Cards */
+        .property-section {
+            margin-bottom: 32px;
+        }
+
+        .section-title {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-tertiary);
+            margin-bottom: 12px;
+        }
+
+        .property-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 12px;
+        }
+
+        .property-card {
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            padding: 16px;
+            border: 1px solid var(--border-color);
+            transition: all 0.2s ease;
+        }
+
+        .property-card:hover {
+            border-color: var(--accent-blue);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px var(--shadow-color);
+        }
+
+        .property-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 12px;
+        }
+
+        .property-name {
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .property-actions {
+            display: flex;
+            gap: 4px;
+        }
+
+        .property-action {
+            width: 24px;
+            height: 24px;
+            border-radius: 6px;
+            background: var(--bg-tertiary);
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            transition: all 0.2s ease;
+        }
+
+        .property-action:hover {
+            background: var(--accent-blue);
+            color: white;
+        }
+
+        .property-value {
+            font-family: 'SF Mono', 'Menlo', monospace;
+            font-size: 12px;
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+            padding: 12px;
+            color: var(--accent-green);
+            word-break: break-all;
+            line-height: 1.5;
+        }
+
+        .property-meta {
+            display: flex;
+            gap: 12px;
+            margin-top: 12px;
+            font-size: 11px;
+            color: var(--text-tertiary);
+        }
+
+        .property-meta span {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        /* Resource List Table */
+        .resource-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .resource-table th,
+        .resource-table td {
+            padding: 12px 16px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .resource-table th {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-tertiary);
+            background: var(--bg-tertiary);
+        }
+
+        .resource-table td {
+            font-size: 13px;
+        }
+
+        .resource-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .resource-table tr:hover td {
+            background: var(--glass-bg);
+        }
+
+        .resource-name {
+            font-family: 'SF Mono', 'Menlo', monospace;
+            color: var(--accent-blue);
+        }
+
+        .capability-badges {
+            display: flex;
+            gap: 4px;
+        }
+
+        .cap-badge {
+            font-size: 10px;
+            font-weight: 600;
+            padding: 3px 8px;
+            border-radius: 4px;
+        }
+
+        .cap-badge.get {
+            background: rgba(48, 209, 88, 0.15);
+            color: var(--accent-green);
+        }
+
+        .cap-badge.set {
+            background: rgba(255, 159, 10, 0.15);
+            color: var(--accent-orange);
+        }
+
+        .cap-badge.sub {
+            background: rgba(191, 90, 242, 0.15);
+            color: var(--accent-purple);
+        }
+
+        /* Inspector Panel */
+        .inspector {
+            background: var(--bg-secondary);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .inspector-header {
+            padding: 16px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .inspector-title {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-tertiary);
+        }
+
+        .inspector-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px;
+        }
+
+        /* UMP Visualizer */
+        .ump-visualizer {
+            margin-bottom: 24px;
+        }
+
+        .ump-packet {
+            background: var(--bg-tertiary);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 12px;
+        }
+
+        .ump-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .ump-type {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--accent-blue);
+        }
+
+        .ump-timestamp {
+            font-size: 10px;
+            color: var(--text-tertiary);
+            font-family: 'SF Mono', 'Menlo', monospace;
+        }
+
+        .ump-words {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 4px;
+        }
+
+        .ump-word {
+            background: var(--ump-word-bg);
+            border-radius: 6px;
+            padding: 8px;
+            text-align: center;
+            font-family: 'SF Mono', 'Menlo', monospace;
+            font-size: 11px;
+            color: var(--text-primary);
+            position: relative;
+        }
+
+        .ump-word:first-child::before {
+            content: '';
+            position: absolute;
+            top: 4px;
+            left: 4px;
+            width: 6px;
+            height: 6px;
+            background: var(--ump-accent);
+            border-radius: 50%;
+        }
+
+        .ump-word-label {
+            font-size: 9px;
+            color: var(--text-tertiary);
+            margin-top: 4px;
+        }
+
+        /* Activity Log */
+        .activity-log {
+            margin-top: 24px;
+        }
+
+        .log-entry {
+            display: flex;
+            gap: 12px;
+            padding: 10px 0;
+            border-bottom: 1px solid var(--border-color);
+            font-size: 12px;
+        }
+
+        .log-time {
+            font-family: 'SF Mono', 'Menlo', monospace;
+            color: var(--text-tertiary);
+            flex-shrink: 0;
+        }
+
+        .log-icon {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            flex-shrink: 0;
+        }
+
+        .log-icon.send {
+            background: rgba(10, 132, 255, 0.2);
+            color: var(--accent-blue);
+        }
+
+        .log-icon.receive {
+            background: rgba(48, 209, 88, 0.2);
+            color: var(--accent-green);
+        }
+
+        .log-icon.error {
+            background: rgba(255, 69, 58, 0.2);
+            color: var(--accent-red);
+        }
+
+        .log-message {
+            flex: 1;
+            color: var(--text-secondary);
+        }
+
+        .log-message strong {
+            color: var(--text-primary);
+        }
+
+        /* Request Builder */
+        .request-builder {
+            background: var(--bg-tertiary);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 24px;
+        }
+
+        .request-builder h4 {
+            font-size: 12px;
+            font-weight: 600;
+            margin-bottom: 12px;
+        }
+
+        .input-group {
+            margin-bottom: 12px;
+        }
+
+        .input-group label {
+            display: block;
+            font-size: 11px;
+            color: var(--text-tertiary);
+            margin-bottom: 6px;
+        }
+
+        .input-group input,
+        .input-group select {
+            width: 100%;
+            padding: 10px 12px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 13px;
+            outline: none;
+            transition: border-color 0.2s ease;
+        }
+
+        .input-group input:focus,
+        .input-group select:focus {
+            border-color: var(--accent-blue);
+        }
+
+        .btn-send {
+            width: 100%;
+            padding: 12px;
+            background: var(--accent-blue);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn-send:hover {
+            background: var(--accent-blue-light);
+        }
+
+        /* Empty State */
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 300px;
+            color: var(--text-tertiary);
+        }
+
+        .empty-state svg {
+            width: 64px;
+            height: 64px;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+
+        .empty-state p {
+            font-size: 14px;
+        }
+
+        /* Scrollbar Styling */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--bg-elevated);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--text-tertiary);
+        }
+
+        /* Animation */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .property-card,
+        .device-item,
+        .log-entry {
+            animation: fadeIn 0.3s ease;
+        }
+
+        /* Data Flow Arrow Animation */
+        .data-flow {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 16px 0;
+        }
+
+        .data-flow-arrow {
+            flex: 1;
+            height: 2px;
+            background: linear-gradient(90deg, var(--accent-blue), var(--accent-purple));
+            position: relative;
+            overflow: hidden;
+        }
+
+        .data-flow-arrow::after {
+            content: '';
+            position: absolute;
+            top: -3px;
+            right: -4px;
+            width: 0;
+            height: 0;
+            border-left: 8px solid var(--accent-purple);
+            border-top: 4px solid transparent;
+            border-bottom: 4px solid transparent;
+        }
+
+        .data-flow-arrow::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 20px;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.5), transparent);
+            animation: flowPulse 1.5s infinite;
+        }
+
+        @keyframes flowPulse {
+            0% { left: -20px; }
+            100% { left: 100%; }
+        }
+
+        .data-flow-label {
+            font-size: 10px;
+            color: var(--text-tertiary);
+            white-space: nowrap;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Title Bar -->
+        <div class="title-bar">
+            <div class="window-controls">
+                <button class="window-btn close"></button>
+                <button class="window-btn minimize"></button>
+                <button class="window-btn maximize"></button>
+            </div>
+            <div class="app-title">
+                <div class="app-logo">M2</div>
+                <span>MIDI2Kit Explorer</span>
+            </div>
+            <div class="connection-status">
+                <span class="status-indicator"></span>
+                <span>CoreMIDI Connected</span>
+            </div>
+        </div>
+
+        <!-- Sidebar - Device List -->
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <div class="sidebar-title">Discovered Devices</div>
+                <div class="search-box">
+                    <svg viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd"/>
+                    </svg>
+                    <input type="text" placeholder="Filter devices...">
+                </div>
+            </div>
+            <div class="device-list">
+                <div class="device-item active">
+                    <div class="device-icon">🎹</div>
+                    <div class="device-info">
+                        <div class="device-name">Fantom-0 Series</div>
+                        <div class="device-meta">Roland • MUID: 0x1A2B3C4D</div>
+                    </div>
+                    <div class="device-badges">
+                        <span class="badge pe">PE</span>
+                    </div>
+                </div>
+                <div class="device-item">
+                    <div class="device-icon">🎛️</div>
+                    <div class="device-info">
+                        <div class="device-name">Montage M8x</div>
+                        <div class="device-meta">Yamaha • MUID: 0x5E6F7A8B</div>
+                    </div>
+                    <div class="device-badges">
+                        <span class="badge pe">PE</span>
+                    </div>
+                </div>
+                <div class="device-item">
+                    <div class="device-icon">🔊</div>
+                    <div class="device-info">
+                        <div class="device-name">Integra-7</div>
+                        <div class="device-meta">Roland • MUID: 0x9C0D1E2F</div>
+                    </div>
+                    <div class="device-badges">
+                        <span class="badge">CI</span>
+                    </div>
+                </div>
+                <div class="device-item">
+                    <div class="device-icon">🎚️</div>
+                    <div class="device-info">
+                        <div class="device-name">MODX+</div>
+                        <div class="device-meta">Yamaha • MUID: 0xA1B2C3D4</div>
+                    </div>
+                    <div class="device-badges">
+                        <span class="badge pe">PE</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <div class="content-header">
+                <div class="device-title-section">
+                    <div class="device-title-icon">🎹</div>
+                    <div class="device-title-text">
+                        <h1>Fantom-0 Series</h1>
+                        <p>Roland Corporation • Software Rev. 1.50</p>
+                    </div>
+                </div>
+                <div class="action-buttons">
+                    <button class="btn btn-secondary">
+                        <span>↻</span> Refresh
+                    </button>
+                    <button class="btn btn-primary">
+                        <span>+</span> Subscribe
+                    </button>
+                </div>
+            </div>
+
+            <div class="tabs">
+                <div class="tab active">Device Info</div>
+                <div class="tab">Resources</div>
+                <div class="tab">Properties</div>
+                <div class="tab">Subscriptions</div>
+            </div>
+
+            <div class="content-scroll">
+                <!-- Device Info Section -->
+                <div class="property-section">
+                    <div class="section-title">Device Identity</div>
+                    <div class="property-grid">
+                        <div class="property-card">
+                            <div class="property-header">
+                                <span class="property-name">Manufacturer</span>
+                                <div class="property-actions">
+                                    <button class="property-action">📋</button>
+                                </div>
+                            </div>
+                            <div class="property-value">Roland Corporation</div>
+                            <div class="property-meta">
+                                <span>ID: [0x41, 0x00, 0x00]</span>
+                            </div>
+                        </div>
+                        <div class="property-card">
+                            <div class="property-header">
+                                <span class="property-name">Product Name</span>
+                                <div class="property-actions">
+                                    <button class="property-action">📋</button>
+                                </div>
+                            </div>
+                            <div class="property-value">Fantom-0 Series</div>
+                            <div class="property-meta">
+                                <span>Family: 0x0001</span>
+                                <span>Model: 0x0015</span>
+                            </div>
+                        </div>
+                        <div class="property-card">
+                            <div class="property-header">
+                                <span class="property-name">Software Version</span>
+                                <div class="property-actions">
+                                    <button class="property-action">📋</button>
+                                </div>
+                            </div>
+                            <div class="property-value">1.50.00.00</div>
+                            <div class="property-meta">
+                                <span>Version ID: 0x01500000</span>
+                            </div>
+                        </div>
+                        <div class="property-card">
+                            <div class="property-header">
+                                <span class="property-name">Instance ID</span>
+                                <div class="property-actions">
+                                    <button class="property-action">📋</button>
+                                </div>
+                            </div>
+                            <div class="property-value">FA-08-00-01-2A-3B-4C-5D</div>
+                            <div class="property-meta">
+                                <span>Unique per device</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Resource List Section -->
+                <div class="property-section">
+                    <div class="section-title">Available Resources</div>
+                    <table class="resource-table">
+                        <thead>
+                            <tr>
+                                <th>Resource</th>
+                                <th>Capabilities</th>
+                                <th>Description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><span class="resource-name">DeviceInfo</span></td>
+                                <td>
+                                    <div class="capability-badges">
+                                        <span class="cap-badge get">GET</span>
+                                    </div>
+                                </td>
+                                <td>Device identification info</td>
+                            </tr>
+                            <tr>
+                                <td><span class="resource-name">ResourceList</span></td>
+                                <td>
+                                    <div class="capability-badges">
+                                        <span class="cap-badge get">GET</span>
+                                    </div>
+                                </td>
+                                <td>List of available resources</td>
+                            </tr>
+                            <tr>
+                                <td><span class="resource-name">ProgramList</span></td>
+                                <td>
+                                    <div class="capability-badges">
+                                        <span class="cap-badge get">GET</span>
+                                        <span class="cap-badge sub">SUB</span>
+                                    </div>
+                                </td>
+                                <td>Available programs/patches</td>
+                            </tr>
+                            <tr>
+                                <td><span class="resource-name">CurrentProgram</span></td>
+                                <td>
+                                    <div class="capability-badges">
+                                        <span class="cap-badge get">GET</span>
+                                        <span class="cap-badge set">SET</span>
+                                        <span class="cap-badge sub">SUB</span>
+                                    </div>
+                                </td>
+                                <td>Currently selected program</td>
+                            </tr>
+                            <tr>
+                                <td><span class="resource-name">ChannelList</span></td>
+                                <td>
+                                    <div class="capability-badges">
+                                        <span class="cap-badge get">GET</span>
+                                        <span class="cap-badge set">SET</span>
+                                    </div>
+                                </td>
+                                <td>MIDI channel configuration</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Inspector Panel -->
+        <div class="inspector">
+            <div class="inspector-header">
+                <div class="inspector-title">UMP Inspector</div>
+            </div>
+            <div class="inspector-content">
+                <!-- Request Builder -->
+                <div class="request-builder">
+                    <h4>Property Exchange Request</h4>
+                    <div class="input-group">
+                        <label>Operation</label>
+                        <select>
+                            <option>GET</option>
+                            <option>SET</option>
+                            <option>SUBSCRIBE</option>
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <label>Resource</label>
+                        <input type="text" value="DeviceInfo" placeholder="Resource name...">
+                    </div>
+                    <button class="btn-send">Send Request →</button>
+                </div>
+
+                <!-- UMP Visualizer -->
+                <div class="ump-visualizer">
+                    <div class="section-title">Last UMP Packet</div>
+                    <div class="ump-packet">
+                        <div class="ump-header">
+                            <span class="ump-type">Data128 (SysEx8)</span>
+                            <span class="ump-timestamp">12:34:56.789</span>
+                        </div>
+                        <div class="ump-words">
+                            <div class="ump-word">
+                                <div>0x50F07E7F</div>
+                                <div class="ump-word-label">MT + Group</div>
+                            </div>
+                            <div class="ump-word">
+                                <div>0x0D700000</div>
+                                <div class="ump-word-label">SubID + MUID</div>
+                            </div>
+                            <div class="ump-word">
+                                <div>0x1A2B3C4D</div>
+                                <div class="ump-word-label">Dest MUID</div>
+                            </div>
+                            <div class="ump-word">
+                                <div>0x01000000</div>
+                                <div class="ump-word-label">Request ID</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="data-flow">
+                        <div class="data-flow-label">TX</div>
+                        <div class="data-flow-arrow"></div>
+                        <div class="data-flow-label">Device</div>
+                    </div>
+                </div>
+
+                <!-- Activity Log -->
+                <div class="activity-log">
+                    <div class="section-title">Activity</div>
+                    <div class="log-entry">
+                        <span class="log-time">12:34:56</span>
+                        <div class="log-icon receive">↓</div>
+                        <div class="log-message">
+                            <strong>PE Reply</strong> DeviceInfo (200 OK)
+                        </div>
+                    </div>
+                    <div class="log-entry">
+                        <span class="log-time">12:34:56</span>
+                        <div class="log-icon send">↑</div>
+                        <div class="log-message">
+                            <strong>PE GET</strong> DeviceInfo
+                        </div>
+                    </div>
+                    <div class="log-entry">
+                        <span class="log-time">12:34:55</span>
+                        <div class="log-icon receive">↓</div>
+                        <div class="log-message">
+                            <strong>Discovery Reply</strong> from Fantom-0
+                        </div>
+                    </div>
+                    <div class="log-entry">
+                        <span class="log-time">12:34:55</span>
+                        <div class="log-icon send">↑</div>
+                        <div class="log-message">
+                            <strong>Discovery Inquiry</strong> broadcast
+                        </div>
+                    </div>
+                    <div class="log-entry">
+                        <span class="log-time">12:34:50</span>
+                        <div class="log-icon receive">↓</div>
+                        <div class="log-message">
+                            <strong>Connected</strong> CoreMIDI initialized
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
