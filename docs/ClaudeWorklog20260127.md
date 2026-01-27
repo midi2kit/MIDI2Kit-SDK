@@ -141,3 +141,21 @@
 決定事項: ネットワーク無効のためユーザーに手動pushを依頼
 次のTODO: ユーザーが手動でgit pushを実行
 ---
+
+---
+2026-01-27 11:34
+作業項目: MIDI2Kitリポジトリ整理
+追加機能の説明: 不要なMIDI2Explorerディレクトリを削除
+決定事項:
+  - メイン: /Users/hakaru/Desktop/Develop/MIDI2Explorer
+  - 削除: /Users/hakaru/Desktop/Develop/MIDI2Kit/Sources/MIDI2Explorer
+次のTODO: 削除実行
+---
+
+---
+2026-01-27 11:38
+作業項目: Git履歴からMIDI2Explorerを完全削除
+追加機能の説明: git filter-branchでSources/MIDI2Explorerの全履歴を削除
+決定事項: ネットワーク無効のためユーザーが手動実行
+次のTODO: ユーザーがコマンドを実行、force push
+---
