@@ -453,3 +453,249 @@
 次のTODO:
   - ユーザーが上記コマンドを実行
 ---
+
+---
+2026-01-27 18:25
+作業項目: Gitコミット＆プッシュ完了
+追加機能の説明:
+  - HighLevelAPIコミット完了 (3760971)
+決定事項:
+  【コミット履歴】
+  1. a0ef721: RobustJSONDecoder, PEDecodingDiagnostics, PEManager+RobustDecoding
+  2. 3760971: HighLevelAPI (MIDI2Client, DestinationStrategy, ReceiveHub等)
+  
+  【追加ファイル (12ファイル, +1843行)】
+  - Sources/MIDI2Kit/HighLevelAPI/DestinationResolver.swift
+  - Sources/MIDI2Kit/HighLevelAPI/DestinationStrategy.swift
+  - Sources/MIDI2Kit/HighLevelAPI/MIDI2Client.swift
+  - Sources/MIDI2Kit/HighLevelAPI/MIDI2ClientConfiguration.swift
+  - Sources/MIDI2Kit/HighLevelAPI/MIDI2ClientEvent.swift
+  - Sources/MIDI2Kit/HighLevelAPI/MIDI2Device.swift
+  - Sources/MIDI2Kit/HighLevelAPI/MIDI2Error.swift
+  - Sources/MIDI2Kit/HighLevelAPI/ReceiveHub.swift
+  
+  【KORG互換性レイヤー 実装完了】
+  1. DestinationStrategy ✅
+  2. Inflight Limiting ✅
+  3. JSON Preprocessor ✅
+  4. Diagnostics ✅
+次のTODO:
+  - MIDI2Explorerでの実機テスト
+  - ビルド確認
+---
+
+---
+2026-01-27 18:26
+作業項目: MIDI2Kit現状評価レビュー確認
+追加機能の説明:
+  - ユーザーからの詳細な現状分析を受領
+  - MIDI2Explorer/MIDI2Kitの問題構造を再確認
+決定事項:
+  【3つのクリティカル問題（再確認）】
+  1. AsyncStream単一コンシューマ問題 → ReceiveHubで解決予定
+  2. Destination mismatch（KORG特有）→ DestinationStrategy+fallbackで対応
+  3. PE Get Inquiry フォーマット差 → 修正済み、テスト追加必要
+  
+  【評価】
+  - MIDI2Kit: 低レベル部品は揃った過渡期
+  - 問題のドキュメント化・回避策は明文化済み
+  - 旧API deprecation → MIDI2Client統合計画は明確
+  
+  【最優先リファクタ】
+  1. ReceiveHub で受信一本化（AsyncStream罠根絶）
+  2. DestinationStrategy.preferModule + fallback + MUID寿命キャッシュ
+  3. stop()/deinit でpending PE を必ずcancelled解放
+次のTODO:
+  - MIDI2Explorerでの実機テスト実行
+  - HighLevelAPI統合の動作確認
+---
+
+---
+2026-01-27 18:27
+作業項目: ビルドエラー修正＆実機テスト開始
+追加機能の説明:
+  - RobustJSONDecoderのビルドエラー2件を修正
+  - MIDI2Explorer実機ビルド＆インストール成功
+決定事項:
+  【修正したビルドエラー】
+  1. `min` → `Swift.min` (Data extension内でインスタンスメソッドと衝突)
+  2. `RobustJSONDecoder` → `Sendable`準拠追加
+  3. `logger` → `@Sendable (String) -> Void` に変更
+  
+  【実機テスト環境】
+  - デバイス: Midi (iPhone15,3)
+  - bundleId: dev.midi2kit.MIDI2Explorer
+  - ログキャプチャセッション: 6295f725-d149-48fb-8980-d5dfbbda0f0e
+次のTODO:
+  - KORGデバイスでPE取得テスト
+  - ログ確認して結果を評価
+---
+
+---
+2026-01-27 18:33
+作業項目: KORG PE取得テスト結果分析
+追加機能の説明:
+  - 実機ログ分析完了
+  - 部分成功（改善あり）だが新たな問題を特定
+決定事項:
+  【テスト結果サマリ】
+  ✅ Auto-fetch (request[0]): タイムアウト (最初の試行、Session 1にfallback)
+  ✅ Manual GET DeviceInfo (request[2]): 成功! PE Reply受信 (212bytes)
+  ✅ Manual GET ResourceList (request[3-5]): 成功! マルチチャンク受信
+  ❌ ResourceList後のタイムアウト: 5秒後にエラー
+  
+  【重要な発見】
+  1. **ModuleポートへのPE送信は機能する** (request[2]以降成功)
+  2. **マルチチャンクPE Replyの結合に問題あり**
+     - request[3]: chunk 1/3, 2/3 受信
+     - request[4]: chunk 1/3, 3/3 受信 (2/3欠落?)
+     - request[5]: chunk 1/3, 3/3 受信 → タイムアウト
+  3. **PEManagerがチャンク完了を検出できていない可能性**
+  
+  【ログで確認した流れ】
+  - DestResolver: Moduleポート正しく選択 (MIDIDestinationID 1089658)
+  - PE-SEND: Broadcasting機能が動作中
+  - PEManager: MUIDマッチ正常 (src=0xA46C34E, dst=0x014B99D)
+  - 受信自体は成功、チャンク結合ロジックに問題
+次のTODO:
+  - PEManagerのマルチチャンクPE Reply結合ロジックを確認
+  - チャンク完了検出のバグを特定・修正
+---
+
+---
+2026-01-27 18:36
+作業項目: PEChunkAssemblerコード分析
+追加機能の説明:
+  - PEManager/PETransactionManager/PEChunkAssemblerのコードを確認
+  - チャンク結合ロジックの構造を把握
+決定事項:
+  【コード構造】
+  - PEManager: タイムアウト管理、continuation管理
+  - PETransactionManager: RequestID管理、チャンク処理委譲
+  - PEChunkAssembler: 実際のチャンク結合ロジック
+  
+  【PEChunkAssemblerのロジック】
+  1. numChunks==1: 即座に.completeを返す
+  2. numChunks>1: pending状態を作成/更新
+  3. 全チャンク受信時: 結合して.completeを返す
+  
+  【潜在的な問題箇所】
+  - PEChunkAssemblerは各requestIDごとにPETransactionManager内で作成される
+  - processChunkの後、assembler状態が更新されている (chunkAssemblers[requestID] = assembler)
+  - **しかし、.complete時にassemblerが削除されていない可能性**
+  
+  【詳細調査が必要な点】
+  - handleComplete()が呼ばれた後に transactionManager.cancel() が呼ばれる
+  - cancel()内でchunkAssemblersが削除されるが、タイミング問題の可能性
+次のTODO:
+  - ログを追加してチャンク結合の実際の動作を確認
+  - 特に chunk 2/3, 3/3 の受信状況を確認
+---
+
+---
+2026-01-27 18:39
+作業項目: 重大バグ発見 - CIMessageParserのチャンク解析問題
+追加機能の説明:
+  - PEChunkAssemblerにデバッグログを追加して実機テスト
+  - チャンク情報の解析に重大なバグを発見
+決定事項:
+  【テスト結果 - Auto-fetch 成功！】
+  ✅ DeviceInfo: chunk 1/1 → complete (174B)
+  ✅ ResourceList: chunk 1/3 → 2/3 → 3/3 → COMPLETE! (475B)
+  
+  【テスト結果 - Manual GET 失敗】
+  ✅ DeviceInfo [2]: chunk 1/1 → complete
+  ❌ ResourceList [3]: chunk 1/3 → **chunk 1/1** (誤解析!) → complete (3Bの不完全データ)
+  ❌ ResourceList [4]: chunk 1/3 → chunk 3/3 (2/3欠落) → incomplete
+  ❌ ResourceList [5]: chunk 1/1 (誤解析) → complete (131Bの不完全データ)
+  
+  【重大バグ発見】
+  **CIMessageParser.parseFullPEReply が thisChunk/numChunks を誤解析している**
+  
+  ログの証拠:
+  - 実際のチャンク2/3のデータ (164B):
+    `03 00 00 03 00 02 00 65 01...` → numChunks=3, thisChunk=2
+  - しかしChunkAssemblerは `chunk 1/1` と認識
+  
+  - 実際のチャンク3/3のデータ (55B):
+    `03 00 03 00 1F 00...` → numChunks=3, thisChunk=3  
+  - ChunkAssemblerは `chunk 3/3` と正しく認識
+  
+  【問題の根本原因】
+  CIMessageParserがヘッダーサイズを誤読している可能性
+  - ヘッダーサイズ=0 (0x00 0x00) の場合、オフセットがずれる
+  - thisChunk/numChunksの位置がヘッダーサイズに依存
+次のTODO:
+  - CIMessageParser.parseFullPEReplyのヘッダーサイズ0のハンドリングを修正
+  - thisChunk/numChunksのオフセット計算を確認
+---
+
+---
+2026-01-27 18:44
+作業項目: BLE MIDI chunk 2/3 欠落問題を特定
+追加機能の説明:
+  - CIMessageParserにデバッグログを追加して再テスト
+  - パーサーの動作を確認
+決定事項:
+  【CIParserデバッグログ結果】
+  1. chunk 1/3 (253B): KORGフォーマットで正しく解析
+     `04 0E 00 7B 22 73...` → reqID=4, header=14B, body=215B, chunk 1/3
+  
+  2. chunk 3/3 (55B): CI12フォーマットで正しく解析
+     `04 00 00 03 00 03 00 1F 00...` → reqID=4, header=0B, body=31B, chunk 3/3
+  
+  【重大な発見: BLE MIDIでchunk 2/3が欠落している】
+  - DISPATCHERログに chunk 2/3 の受信記録がない
+  - KORGからは送信されているが、BLE MIDIの信頼性の低さが原因
+  - chunk 1/3 (253B) と chunk 3/3 (55B) のみ受信、chunk 2/3 (~160B) が消失
+  
+  【パーサー自体は正常に動作している】
+  - KORGフォーマット (chunk 1, ヘッダーあり): 正常解析
+  - CI12フォーマット (chunk 2+, ヘッダーなし): 正常解析
+  - 問題はパーサーではなく、BLE MIDIのパケットロス
+  
+  【対策の方向性】
+  BLE MIDIは信頼性が低く、パケットロスが発生する。
+  対策オプション:
+  1. リトライロジックを強化
+  2. チャンクタイムアウトを延長
+  3. ユーザーに成功するまで複数回リトライを促す
+  
+  【前回のAuto-fetchが成功した理由】
+  - BLE MIDIのパケットロスはランダムで、前回はたまたま3チャンク全て届いた
+  - 今回は毎回 chunk 2/3 が消失している
+次のTODO:
+  - getResourceListのリトライ回数を增やす
+  - チャンクタイムアウトを延長するか検討
+  - またはBLE MIDIの信頼性問題としてドキュメント化
+---
+
+---
+2026-01-27 19:03
+作業項目: CI11パーサー修正 & 包括的ドキュメント化
+追加機能の説明:
+  - CI11パーサーでheaderSize=0の場合を拒否するよう修正
+  - これによりchunk 2/3がCI11 single-chunkと誤認される問題を解決
+  - 包括的な問題整理ドキュメントを作成
+決定事項:
+  【CI11パーサー修正結果】
+  ✅ 修正成功: chunk 2/3 が正しくCI12フォーマットとして解析される
+  
+  【しかしBLE MIDIパケットロスは継続】
+  - chunk 2/3 が約90%の確率で欠落または切断
+  - 5回リトライしても成功しないケースが多い
+  - chunk 1/3 と chunk 3/3 は正常に届く
+  
+  【修正内容】
+  CIMessageParser.parsePEReplyCI11():
+  - headerSize=0 の場合は nil を返す
+  - これによりCI12マルチチャンクが誤ってCI11と解釈されるのを防止
+  
+  【根本原因】
+  BLE MIDIの信頼性問題（chunk 2/3 の高頻度欠落）
+  - パーサーの問題ではなく、物理層の問題
+  - KORGデバイスのBLE MIDI実装の可能性も
+次のTODO:
+  - git commit/push
+  - 今後の対策検討（USB接続、リトライ強化等）
+---

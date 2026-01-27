@@ -73,7 +73,8 @@ public struct PendingChunkState: Sendable {
 public struct PEChunkAssembler: Sendable {
     
     /// Default timeout for chunk assembly (seconds)
-    public static let defaultTimeout: TimeInterval = 3.0
+    /// Reduced from 3.0 to 2.0 - lost packets won't arrive, so faster retry is better
+    public static let defaultTimeout: TimeInterval = 2.0
     
     /// Timeout duration
     public let timeout: TimeInterval
@@ -107,13 +108,17 @@ public struct PEChunkAssembler: Sendable {
         propertyData: Data,
         resource: String = ""
     ) -> PEChunkResult {
+        print("[ChunkAssembler] addChunk [\(requestID)] chunk \(thisChunk)/\(numChunks), header=\(headerData.count)B, body=\(propertyData.count)B")
+        
         // Single-chunk response - return immediately
         if numChunks == 1 {
+            print("[ChunkAssembler] [\(requestID)] Single chunk -> complete")
             return .complete(header: headerData, body: propertyData)
         }
         
         // Initialize or get existing state
         if pending[requestID] == nil {
+            print("[ChunkAssembler] [\(requestID)] Creating new pending state for \(numChunks) chunks")
             pending[requestID] = PendingChunkState(
                 requestID: requestID,
                 numChunks: numChunks,
@@ -122,28 +127,37 @@ public struct PEChunkAssembler: Sendable {
                 startTime: Date(),
                 headerData: Data()
             )
+        } else {
+            print("[ChunkAssembler] [\(requestID)] Using existing pending state, already have \(pending[requestID]?.receivedCount ?? 0) chunks")
         }
         
         // Capture header from first non-empty chunk
         if !headerData.isEmpty && pending[requestID]?.headerData.isEmpty == true {
             pending[requestID]?.headerData = headerData
+            print("[ChunkAssembler] [\(requestID)] Captured header: \(headerData.count)B")
         }
         
         // Store chunk
         pending[requestID]?.chunks[thisChunk] = propertyData
+        print("[ChunkAssembler] [\(requestID)] Stored chunk \(thisChunk), now have chunks: \(pending[requestID]?.chunks.keys.sorted() ?? [])")
         
         // Check completion
         guard let state = pending[requestID] else {
+            print("[ChunkAssembler] [\(requestID)] ERROR: pending state disappeared!")
             return .incomplete(received: 0, total: numChunks)
         }
+        
+        print("[ChunkAssembler] [\(requestID)] State: \(state.receivedCount)/\(state.numChunks) chunks, isComplete=\(state.isComplete)")
         
         if state.isComplete {
             // Assemble complete response
             let assembled = assembleChunks(state)
             pending.removeValue(forKey: requestID)
+            print("[ChunkAssembler] [\(requestID)] COMPLETE! Assembled \(assembled.count)B body")
             return .complete(header: state.headerData, body: assembled)
         }
         
+        print("[ChunkAssembler] [\(requestID)] Incomplete, waiting for chunks: \(state.missingChunks)")
         return .incomplete(received: state.receivedCount, total: numChunks)
     }
     

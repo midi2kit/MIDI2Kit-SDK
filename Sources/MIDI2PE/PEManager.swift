@@ -967,11 +967,12 @@ public actor PEManager {
     
     /// Get ResourceList from a device
     ///
-    /// Includes automatic retry on timeout (up to 3 attempts) to handle
+    /// Includes automatic retry on timeout (up to 5 attempts) to handle
     /// BLE MIDI chunk loss issues observed with some devices (e.g., KORG Module).
+    /// BLE MIDI is unreliable and packet loss is common - retrying is more effective than waiting.
     public func getResourceList(
         from device: PEDeviceHandle,
-        maxRetries: Int = 3
+        maxRetries: Int = 5
     ) async throws -> [PEResourceEntry] {
         var lastError: Error?
         
@@ -1000,15 +1001,15 @@ public actor PEManager {
                 case .timeout:
                     if attempt < maxRetries {
                         logger.notice("ResourceList timeout, retrying (\(attempt)/\(maxRetries))...", category: Self.logCategory)
-                        // Brief delay before retry
-                        try? await Task.sleep(for: .milliseconds(200))
+                        // Brief delay before retry (100ms for faster iteration)
+                        try? await Task.sleep(for: .milliseconds(100))
                         continue
                     }
                 case .invalidResponse(let reason) where reason.contains("decode"):
                     // JSON decode error might be from chunk loss, retry
                     if attempt < maxRetries {
                         logger.notice("ResourceList decode error, retrying (\(attempt)/\(maxRetries))...", category: Self.logCategory)
-                        try? await Task.sleep(for: .milliseconds(200))
+                        try? await Task.sleep(for: .milliseconds(100))
                         continue
                     }
                 default:

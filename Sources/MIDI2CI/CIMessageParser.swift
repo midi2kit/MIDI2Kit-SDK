@@ -160,19 +160,33 @@ public enum CIMessageParser {
     /// without numChunks/thisChunk/dataLength fields. We detect this by checking if the
     /// byte after headerSize looks like JSON (starts with '{').
     public static func parsePEReply(_ payload: [UInt8], ciVersion: UInt8 = 2) -> PEReplyPayload? {
+        let payloadHex = payload.prefix(20).map { String(format: "%02X", $0) }.joined(separator: " ")
+        print("[CIParser] parsePEReply: len=\(payload.count), first20: \(payloadHex)")
+        
         // Try CI 1.2 format first (most devices use this)
         if let result = parsePEReplyCI12(payload) {
+            print("[CIParser]   -> CI12: reqID=\(result.requestID), chunk \(result.thisChunk)/\(result.numChunks), header=\(result.headerData.count)B, body=\(result.propertyData.count)B")
             return result
         }
+        print("[CIParser]   -> CI12 FAILED")
         
         // Try CI 1.1 format (with dataLength field)
         if let result = parsePEReplyCI11(payload) {
+            print("[CIParser]   -> CI11: reqID=\(result.requestID), header=\(result.headerData.count)B, body=\(result.propertyData.count)B")
             return result
         }
+        print("[CIParser]   -> CI11 FAILED")
         
         // Fallback: KORG-style format (no numChunks/thisChunk/dataLength fields)
         // Format: requestID(1) + headerSize(2) + headerData(headerSize) + propertyData(rest)
-        return parsePEReplyKORG(payload)
+        if let result = parsePEReplyKORG(payload) {
+            print("[CIParser]   -> KORG: reqID=\(result.requestID), chunk \(result.thisChunk)/\(result.numChunks), header=\(result.headerData.count)B, body=\(result.propertyData.count)B")
+            return result
+        }
+        print("[CIParser]   -> KORG FAILED")
+        
+        print("[CIParser]   -> ALL FORMATS FAILED!")
+        return nil
     }
     
     /// Parse PE Reply in CI 1.2 format (with numChunks/thisChunk fields)
@@ -217,6 +231,10 @@ public enum CIMessageParser {
     }
     
     /// Parse PE Reply in CI 1.1 format (no numChunks/thisChunk fields, but has dataLength)
+    /// 
+    /// IMPORTANT: This format is ONLY valid for single-chunk responses where headerSize > 0.
+    /// Multi-chunk responses (chunk 2, 3, etc.) have headerSize=0 and should be parsed with CI12 format.
+    /// If headerSize=0, this is likely a subsequent chunk in CI12 format, not a CI11 single-chunk response.
     private static func parsePEReplyCI11(_ payload: [UInt8]) -> PEReplyPayload? {
         // Minimum: requestID(1) + headerSize(2) + dataSize(2) = 5 bytes
         guard payload.count >= 5 else { return nil }
@@ -225,8 +243,13 @@ public enum CIMessageParser {
         let headerSize = Int(payload[1]) | (Int(payload[2]) << 7)
         let dataSize = Int(payload[3]) | (Int(payload[4]) << 7)
         
+        // CRITICAL FIX: Reject headerSize=0 as it indicates CI12 multi-chunk format
+        // In CI11 format, a valid response must have a header with status/resource info.
+        // headerSize=0 only occurs in chunk 2+ of CI12 multi-chunk responses.
+        guard headerSize > 0 else { return nil }
+        
         // Sanity check: sizes should be reasonable
-        guard headerSize >= 0 && headerSize <= 0x3FFF else { return nil }
+        guard headerSize <= 0x3FFF else { return nil }
         guard dataSize >= 0 && dataSize <= 0x3FFF else { return nil }
         
         let headerStart = 5

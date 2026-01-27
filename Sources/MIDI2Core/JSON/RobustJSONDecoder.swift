@@ -49,7 +49,7 @@ import Foundation
 ///     print("Raw data hex: \(rawData.hexDump)")
 /// }
 /// ```
-public struct RobustJSONDecoder {
+public struct RobustJSONDecoder: Sendable {
     
     /// The underlying JSON decoder
     private let decoder: JSONDecoder
@@ -58,7 +58,7 @@ public struct RobustJSONDecoder {
     public var enablePreprocessing: Bool
     
     /// Logger for debugging (optional)
-    public var logger: ((String) -> Void)?
+    public var logger: (@Sendable (String) -> Void)?
     
     // MARK: - Initialization
     
@@ -412,7 +412,7 @@ extension Data {
         var offset = 0
         
         while offset < self.count {
-            let lineEnd = min(offset + bytesPerLine, self.count)
+            let lineEnd = Swift.min(offset + bytesPerLine, self.count)
             let lineBytes = self[offset..<lineEnd]
             
             // Offset
