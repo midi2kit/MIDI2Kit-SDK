@@ -93,3 +93,15 @@
 @_exported import MIDI2CI
 @_exported import MIDI2PE
 @_exported import MIDI2Transport
+
+// MARK: - High-Level API
+
+// High-Level API types are defined in HighLevelAPI/*.swift and exported here.
+// These types provide a simplified, unified interface for MIDI 2.0 communication.
+//
+// Main types:
+// - MIDI2Client: Actor-based client managing the entire MIDI system
+// - MIDI2Device: Represents a discovered MIDI-CI device
+// - MIDI2ClientConfiguration: Configuration for the client
+// - MIDI2ClientEvent: Events emitted by the client
+// - MIDI2Error: Error types for the high-level API

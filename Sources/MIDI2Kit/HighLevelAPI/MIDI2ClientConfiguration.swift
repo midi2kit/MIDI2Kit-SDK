@@ -1,0 +1,151 @@
+//
+//  MIDI2ClientConfiguration.swift
+//  MIDI2Kit
+//
+//  Configuration for MIDI2Client
+//
+
+import Foundation
+import MIDI2Core
+import MIDI2Transport
+
+// MARK: - ClientPreset
+
+/// Preset configurations for common use cases
+public enum ClientPreset: Sendable {
+    /// Default configuration suitable for most applications
+    case `default`
+    
+    /// Configuration optimized for device exploration/debugging
+    case explorer
+    
+    /// Minimal configuration for quick testing
+    case minimal
+}
+
+// MARK: - MIDI2ClientConfiguration
+
+/// Configuration for MIDI2Client
+///
+/// ## Example
+///
+/// ```swift
+/// // Use preset
+/// let client = try MIDI2Client(name: "MyApp", preset: .explorer)
+///
+/// // Or customize
+/// var config = MIDI2ClientConfiguration()
+/// config.discoveryInterval = .seconds(3)
+/// config.peTimeout = .seconds(10)
+/// let client = try MIDI2Client(name: "MyApp", configuration: config)
+/// ```
+public struct MIDI2ClientConfiguration: Sendable {
+    
+    // MARK: - Discovery Settings
+    
+    /// How often to send Discovery Inquiry broadcasts
+    ///
+    /// Shorter intervals find devices faster but use more bandwidth.
+    /// Default: 10 seconds
+    public var discoveryInterval: Duration
+    
+    /// How long before a device is considered lost
+    ///
+    /// Should be at least 2-3x the discovery interval.
+    /// Default: 60 seconds
+    public var deviceTimeout: Duration
+    
+    /// Whether to automatically start discovery when `start()` is called
+    ///
+    /// Default: true
+    public var autoStartDiscovery: Bool
+    
+    // MARK: - Property Exchange Settings
+    
+    /// Default timeout for PE requests
+    ///
+    /// Individual requests can override this.
+    /// Default: 5 seconds
+    public var peTimeout: Duration
+    
+    /// Maximum concurrent PE requests per device
+    ///
+    /// Lower values prevent overwhelming slow devices.
+    /// Default: 2
+    public var maxInflightPerDevice: Int
+    
+    // MARK: - Destination Resolution
+    
+    /// Strategy for resolving MUID to destination
+    ///
+    /// Default: `.preferModule` (optimized for KORG and similar devices)
+    public var destinationStrategy: DestinationStrategy
+    
+    // MARK: - Advanced Settings
+    
+    /// Whether to respond to Discovery Inquiries (act as Responder)
+    ///
+    /// Default: false (most apps are Initiator-only)
+    public var respondToDiscovery: Bool
+    
+    /// Maximum SysEx size (0 = no limit)
+    ///
+    /// Default: 0
+    public var maxSysExSize: UInt32
+    
+    /// Device identity to advertise (if responding to discovery)
+    public var deviceIdentity: DeviceIdentity
+    
+    /// Category support to advertise
+    public var categorySupport: CategorySupport
+    
+    // MARK: - Initialization
+    
+    /// Create configuration with default values
+    public init() {
+        self.discoveryInterval = .seconds(10)
+        self.deviceTimeout = .seconds(60)
+        self.autoStartDiscovery = true
+        self.peTimeout = .seconds(5)
+        self.maxInflightPerDevice = 2
+        self.destinationStrategy = .preferModule
+        self.respondToDiscovery = false
+        self.maxSysExSize = 0
+        self.deviceIdentity = .default
+        self.categorySupport = .propertyExchange
+    }
+    
+    /// Create configuration from preset
+    public init(preset: ClientPreset) {
+        self.init()
+        
+        switch preset {
+        case .default:
+            // Use defaults
+            break
+            
+        case .explorer:
+            // More aggressive discovery for debugging
+            self.discoveryInterval = .seconds(5)
+            self.deviceTimeout = .seconds(120)
+            self.peTimeout = .seconds(10)
+            
+        case .minimal:
+            // Quick testing with short timeouts
+            self.discoveryInterval = .seconds(3)
+            self.deviceTimeout = .seconds(15)
+            self.peTimeout = .seconds(3)
+        }
+    }
+    
+    // MARK: - Presets
+    
+    /// Default configuration
+    public static let `default` = MIDI2ClientConfiguration()
+    
+    /// Explorer configuration (longer timeouts, faster discovery)
+    public static let explorer = MIDI2ClientConfiguration(preset: .explorer)
+    
+    /// Minimal configuration (short timeouts)
+    public static let minimal = MIDI2ClientConfiguration(preset: .minimal)
+}

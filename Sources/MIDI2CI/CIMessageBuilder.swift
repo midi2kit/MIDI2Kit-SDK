@@ -39,7 +39,7 @@ public enum CIMessageBuilder {
             0x7F,  // Device ID (broadcast)
             MIDICIConstants.ciSubID1,
             CIMessageType.discoveryInquiry.rawValue,
-            MIDICIConstants.ciVersion1_2
+            MIDICIConstants.ciVersion1_1  // Use CI 1.1 for KORG Module Pro compatibility
         ]
         
         // Source MUID
@@ -83,7 +83,7 @@ public enum CIMessageBuilder {
             0x7F,
             MIDICIConstants.ciSubID1,
             CIMessageType.discoveryReply.rawValue,
-            MIDICIConstants.ciVersion1_2
+            MIDICIConstants.ciVersion1_1  // Use CI 1.1 for KORG Module Pro compatibility
         ]
         
         message.append(contentsOf: sourceMUID.bytes)
@@ -118,7 +118,7 @@ public enum CIMessageBuilder {
             0x7F,
             MIDICIConstants.ciSubID1,
             CIMessageType.invalidateMUID.rawValue,
-            MIDICIConstants.ciVersion1_2
+            MIDICIConstants.ciVersion1_1  // Use CI 1.1 for KORG Module Pro compatibility
         ]
         
         message.append(contentsOf: sourceMUID.bytes)
@@ -137,7 +137,7 @@ public enum CIMessageBuilder {
         destinationMUID: MUID,
         numSimultaneousRequests: UInt8 = 1,
         majorVersion: UInt8 = 0,
-        minorVersion: UInt8 = 0
+        minorVersion: UInt8 = 2  // PE Version 0.2 for KORG compatibility
     ) -> [UInt8] {
         var message: [UInt8] = [
             MIDICIConstants.sysExStart,
@@ -145,7 +145,7 @@ public enum CIMessageBuilder {
             0x7F,
             MIDICIConstants.ciSubID1,
             CIMessageType.peCapabilityInquiry.rawValue,
-            MIDICIConstants.ciVersion1_2
+            MIDICIConstants.ciVersion1_1  // Use CI 1.1 for KORG Module Pro compatibility
         ]
         
         message.append(contentsOf: sourceMUID.bytes)
@@ -160,7 +160,7 @@ public enum CIMessageBuilder {
     
     /// Build PE Get Inquiry message
     /// 
-    /// MIDI-CI 1.2 PE Get Inquiry format (M2-105-UM Section 6.4.1):
+    /// MIDI-CI 1.1/1.2 PE Get Inquiry format (M2-105-UM Section 6.4.1):
     /// - requestID (1 byte, 7-bit)
     /// - headerLength (2 bytes, 14-bit)
     /// - headerData (variable)
@@ -178,7 +178,7 @@ public enum CIMessageBuilder {
             0x7F,
             MIDICIConstants.ciSubID1,
             CIMessageType.peGetInquiry.rawValue,
-            MIDICIConstants.ciVersion1_2
+            MIDICIConstants.ciVersion1_1  // Use CI 1.1 for KORG Module Pro compatibility
         ]
         
         message.append(contentsOf: sourceMUID.bytes)
@@ -215,7 +215,7 @@ public enum CIMessageBuilder {
             0x7F,
             MIDICIConstants.ciSubID1,
             CIMessageType.peSetInquiry.rawValue,
-            MIDICIConstants.ciVersion1_2
+            MIDICIConstants.ciVersion1_1  // Use CI 1.1 for KORG Module Pro compatibility
         ]
         
         message.append(contentsOf: sourceMUID.bytes)
@@ -280,7 +280,7 @@ public enum CIMessageBuilder {
     
     /// Build PE Subscribe Inquiry message
     /// 
-    /// MIDI-CI 1.2 PE Subscribe format (M2-105-UM Section 6.5):
+    /// MIDI-CI 1.1/1.2 PE Subscribe format (M2-105-UM Section 6.5):
     /// - requestID (1 byte, 7-bit)
     /// - headerLength (2 bytes, 14-bit)
     /// - headerData (variable)
@@ -298,7 +298,7 @@ public enum CIMessageBuilder {
             0x7F,
             MIDICIConstants.ciSubID1,
             CIMessageType.peSubscribe.rawValue,
-            MIDICIConstants.ciVersion1_2
+            MIDICIConstants.ciVersion1_1  // Use CI 1.1 for KORG Module Pro compatibility
         ]
         
         message.append(contentsOf: sourceMUID.bytes)

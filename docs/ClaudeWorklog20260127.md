@@ -434,3 +434,22 @@
   - ユーザーがcommit/pushを実行
   - MIDI2Explorerでの実機テスト
 ---
+
+---
+2026-01-27 18:20
+作業項目: Gitステージング修正
+追加機能の説明:
+  - 新規ファイルがuntrackedのためaddが必要
+  - HighLevelAPIディレクトリもuntracked
+決定事項:
+  【修正コマンド】
+  ```bash
+  cd /Users/hakaru/Desktop/Develop/MIDI2Kit
+  git add -A
+  git status
+  git commit -m "feat: Add RobustJSONDecoder and HighLevelAPI for KORG compatibility"
+  git push origin main
+  ```
+次のTODO:
+  - ユーザーが上記コマンドを実行
+---
