@@ -244,6 +244,62 @@ typeMismatch(Swift.String, ... "Expected to decode String but found a dictionary
 
 ---
 
+## 既知の問題: iPadでのResourceListチャンク欠落
+
+### 問題4: iPad環境でのマルチチャンクレスポンスの欠落/破損
+
+**症状:** iPadでResourceListを取得する際、chunk 2/3が一貫して欠落または破損する
+
+**再現率:** 100%（iPadのみ、iPhoneでは正常動作）
+
+**ResourceListのチャンク構成:**
+```
+chunk 1/3: 253 bytes (header: 14B, data: 215B)
+chunk 2/3: 253 bytes (header: 0B, data: 229B)  ← 欠落/破損
+chunk 3/3: 55 bytes  (header: 0B, data: 31B)
+合計: 475 bytes
+```
+
+**観察されたログ:**
+```
+Received [4] chunk 1/3  ✅
+Received [4] chunk 3/3  ✅
+(…chunk 2/3が到着しない…)
+Timeout [4] ResourceList  ❌
+```
+
+**破損が発生する場合の位置:**
+- チャンク2のバイト 123-127 付近
+- 全体での位置: バイト 338-342 付近
+
+**原因分析:**
+
+この問題は**アプリ側の実装ではなく、CoreMIDI/BLE MIDI転送レイヤー**の問題と推定される。
+
+根拠:
+1. **iPhoneでは同じコードで正常動作** - SimpleMidiControllerで検証済み
+2. **破損は受信時点で既に発生** - アプリがデータを受け取る前に破損済み
+3. **DeviceInfo（1チャンク）は正常取得できる** - 基本的な通信は問題なし
+
+可能性のある原因:
+- iPadのCoreMIDIドライバまたはBLE MIDI実装のバグ
+- KORG Module Pro iPad版の送信バグ
+- 複数MIDIソース間の干渉
+
+**対処方法:**
+
+| オプション | 説明 |
+|----------|------|
+| 1. iPhoneで使用 | iPad特有の問題のため、iPhoneでは正常動作する可能性が高い |
+| 2. リトライロジック | タイムアウト時に自動リトライを実装 |
+| 3. 既知の制限として記載 | iPadでのBLE MIDI制限をドキュメント化 |
+| 4. 部分データでの継続 | 受信できたチャンクのみで処理を継続（不完全なデータ） |
+
+**関連ドキュメント:**
+- `SimpleMidiController/docs/KORG_PropertyExchange_Investigation.md` - 詳細な調査履歴
+
+---
+
 ## 関連ファイル
 
 - `Sources/MIDI2CI/CIMessageParser.swift` - PEReplyパーサー

@@ -953,18 +953,59 @@ public actor PEManager {
     }
     
     /// Get ResourceList from a device
-    public func getResourceList(from device: PEDeviceHandle) async throws -> [PEResourceEntry] {
-        let response = try await get("ResourceList", from: device)
+    ///
+    /// Includes automatic retry on timeout (up to 3 attempts) to handle
+    /// BLE MIDI chunk loss issues observed with some devices (e.g., KORG Module).
+    public func getResourceList(
+        from device: PEDeviceHandle,
+        maxRetries: Int = 3
+    ) async throws -> [PEResourceEntry] {
+        var lastError: Error?
         
-        guard response.isSuccess else {
-            throw PEError.deviceError(status: response.status, message: response.header?.message)
+        for attempt in 1...maxRetries {
+            do {
+                let response = try await get("ResourceList", from: device)
+                
+                guard response.isSuccess else {
+                    throw PEError.deviceError(status: response.status, message: response.header?.message)
+                }
+                
+                do {
+                    let result = try JSONDecoder().decode([PEResourceEntry].self, from: response.decodedBody)
+                    if attempt > 1 {
+                        logger.info("ResourceList succeeded on attempt \(attempt)", category: Self.logCategory)
+                    }
+                    return result
+                } catch {
+                    throw PEError.invalidResponse("Failed to decode ResourceList: \(error)")
+                }
+            } catch let error as PEError {
+                lastError = error
+                
+                // Only retry on timeout or chunk assembly timeout
+                switch error {
+                case .timeout:
+                    if attempt < maxRetries {
+                        logger.notice("ResourceList timeout, retrying (\(attempt)/\(maxRetries))...", category: Self.logCategory)
+                        // Brief delay before retry
+                        try? await Task.sleep(for: .milliseconds(200))
+                        continue
+                    }
+                case .invalidResponse(let reason) where reason.contains("decode"):
+                    // JSON decode error might be from chunk loss, retry
+                    if attempt < maxRetries {
+                        logger.notice("ResourceList decode error, retrying (\(attempt)/\(maxRetries))...", category: Self.logCategory)
+                        try? await Task.sleep(for: .milliseconds(200))
+                        continue
+                    }
+                default:
+                    // Don't retry other errors
+                    throw error
+                }
+            }
         }
         
-        do {
-            return try JSONDecoder().decode([PEResourceEntry].self, from: response.decodedBody)
-        } catch {
-            throw PEError.invalidResponse("Failed to decode ResourceList: \(error)")
-        }
+        throw lastError ?? PEError.timeout(resource: "ResourceList")
     }
     
     /// Get ResourceList (legacy API)
@@ -1198,12 +1239,8 @@ public actor PEManager {
         sendTasks[requestID] = Task { [weak self] in
             if Task.isCancelled { return }
             do {
-                // DEBUG: Broadcast to ALL destinations (like SimpleMidiController)
-                // This is a temporary workaround for KORG Module Pro compatibility
-                let destinations = await transport.destinations
-                for dest in destinations {
-                    try await transport.send(message, to: dest.destinationID)
-                }
+                // Send to the specified destination only (not broadcast)
+                try await transport.send(message, to: destination)
             } catch {
                 guard let self else { return }
                 await self.handleSendError(requestID: requestID, error: error)
