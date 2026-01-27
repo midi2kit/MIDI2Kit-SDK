@@ -1,0 +1,26 @@
+
+---
+2026-01-27 07:43
+作業項目: SimpleMidiController参照によるMIDI2Kit PE問題分析
+追加機能の説明:
+  - SimpleMidiController（動作中）とMIDI2Kit（タイムアウト）の比較分析
+  - SimpleMidiController: KORG_PropertyExchange_Investigation.md を参照
+  - SimpleMidiController: SysEx/MIDI 1.0形式でPE実装 (MIDICIManager.swift)
+  - MIDI2Kit: UMP/MIDI 2.0形式でPE実装 (MIDI2Client.swift/PEManager.swift)
+決定事項:
+  - 【重要発見】SimpleMidiControllerは以下の仕様を実装:
+    1. KORG Module ProはMcoded7エンコーディングを使用しない(plain UTF-8)
+    2. ResourceListは3チャンクに分割されて送信される
+    3. PE Headerは{"status":200}形式(14バイト)
+    4. Discovery Inquiryの干渉に対するSysExバッファリング処理
+    5. iPadでは破損問題あり（iPhoneは正常動作）
+  - MIDI2KitのPEManagerは既にMcoded7フォールバック実装あり
+  - MIDI2Client.startReceiveDispatcher()でSysEx受信→両Manager転送
+  - 比較ポイント:
+    - SimpleMidiController: handleMIDIPacketList()でSysExアセンブリ→processSysEx()
+    - MIDI2Kit: CoreMIDITransport.received→MIDI2Client.startReceiveDispatcher()
+次のTODO: 
+  1. CoreMIDITransportのSysExアセンブリ処理を確認
+  2. MIDI2ClientがPE Replyを受信しているかログ確認
+  3. 必要であればSimpleMidiControllerのSysExバッファリング処理を参考に修正
+---

@@ -297,3 +297,140 @@
 次のTODO:
   - ユーザーが手動でgit commit/pushを実行
 ---
+
+---
+2026-01-27 17:47
+作業項目: 技術ドキュメントの追加コミット
+追加機能の説明:
+  - 前回のコミット時にdocs/technical/が含まれていなかった
+  - ドキュメントファイルを再作成して追加コミット準備
+決定事項:
+  【追加ファイル】
+  - docs/technical/KORG-PE-Communication-Debug-Report.md
+  
+  【コマンド】
+  ```bash
+  cd /Users/hakaru/Desktop/Develop/MIDI2Kit
+  git add docs/technical/KORG-PE-Communication-Debug-Report.md
+  git commit -m "docs: Add KORG PE communication debug report"
+  git push origin main
+  ```
+次のTODO:
+  - 追加コミットを実行
+---
+
+---
+2026-01-27 18:00
+作業項目: KORG互換性レイヤー設計の確認
+追加機能の説明:
+  - ユーザーからKORG特有問題を吸収するための4つのアプローチ提案を受領
+  - DestinationStrategy、Inflight Limiting、JSONプリプロセッサ、Diagnosticsの統合設計
+決定事項:
+  【4つの主要アプローチ】
+  1. DestinationStrategy: ポート解決自動化（preferModule戦略、フォールバック・リトライ、キャッシュ）
+  2. Inflight Limiting: 同時リクエスト数制限（デフォルト2件）による流量制御
+  3. JSONプリプロセッサ: 非標準JSON自動修復、生データ保持
+  4. Diagnostics: 解決試行情報の構造化、統一ログフォーマット
+  
+  【最終目標】
+  - アプリ開発者がKORG特有のポート構造を意識せずに済むAPI
+  - MIDI2Client.getDeviceInfo(from: muid) 等のシンプルな共通API
+次のTODO:
+  - 現在のコードベース確認
+  - 実装計画の策定
+---
+
+---
+2026-01-27 18:02
+作業項目: JSONプリプロセッサ＆生データ保持機能の実装
+追加機能の説明:
+  1. RobustJSONDecoder: 非標準JSON自動修復ユーティリティ
+     - 末尾カンマ除去
+     - シングルクォートをダブルクォートに変換
+     - コメント除去
+     - 制御文字エスケープ
+  2. PEResponseWithRawData: パースエラー時の診断用生データ保持
+     - 生Data保持
+     - パースエラー詳細
+     - 16進ダンプ出力
+決定事項:
+  - MIDI2Core/JSONUtilities.swift に新規実装
+  - PEManager で使用するデコーダーを RobustJSONDecoder に変更
+次のTODO:
+  - RobustJSONDecoder 実装
+  - PEResponse に rawData プロパティ追加
+  - 実機テスト
+---
+
+---
+2026-01-27 18:06
+作業項目: JSONプリプロセッサ＆生データ保持機能の実装完了
+追加機能の説明:
+  【作成ファイル】
+  1. Sources/MIDI2Core/JSON/RobustJSONDecoder.swift
+     - 非標準JSON自動修復: 末尾カンマ、シングルクォート、コメント、制御文字
+     - DecodeResult<T>: success/failureを区別、wasFixedフラグ
+     - RobustJSONError: 詳細エラー情報
+     - Data拡張: hexDump, hexDumpPreview, hexDumpFormatted
+  
+  2. Sources/MIDI2Core/JSON/PEDecodingDiagnostics.swift
+     - パースエラー時の診断情報構造体
+     - rawBody, decodedBody, parseError, status, wasPreprocessed
+     - CustomStringConvertibleによる詳細ダンプ
+  
+  3. Sources/MIDI2PE/PEManager+RobustDecoding.swift
+     - PEManager.decodeResponse(): RobustJSONDecoder統合
+     - PEResponse.decodeBody(): 便利メソッド
+     - PEResponse.decodeBodyWithDiagnostics(): 診断付きデコード
+決定事項:
+  - MIDI2Core/JSONディレクトリに新規配置
+  - PEManagerの拡張として実装（後方互換性維持）
+次のTODO:
+  - ローカルビルド確認（ユーザー実行）
+  - MIDI2Explorerでの実機テスト
+---
+
+---
+2026-01-27 18:09
+作業項目: ドキュメント作成とGitコミット準備
+追加機能の説明:
+  - RobustJSONDecoderの技術ドキュメント作成
+  - KORG互換性レイヤーの実装状況ドキュメント
+決定事項:
+  - docs/technical/RobustJSONDecoder.md 作成
+  - docs/technical/KORG-Compatibility-Layer-Status.md 作成
+次のTODO:
+  - git commit/push（ユーザー実行）
+---
+
+---
+2026-01-27 18:11
+作業項目: コミット準備完了
+追加機能の説明:
+  - コミットスクリプト作成
+決定事項:
+  【追加ファイル一覧】
+  - Sources/MIDI2Core/JSON/RobustJSONDecoder.swift
+  - Sources/MIDI2Core/JSON/PEDecodingDiagnostics.swift
+  - Sources/MIDI2PE/PEManager+RobustDecoding.swift
+  - docs/technical/RobustJSONDecoder.md
+  - docs/technical/KORG-Compatibility-Layer-Status.md
+  
+  【コミットコマンド】
+  ```bash
+  cd /Users/hakaru/Desktop/Develop/MIDI2Kit
+  chmod +x commit-robust-json.sh
+  ./commit-robust-json.sh
+  ```
+  
+  または手動で:
+  ```bash
+  cd /Users/hakaru/Desktop/Develop/MIDI2Kit
+  git add Sources/MIDI2Core/JSON/ Sources/MIDI2PE/PEManager+RobustDecoding.swift docs/
+  git commit -m "feat: Add RobustJSONDecoder for non-standard JSON handling"
+  git push origin main
+  ```
+次のTODO:
+  - ユーザーがcommit/pushを実行
+  - MIDI2Explorerでの実機テスト
+---
