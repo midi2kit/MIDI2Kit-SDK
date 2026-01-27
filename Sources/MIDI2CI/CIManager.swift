@@ -314,6 +314,9 @@ public actor CIManager {
     /// This provides a convenient way to configure PEManager's
     /// `destinationResolver` to use this CIManager for MUID → destination lookup.
     ///
+    /// The resolver dynamically prioritizes "Module" destinations for PE communication,
+    /// which is required for devices like KORG that use separate ports for Discovery vs PE.
+    ///
     /// ## Example
     /// ```swift
     /// peManager.destinationResolver = ciManager.makeDestinationResolver()
@@ -322,8 +325,29 @@ public actor CIManager {
     /// ```
     public nonisolated func makeDestinationResolver() -> @Sendable (MUID) async -> MIDIDestinationID? {
         { [weak self] muid in
-            await self?.destination(for: muid)
+            await self?.resolveDestinationForPE(muid: muid)
         }
+    }
+    
+    /// Resolve destination for PE communication
+    ///
+    /// This method dynamically finds the best destination for Property Exchange,
+    /// prioritizing "Module" ports over cached Discovery destinations.
+    private func resolveDestinationForPE(muid: MUID) async -> MIDIDestinationID? {
+        // First, check if we know about this device at all
+        guard devices[muid] != nil else {
+            return nil
+        }
+        
+        // Dynamically find the best destination for PE
+        // Priority 1: "Module" destination (MIDI-CI/PE standard port)
+        let destinations = await transport.destinations
+        if let moduleDest = destinations.first(where: { $0.name.lowercased().contains("module") }) {
+            return moduleDest.destinationID
+        }
+        
+        // Priority 2: Use cached destination from Discovery
+        return devices[muid]?.destination
     }
     
     // MARK: - Device Management
@@ -345,6 +369,14 @@ public actor CIManager {
     }
     
     // MARK: - Message Handling
+    
+    /// Handle received data from external dispatcher
+    /// 
+    /// Use this when you need to manually dispatch messages to CIManager
+    /// instead of having CIManager consume the transport stream directly.
+    public func handleReceivedExternal(_ received: MIDIReceivedData) {
+        handleReceived(received)
+    }
     
     private func handleReceived(_ received: MIDIReceivedData) {
         guard let parsed = CIMessageParser.parse(received.data) else { return }
@@ -475,12 +507,60 @@ public actor CIManager {
     
     // MARK: - Helpers
     
-    /// Find the destination endpoint that pairs with a source
+    /// Find the destination endpoint that pairs with a source for MIDI-CI/PE communication
     ///
-    /// Delegates to transport layer to properly resolve entity relationships.
+    /// This method resolves the correct destination for Property Exchange requests.
+    /// Many MIDI devices (KORG, Roland, etc.) have dedicated "Module" ports for MIDI-CI/PE,
+    /// which may differ from the port that Discovery replies arrive from.
+    ///
+    /// Priority order:
+    /// 1. "Module" destination (MIDI-CI/PE standard port) - highest priority for PE
+    /// 2. Entity-based matching (source index → destination index)
+    /// 3. Name-based matching (source name = destination name)
+    ///
+    /// ## Why "Module" First?
+    ///
+    /// KORG and similar devices have this port structure:
+    /// - Sources: "Bluetooth", "Session 1"
+    /// - Destinations: "Bluetooth", "Session 1", "Module"
+    ///
+    /// Discovery replies come from "Bluetooth" source, but PE requests must go to
+    /// "Module" destination. Entity-based matching would incorrectly return "Bluetooth".
     private func findDestination(for sourceID: MIDISourceID?) async -> MIDIDestinationID? {
-        guard let sourceID else { return nil }
-        return await transport.findMatchingDestination(for: sourceID)
+        let destinations = await transport.destinations
+        
+        // Priority 1: Look for "Module" destination first (HIGHEST PRIORITY for PE)
+        // Many MIDI devices (KORG, etc.) have a "Module" port for MIDI-CI/PE communication.
+        // This MUST take precedence over entity-based matching because:
+        // - Discovery replies often come from "Bluetooth" source
+        // - Entity-based matching would return "Bluetooth" destination (wrong!)
+        // - PE requests must go to "Module" destination
+        if let moduleDest = destinations.first(where: { $0.name.lowercased().contains("module") }) {
+            return moduleDest.destinationID
+        }
+        
+        // Priority 2: Entity-based matching (via transport layer)
+        // This is reliable for devices without dedicated Module ports
+        if let sourceID,
+           let destination = await transport.findMatchingDestination(for: sourceID) {
+            return destination
+        }
+        
+        // Priority 3: Name-based matching (source name = destination name)
+        if let sourceID {
+            let sources = await transport.sources
+            
+            if let sourceInfo = sources.first(where: { $0.sourceID == sourceID }) {
+                // Look for a destination with the same name
+                if let matchingDest = destinations.first(where: { $0.name == sourceInfo.name }) {
+                    return matchingDest.destinationID
+                }
+            }
+        }
+        
+        // No fallback to "first destination" - return nil if no match found
+        // This prevents sending to wrong port
+        return nil
     }
 }
 

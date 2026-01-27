@@ -63,3 +63,81 @@
 決定事項: コミットメッセージ「docs: Add High-Level API planning, TODO list, and Deprecation plan」
 次のTODO: プッシュ完了後、Phase 1-1（実機テスト）へ進む
 ---
+
+---
+2026-01-27 19:49
+作業項目: TODO確認・状況整理
+追加機能の説明: 現在のTODOリストを確認し、次の作業を特定
+決定事項: Phase 1-1（実機テスト）が最優先、受入基準として成功パス＋失敗検出を確認する必要あり
+次のTODO: 実機テスト環境の確認・MIDI2Explorerでの検証開始
+---
+
+---
+2026-01-27 19:51
+作業項目: Phase 1-1 実機テスト実施・問題発見
+追加機能の説明: MIDI2Explorerを実機(Midi)にデプロイしKORGデバイスとの通信テストを実施
+決定事項: 
+  - Discovery成功: ✅ KORG (374:4) 検出、PE=true
+  - PE DeviceInfo取得: ❌ タイムアウト
+  - 根本原因特定: parseFullPEReply が 0x35 (PE Reply with body) をパースできていない
+  - ログ証拠: parseFullPEReply failed for 0x35: len=212, payload contains {"status":200}
+  - 0x35はPE Replyメッセージ、ペイロードに正常応答が含まれているがパース失敗
+次のTODO: PEManager.parseFullPEReply()のsubID2=0x35対応を修正
+---
+
+---
+2026-01-27 19:59
+作業項目: CIMessageParser PE Replyパーサー修正
+追加機能の説明: KORGの独自フォーマット（numChunks/thisChunk/dataLengthフィールドなし）に対応
+決定事項:
+  - parsePEReplyKORG()を追加: requestID + headerSize + headerData + propertyData(rest)
+  - PE Replyのパース成功: Complete [2] status=200 body=180B
+  - 新たな問題発見: bodyのJSONデコード失敗 "Unexpected character ''"
+  - 原因推定: Mcoded7エンコードされたデータをそのままJSONデコードしようとしている
+次のTODO: Mcoded7デコード処理の確認・修正
+---
+
+---
+2026-01-27 11:09
+作業項目: KORG PE Reply chunk fieldsオフセット修正 - 完全成功
+追加機能の説明: parsePEReplyKORG()でheaderData後のchunk fields読み取りを実装
+決定事項:
+  - 根本原因: KORGは headerData の後に numChunks/thisChunk/dataSize を配置（標準CI 1.2とは異なる位置）
+  - 修正内容: parsePEReplyKORG()にchunk fields検出・抽出ロジック追加
+  - body構造: [numChunks:2] + [thisChunk:2] + [dataSize:2] + [propertyData]
+  - 修正前: body=180B (chunk fields含む) → デコード失敗
+  - 修正後: body=174B (純粋なJSON) → デコード成功
+  - DeviceInfo取得成功: ✅ "Module Pro" (KORG Module)
+  - ResourceList: 一部デコード失敗（schema型不一致）- 別問題
+次のTODO: ResourceListのschema型対応（String vs Dictionary）、デバッグログ削除
+---
+
+---
+2026-01-27 11:20
+作業項目: KORG PE通信問題の詳細ドキュメント作成
+追加機能の説明: /docs/KORG-PE-Compatibility.md を作成し、発見した問題と解決策を記録
+決定事項: 今後のメンテナンス・他デバイス対応のため詳細を文書化
+次のTODO: ドキュメント作成
+---
+
+---
+2026-01-27 11:21
+作業項目: KORG-PE-Compatibility.md 作成完了
+追加機能の説明: 発見した3つの主要な問題と解決策を詳細に文書化
+決定事項:
+  - 問題1: Discovery Replyのポートルーティング（Moduleポート優先）
+  - 問題2: CI Version不一致（ciVersion=0x01だが独自フォーマット）
+  - 問題3: Body内のChunk Fieldsオフセット
+  - パケットフォーマット比較図を含む
+  - 今後の課題（ResourceList schema型）も記載
+  - 教訓・推奨事項を5項目でまとめ
+次のTODO: デバッグログ削除、ResourceList schema対応
+---
+
+---
+2026-01-27 11:23
+作業項目: Git commit準備
+追加機能の説明: KORG PE互換性修正とドキュメントをコミット
+決定事項: ネットワーク無効のためユーザーに手動pushを依頼
+次のTODO: ユーザーが手動でgit pushを実行
+---

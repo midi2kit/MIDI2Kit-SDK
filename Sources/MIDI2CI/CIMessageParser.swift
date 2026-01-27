@@ -136,6 +136,7 @@ public enum CIMessageParser {
     
     /// Parse PE Get Reply or Set Reply payload
     /// - Parameter payload: Payload bytes
+    /// - Parameter ciVersion: CI version (1 for 1.1, 2 for 1.2+)
     /// - Returns: Parsed PE reply, or nil if invalid
     /// 
     /// MIDI-CI 1.2 PE Reply format (M2-105-UM Section 6.4.2):
@@ -146,7 +147,36 @@ public enum CIMessageParser {
     /// - dataLength (2 bytes, 14-bit encoded)
     /// - headerData (headerLength bytes)
     /// - propertyData (dataLength bytes)
-    public static func parsePEReply(_ payload: [UInt8]) -> PEReplyPayload? {
+    ///
+    /// MIDI-CI 1.1 PE Reply format:
+    /// - requestID (1 byte)
+    /// - headerLength (2 bytes, 14-bit encoded)
+    /// - dataLength (2 bytes, 14-bit encoded)
+    /// - headerData (headerLength bytes)
+    /// - propertyData (dataLength bytes)
+    /// Note: No numChunks/thisChunk fields in CI 1.1
+    ///
+    /// Note: Some devices (e.g., KORG) report ciVersion=0x01 but use a simplified format
+    /// without numChunks/thisChunk/dataLength fields. We detect this by checking if the
+    /// byte after headerSize looks like JSON (starts with '{').
+    public static func parsePEReply(_ payload: [UInt8], ciVersion: UInt8 = 2) -> PEReplyPayload? {
+        // Try CI 1.2 format first (most devices use this)
+        if let result = parsePEReplyCI12(payload) {
+            return result
+        }
+        
+        // Try CI 1.1 format (with dataLength field)
+        if let result = parsePEReplyCI11(payload) {
+            return result
+        }
+        
+        // Fallback: KORG-style format (no numChunks/thisChunk/dataLength fields)
+        // Format: requestID(1) + headerSize(2) + headerData(headerSize) + propertyData(rest)
+        return parsePEReplyKORG(payload)
+    }
+    
+    /// Parse PE Reply in CI 1.2 format (with numChunks/thisChunk fields)
+    private static func parsePEReplyCI12(_ payload: [UInt8]) -> PEReplyPayload? {
         // Minimum: requestID(1) + headerSize(2) + numChunks(2) + thisChunk(2) + dataSize(2) = 9 bytes
         guard payload.count >= 9 else { return nil }
         
@@ -164,6 +194,10 @@ public enum CIMessageParser {
         // Property data size (14-bit)
         let dataSize = Int(payload[7]) | (Int(payload[8]) << 7)
         
+        // Sanity check: numChunks and thisChunk should be reasonable
+        guard numChunks >= 1 && numChunks <= 0x3FFF else { return nil }
+        guard thisChunk >= 1 && thisChunk <= numChunks else { return nil }
+        
         // Extract header data (comes after the size fields)
         let headerStart = 9
         let headerEnd = headerStart + headerSize
@@ -179,6 +213,105 @@ public enum CIMessageParser {
             propertyData: propertyData,
             numChunks: numChunks,
             thisChunk: thisChunk
+        )
+    }
+    
+    /// Parse PE Reply in CI 1.1 format (no numChunks/thisChunk fields, but has dataLength)
+    private static func parsePEReplyCI11(_ payload: [UInt8]) -> PEReplyPayload? {
+        // Minimum: requestID(1) + headerSize(2) + dataSize(2) = 5 bytes
+        guard payload.count >= 5 else { return nil }
+        
+        let requestID = payload[0] & 0x7F
+        let headerSize = Int(payload[1]) | (Int(payload[2]) << 7)
+        let dataSize = Int(payload[3]) | (Int(payload[4]) << 7)
+        
+        // Sanity check: sizes should be reasonable
+        guard headerSize >= 0 && headerSize <= 0x3FFF else { return nil }
+        guard dataSize >= 0 && dataSize <= 0x3FFF else { return nil }
+        
+        let headerStart = 5
+        let headerEnd = headerStart + headerSize
+        let dataStart = headerEnd
+        let dataEnd = dataStart + dataSize
+        guard payload.count >= dataEnd else { return nil }
+        let headerData = Data(payload[headerStart..<headerEnd])
+        let propertyData = Data(payload[dataStart..<dataEnd])
+        
+        return PEReplyPayload(
+            requestID: requestID,
+            headerData: headerData,
+            propertyData: propertyData,
+            numChunks: 1,
+            thisChunk: 1
+        )
+    }
+    
+    /// Parse PE Reply in KORG-style format
+    /// KORG format: requestID(1) + headerSize(2) + headerData(headerSize) + numChunks(2) + thisChunk(2) + dataSize(2) + propertyData(dataSize)
+    /// Note: chunk fields come AFTER headerData, unlike standard CI 1.2 format
+    private static func parsePEReplyKORG(_ payload: [UInt8]) -> PEReplyPayload? {
+        // Minimum: requestID(1) + headerSize(2) + at least 1 byte header = 4 bytes
+        guard payload.count >= 4 else { return nil }
+        
+        let requestID = payload[0] & 0x7F
+        let headerSize = Int(payload[1]) | (Int(payload[2]) << 7)
+        
+        // Sanity check: headerSize should be reasonable
+        guard headerSize >= 0 && headerSize <= 0x3FFF else { return nil }
+        
+        let headerStart = 3
+        let headerEnd = headerStart + headerSize
+        
+        // Validate: headerData should fit and look like JSON (starts with '{')
+        guard headerEnd <= payload.count else { return nil }
+        guard payload.count > 3 && payload[3] == 0x7B else { return nil } // 0x7B = '{'
+        
+        let headerData = Data(payload[headerStart..<headerEnd])
+        
+        // Check if there's chunk fields after header
+        // Chunk fields: numChunks(2) + thisChunk(2) + dataSize(2) = 6 bytes
+        let chunkFieldsStart = headerEnd
+        if chunkFieldsStart + 6 <= payload.count {
+            // Read chunk fields
+            let numChunks = Int(payload[chunkFieldsStart]) | (Int(payload[chunkFieldsStart + 1]) << 7)
+            let thisChunk = Int(payload[chunkFieldsStart + 2]) | (Int(payload[chunkFieldsStart + 3]) << 7)
+            let dataSize = Int(payload[chunkFieldsStart + 4]) | (Int(payload[chunkFieldsStart + 5]) << 7)
+            
+            // Validate chunk fields
+            if numChunks >= 1 && numChunks <= 0x3FFF &&
+               thisChunk >= 1 && thisChunk <= numChunks &&
+               dataSize >= 0 && dataSize <= 0x3FFF {
+                
+                let dataStart = chunkFieldsStart + 6
+                let dataEnd = dataStart + dataSize
+                
+                if dataEnd <= payload.count {
+                    let propertyData = Data(payload[dataStart..<dataEnd])
+                    return PEReplyPayload(
+                        requestID: requestID,
+                        headerData: headerData,
+                        propertyData: propertyData,
+                        numChunks: numChunks,
+                        thisChunk: thisChunk
+                    )
+                }
+            }
+        }
+        
+        // Fallback: no chunk fields, property data is everything after header
+        let propertyData: Data
+        if headerEnd < payload.count {
+            propertyData = Data(payload[headerEnd...])
+        } else {
+            propertyData = Data()
+        }
+        
+        return PEReplyPayload(
+            requestID: requestID,
+            headerData: headerData,
+            propertyData: propertyData,
+            numChunks: 1,
+            thisChunk: 1
         )
     }
     
@@ -265,8 +398,8 @@ public enum CIMessageParser {
             return nil
         }
         
-        // Parse payload
-        guard let payload = parsePEReply(parsed.payload) else { return nil }
+        // Parse payload with CI version
+        guard let payload = parsePEReply(parsed.payload, ciVersion: parsed.ciVersion) else { return nil }
         
         return FullPEReply(
             sourceMUID: parsed.sourceMUID,

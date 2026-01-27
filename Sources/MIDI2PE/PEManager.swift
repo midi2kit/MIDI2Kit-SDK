@@ -33,10 +33,28 @@ public struct PEResponse: Sendable {
     public let body: Data
     
     /// Decoded body (Mcoded7 decoded if needed)
+    ///
+    /// Decoding logic:
+    /// 1. If header indicates Mcoded7 encoding, decode it
+    /// 2. If body starts with '{' or '[', assume it's already JSON
+    /// 3. Otherwise, try Mcoded7 decode as fallback (for devices like KORG that don't set the header flag)
     public var decodedBody: Data {
+        // If header explicitly indicates Mcoded7
         if header?.isMcoded7 == true {
             return Mcoded7.decode(body) ?? body
         }
+        
+        // If body looks like JSON already (starts with '{' or '['), return as-is
+        if let firstByte = body.first, firstByte == 0x7B || firstByte == 0x5B {
+            return body
+        }
+        
+        // Fallback: try Mcoded7 decode for devices that don't set the header flag
+        // (e.g., KORG devices send Mcoded7-encoded data without mutualEncoding header)
+        if let decoded = Mcoded7.decode(body) {
+            return decoded
+        }
+        
         return body
     }
     
@@ -129,6 +147,12 @@ extension PEError: CustomStringConvertible {
         case .nak(let details):
             return details.description
         }
+    }
+}
+
+extension PEError: LocalizedError {
+    public var errorDescription: String? {
+        description
     }
 }
 
@@ -900,6 +924,17 @@ public actor PEManager {
             throw PEError.deviceError(status: response.status, message: response.header?.message)
         }
         
+        // Debug: log body details
+        let bodyPreview = response.body.prefix(20).map { String(format: "%02X", $0) }.joined(separator: " ")
+        let decodedPreview = response.decodedBody.prefix(40).map { String(format: "%02X", $0) }.joined(separator: " ")
+        logger.info(
+            "DeviceInfo body: raw=\(response.body.count)B [\(bodyPreview)...] decoded=\(response.decodedBody.count)B [\(decodedPreview)...]",
+            category: Self.logCategory
+        )
+        if let str = String(data: response.decodedBody.prefix(100), encoding: .utf8) {
+            logger.info("DeviceInfo decoded string: \(str)", category: Self.logCategory)
+        }
+        
         do {
             return try JSONDecoder().decode(PEDeviceInfo.self, from: response.decodedBody)
         } catch {
@@ -1163,7 +1198,12 @@ public actor PEManager {
         sendTasks[requestID] = Task { [weak self] in
             if Task.isCancelled { return }
             do {
-                try await transport.send(message, to: destination)
+                // DEBUG: Broadcast to ALL destinations (like SimpleMidiController)
+                // This is a temporary workaround for KORG Module Pro compatibility
+                let destinations = await transport.destinations
+                for dest in destinations {
+                    try await transport.send(message, to: dest.destinationID)
+                }
             } catch {
                 guard let self else { return }
                 await self.handleSendError(requestID: requestID, error: error)
@@ -1264,6 +1304,28 @@ public actor PEManager {
         }
     }
     
+    // MARK: - Public: External Receive Handling
+    
+    /// Handle received data from external dispatcher
+    ///
+    /// Use this when you need to manually dispatch messages to PEManager
+    /// instead of having PEManager consume the transport stream directly.
+    /// This is useful when multiple managers need to receive the same data.
+    public func handleReceivedExternal(_ data: [UInt8]) async {
+        // Debug: log received data for PE messages
+        if data.count > 10 {
+            let subID2 = data[4] // Universal SysEx Sub-ID#2
+            // PE Reply (0x35) or PE GET Inquiry (0x34)
+            if subID2 == 0x35 || subID2 == 0x34 {
+                logger.debug(
+                    "PE recv: subID2=0x\(String(format: "%02X", subID2)) len=\(data.count)",
+                    category: Self.logCategory
+                )
+            }
+        }
+        await handleReceived(data)
+    }
+    
     // MARK: - Private: Receive Handling
     
     private func handleReceived(_ data: [UInt8]) async {
@@ -1330,10 +1392,26 @@ public actor PEManager {
         
         // Try PE Reply (GET/SET response)
         guard let reply = CIMessageParser.parseFullPEReply(data) else {
+            // Debug: log why parsing failed for PE-like messages
+            if data.count > 4 && data[4] == 0x35 {
+                // Dump payload bytes for debugging
+                let payloadStart = min(14, data.count - 1)
+                let payloadPreview = data.count > payloadStart ? Array(data[payloadStart..<min(payloadStart + 20, data.count)]) : []
+                let hexPreview = payloadPreview.map { String(format: "%02X", $0) }.joined(separator: " ")
+                logger.debug(
+                    "parseFullPEReply failed for 0x35: len=\(data.count), payload[14..]: \(hexPreview)",
+                    category: Self.logCategory
+                )
+            }
             return
         }
         
-        guard reply.destinationMUID == sourceMUID else {
+        // Debug: log MUID mismatch
+        if reply.destinationMUID != sourceMUID {
+            logger.debug(
+                "PE Reply MUID mismatch: dest=\(reply.destinationMUID) ours=\(sourceMUID)",
+                category: Self.logCategory
+            )
             return
         }
         
@@ -1351,6 +1429,11 @@ public actor PEManager {
             numChunks: reply.numChunks,
             headerData: reply.headerData,
             propertyData: reply.propertyData
+        )
+        
+        logger.debug(
+            "processChunk result for [\(requestID)]: \(String(describing: result))",
+            category: Self.logCategory
         )
         
         switch result {
