@@ -219,6 +219,14 @@ public protocol MIDITransport: Sendable {
     /// Connect to all available sources
     func connectToAllSources() async throws
     
+    /// Broadcast MIDI data to all destinations
+    ///
+    /// This sends the same data to every available destination.
+    /// Useful for MIDI-CI messages where the correct destination is unknown.
+    ///
+    /// - Parameter data: MIDI bytes to broadcast
+    func broadcast(_ data: [UInt8]) async throws
+    
     /// Find the matching destination for a source (same entity/device)
     ///
     /// This is essential for bidirectional communication with MIDI-CI devices.

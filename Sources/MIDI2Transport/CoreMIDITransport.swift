@@ -346,6 +346,25 @@ public final class CoreMIDITransport: MIDITransport, @unchecked Sendable {
         connectionState.markDisconnected(sourceRef)
     }
     
+    /// Broadcast MIDI data to all destinations
+    ///
+    /// This sends the same data to every available destination.
+    /// Useful for MIDI-CI messages where the correct destination is unknown.
+    ///
+    /// - Parameter data: MIDI bytes to broadcast
+    public func broadcast(_ data: [UInt8]) async throws {
+        let count = MIDIGetNumberOfDestinations()
+        guard count > 0 else { return }
+        
+        for i in 0..<count {
+            let destRef = MIDIGetDestination(i)
+            if destRef != 0 {
+                let destID = MIDIDestinationID(UInt32(destRef))
+                try await send(data, to: destID)
+            }
+        }
+    }
+    
     /// Connect to all available sources (differential - only connects new sources)
     public func connectToAllSources() async throws {
         let count = MIDIGetNumberOfSources()

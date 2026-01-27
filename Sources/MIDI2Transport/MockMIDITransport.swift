@@ -87,6 +87,18 @@ public actor MockMIDITransport: MIDITransport {
         // No-op for mock
     }
     
+    public func broadcast(_ data: [UInt8]) async throws {
+        // Broadcast to all mock destinations
+        for dest in mockDestinations {
+            let message = SentMessage(
+                data: data,
+                destination: dest.destinationID,
+                timestamp: Date()
+            )
+            sentMessages.append(message)
+        }
+    }
+    
     /// Source to destination mapping for testing
     ///
     /// Configure this to control what `findMatchingDestination` returns.

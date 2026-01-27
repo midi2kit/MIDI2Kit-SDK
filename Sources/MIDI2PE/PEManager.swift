@@ -366,6 +366,19 @@ public actor PEManager {
         logger.info("Started receiving", category: Self.logCategory)
     }
     
+    /// Reset state for external dispatch mode
+    ///
+    /// Use this when messages will be dispatched externally via `handleReceivedExternal`
+    /// instead of having PEManager consume the transport stream directly.
+    /// This resets internal state without starting the receive loop.
+    public func resetForExternalDispatch() async {
+        // Reset transaction manager state (clear isStopped flag)
+        await transactionManager.reset()
+        await notifyAssemblyManager.cancelAll()
+        
+        logger.info("Reset for external dispatch", category: Self.logCategory)
+    }
+    
     /// Stop receiving and cancel all pending requests
     public func stopReceiving() async {
         // Cancel any pending send tasks first.
@@ -1234,14 +1247,25 @@ public actor PEManager {
         destination: MIDIDestinationID
     ) {
         cancelSendTask(requestID: requestID)
+        
+        // DEBUG: Log send attempt with hex dump
+        let hexMsg = message.map { String(format: "%02X", $0) }.joined(separator: " ")
+        print("[PE-SEND] Sending request [\(requestID)] to destination \(destination), message len=\(message.count)")
+        print("[PE-SEND] Message: \(hexMsg)")
 
         let transport = self.transport
         sendTasks[requestID] = Task { [weak self] in
             if Task.isCancelled { return }
             do {
-                // Send to the specified destination only (not broadcast)
-                try await transport.send(message, to: destination)
+                // WORKAROUND: Broadcast to all destinations for KORG compatibility
+                // KORG devices may not respond when sent to specific destinations,
+                // but will respond when the message reaches them via broadcast.
+                // This mimics the behavior of SimpleMidiController which works with KORG.
+                print("[PE-SEND] Broadcasting request [\(requestID)] to all destinations")
+                try await transport.broadcast(message)
+                print("[PE-SEND] Request [\(requestID)] broadcast completed")
             } catch {
+                print("[PE-SEND] Request [\(requestID)] broadcast FAILED: \(error)")
                 guard let self else { return }
                 await self.handleSendError(requestID: requestID, error: error)
             }
@@ -1349,15 +1373,23 @@ public actor PEManager {
     /// instead of having PEManager consume the transport stream directly.
     /// This is useful when multiple managers need to receive the same data.
     public func handleReceivedExternal(_ data: [UInt8]) async {
-        // Debug: log received data for PE messages
-        if data.count > 10 {
-            let subID2 = data[4] // Universal SysEx Sub-ID#2
-            // PE Reply (0x35) or PE GET Inquiry (0x34)
-            if subID2 == 0x35 || subID2 == 0x34 {
-                logger.debug(
-                    "PE recv: subID2=0x\(String(format: "%02X", subID2)) len=\(data.count)",
-                    category: Self.logCategory
-                )
+        // Detailed debug logging for PE messages
+        if data.count > 10 && data[0] == 0xF0 && data.count > 4 {
+            let subID2 = data[4]
+            // PE Reply messages
+            if subID2 == 0x35 || subID2 == 0x36 {
+                let hexDump = data.prefix(50).map { String(format: "%02X", $0) }.joined(separator: " ")
+                print("[PEManager] Received PE Reply (0x\(String(format: "%02X", subID2))) len=\(data.count)")
+                print("[PEManager]   Raw: \(hexDump)\(data.count > 50 ? "..." : "")")
+                
+                // Try to parse and log
+                if let parsed = CIMessageParser.parse(data) {
+                    print("[PEManager]   Parsed: src=\(parsed.sourceMUID) dst=\(parsed.destinationMUID)")
+                    print("[PEManager]   Our MUID: \(sourceMUID)")
+                    print("[PEManager]   MUID match: \(parsed.destinationMUID == sourceMUID)")
+                } else {
+                    print("[PEManager]   PARSE FAILED!")
+                }
             }
         }
         await handleReceived(data)
