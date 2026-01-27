@@ -36,6 +36,9 @@ let package = Package(
             targets: ["MIDI2Transport"]
         ),
     ],
+    dependencies: [
+        .package(url: "https://github.com/apple/swift-docc-plugin", from: "1.0.0"),
+    ],
     targets: [
         // MARK: - Core Module
         // Foundation types: MUID, UMP, DeviceIdentity, etc.
