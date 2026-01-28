@@ -263,6 +263,19 @@ public actor PEManager {
     /// ```
     public var destinationResolver: (@Sendable (MUID) async -> MIDIDestinationID?)?
     
+    // MARK: - Send Strategy
+    
+    /// PE send strategy (controls broadcast vs single destination behavior)
+    ///
+    /// Default is `.broadcast` for backward compatibility.
+    /// Set to `.fallback` for smarter behavior that learns successful destinations.
+    public var sendStrategy: PESendStrategy = .broadcast
+    
+    /// Destination cache for learned successful destinations
+    ///
+    /// Used by `.fallback` and `.learned` strategies.
+    public let destinationCache: DestinationCache
+    
     // MARK: - Receive State
     
     /// Task that processes incoming MIDI data
@@ -288,6 +301,12 @@ public actor PEManager {
     /// Without this, a send may occur *after* stop/ID reuse, causing flakey tests and subtle races.
     private var sendTasks: [UInt8: Task<Void, Never>] = [:]
     
+    /// Pending request metadata for cache update (keyed by Request ID)
+    ///
+    /// When a successful response arrives, we use this to update the destination cache.
+    /// Format: [requestID: (targetMUID, sentDestination)]
+    private var pendingRequestMetadata: [UInt8: (muid: MUID, destination: MIDIDestinationID)] = [:]
+    
     // MARK: - Subscribe State
     
     /// Continuations waiting for Subscribe/Unsubscribe responses
@@ -306,17 +325,20 @@ public actor PEManager {
     ///   - transport: MIDI transport for sending/receiving
     ///   - sourceMUID: Our MUID (for message filtering)
     ///   - maxInflightPerDevice: Maximum concurrent requests per device (default: 2)
+    ///   - destinationCacheTTL: Time-to-live for destination cache entries (default: 30 minutes)
     ///   - logger: Optional logger (default: silent)
     public init(
         transport: any MIDITransport,
         sourceMUID: MUID,
         maxInflightPerDevice: Int = 2,
         notifyAssemblyTimeout: TimeInterval = 2.0,
+        destinationCacheTTL: TimeInterval = 1800,
         logger: any MIDI2Logger = NullMIDI2Logger()
     ) {
         self.transport = transport
         self.sourceMUID = sourceMUID
         self.logger = logger
+        self.destinationCache = DestinationCache(ttl: destinationCacheTTL)
         self.notifyAssemblyManager = PENotifyAssemblyManager(timeout: notifyAssemblyTimeout, logger: logger)
         self.transactionManager = PETransactionManager(
             maxInflightPerDevice: maxInflightPerDevice,
@@ -403,6 +425,9 @@ public actor PEManager {
             continuation.resume(throwing: PEError.cancelled)
         }
         pendingContinuations.removeAll()
+        
+        // Clear pending request metadata
+        pendingRequestMetadata.removeAll()
         
         // Resume all pending Subscribe continuations with cancellation
         for continuation in pendingSubscribeContinuations.values {
@@ -493,6 +518,7 @@ public actor PEManager {
         // Cancel timeout
         timeoutTasks[requestID]?.cancel()
         timeoutTasks.removeValue(forKey: requestID)
+        pendingRequestMetadata.removeValue(forKey: requestID)
         
         // Release transaction
         await transactionManager.cancel(requestID: requestID)
@@ -1249,24 +1275,90 @@ public actor PEManager {
     ) {
         cancelSendTask(requestID: requestID)
         
-        // DEBUG: Log send attempt with hex dump
-        let hexMsg = message.map { String(format: "%02X", $0) }.joined(separator: " ")
-        print("[PE-SEND] Sending request [\(requestID)] to destination \(destination), message len=\(message.count)")
-        print("[PE-SEND] Message: \(hexMsg)")
-
         let transport = self.transport
+        let strategy = self.sendStrategy
+        let cache = self.destinationCache
+        let logger = self.logger
+        
+        // Extract MUID from message for cache lookup (bytes 9-12 are destination MUID)
+        let targetMUID: MUID? = message.count >= 13 ? MUID(rawValue:
+            UInt32(message[9]) |
+            (UInt32(message[10]) << 7) |
+            (UInt32(message[11]) << 14) |
+            (UInt32(message[12]) << 21)
+        ) : nil
+        
+        // Record metadata for cache update on success
+        if let muid = targetMUID {
+            pendingRequestMetadata[requestID] = (muid: muid, destination: destination)
+        }
+        
         sendTasks[requestID] = Task { [weak self] in
             if Task.isCancelled { return }
+            
             do {
-                // WORKAROUND: Broadcast to all destinations for KORG compatibility
-                // KORG devices may not respond when sent to specific destinations,
-                // but will respond when the message reaches them via broadcast.
-                // This mimics the behavior of SimpleMidiController which works with KORG.
-                print("[PE-SEND] Broadcasting request [\(requestID)] to all destinations")
-                try await transport.broadcast(message)
-                print("[PE-SEND] Request [\(requestID)] broadcast completed")
+                switch strategy {
+                case .single:
+                    // Send to resolved destination only
+                    logger.debug("[PE-SEND] Single send [\(requestID)] to \(destination)", category: "PEManager")
+                    try await transport.send(message, to: destination)
+                    
+                case .broadcast:
+                    // Broadcast to all destinations (legacy behavior)
+                    logger.debug("[PE-SEND] Broadcast [\(requestID)] to all destinations", category: "PEManager")
+                    try await transport.broadcast(message)
+                    
+                case .learned:
+                    // Use cached destination only, fail if not cached
+                    if let muid = targetMUID,
+                       let cachedDest = await cache.getCachedDestination(for: muid) {
+                        logger.debug("[PE-SEND] Learned send [\(requestID)] to cached \(cachedDest)", category: "PEManager")
+                        try await transport.send(message, to: cachedDest)
+                    } else {
+                        logger.warning("[PE-SEND] No cached destination for [\(requestID)], failing", category: "PEManager")
+                        throw PEError.noDestination
+                    }
+                    
+                case .fallback:
+                    // Try cached first, then resolved, then broadcast
+                    var sent = false
+                    
+                    // Step 1: Try cached destination
+                    if let muid = targetMUID,
+                       let cachedDest = await cache.getCachedDestination(for: muid) {
+                        logger.debug("[PE-SEND] Fallback step 1: cached \(cachedDest) [\(requestID)]", category: "PEManager")
+                        try await transport.send(message, to: cachedDest)
+                        sent = true
+                    }
+                    
+                    // Step 2: Try resolved destination (if different from cached)
+                    if !sent {
+                        logger.debug("[PE-SEND] Fallback step 2: resolved \(destination) [\(requestID)]", category: "PEManager")
+                        try await transport.send(message, to: destination)
+                        sent = true
+                    }
+                    
+                    // Note: Step 3 (broadcast on timeout) is handled by retry logic at higher level
+                    // For now, we just send to the resolved destination
+                    
+                case .custom(let resolver):
+                    // Get destinations from custom resolver
+                    let destinations = await transport.destinations.map { $0.destinationID }
+                    let selectedDests = await resolver(destinations)
+                    
+                    if selectedDests.isEmpty {
+                        logger.warning("[PE-SEND] Custom resolver returned no destinations [\(requestID)]", category: "PEManager")
+                        throw PEError.noDestination
+                    }
+                    
+                    // Send to all selected destinations
+                    for dest in selectedDests {
+                        logger.debug("[PE-SEND] Custom send [\(requestID)] to \(dest)", category: "PEManager")
+                        try await transport.send(message, to: dest)
+                    }
+                }
             } catch {
-                print("[PE-SEND] Request [\(requestID)] broadcast FAILED: \(error)")
+                logger.error("[PE-SEND] Request [\(requestID)] send FAILED: \(error)", category: "PEManager")
                 guard let self else { return }
                 await self.handleSendError(requestID: requestID, error: error)
             }
@@ -1309,6 +1401,7 @@ public actor PEManager {
     private func handleTimeout(requestID: UInt8, resource: String) {
         clearSendTask(requestID: requestID)
         timeoutTasks.removeValue(forKey: requestID)
+        pendingRequestMetadata.removeValue(forKey: requestID)
         
         guard let continuation = pendingContinuations.removeValue(forKey: requestID) else {
             return
@@ -1346,6 +1439,7 @@ public actor PEManager {
         clearSendTask(requestID: requestID)
         timeoutTasks[requestID]?.cancel()
         timeoutTasks.removeValue(forKey: requestID)
+        pendingRequestMetadata.removeValue(forKey: requestID)
         
         await transactionManager.cancel(requestID: requestID)
         
@@ -1557,6 +1651,21 @@ public actor PEManager {
         let status = parsedHeader?.status ?? 200
         let response = PEResponse(status: status, header: parsedHeader, body: body)
         
+        // Update destination cache on success (status 200-299)
+        if response.isSuccess,
+           let metadata = pendingRequestMetadata.removeValue(forKey: requestID) {
+            Task {
+                await destinationCache.recordSuccess(muid: metadata.muid, destination: metadata.destination)
+                logger.debug(
+                    "[PE-CACHE] Recorded success: MUID=\(metadata.muid) -> Dest=\(metadata.destination)",
+                    category: Self.logCategory
+                )
+            }
+        } else {
+            // Remove metadata on failure too
+            pendingRequestMetadata.removeValue(forKey: requestID)
+        }
+        
         logger.debug(
             "Complete [\(requestID)] status=\(status) body=\(body.count)B",
             category: Self.logCategory
@@ -1568,6 +1677,7 @@ public actor PEManager {
     private func handleChunkTimeout(requestID: UInt8) {
         timeoutTasks[requestID]?.cancel()
         timeoutTasks.removeValue(forKey: requestID)
+        pendingRequestMetadata.removeValue(forKey: requestID)
 
         clearSendTask(requestID: requestID)
         

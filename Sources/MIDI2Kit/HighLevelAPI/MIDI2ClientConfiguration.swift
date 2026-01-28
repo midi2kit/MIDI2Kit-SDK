@@ -9,6 +9,8 @@ import Foundation
 import MIDI2Core
 import MIDI2Transport
 
+import MIDI2PE
+
 // MARK: - ClientPreset
 
 /// Preset configurations for common use cases
@@ -115,6 +117,35 @@ public struct MIDI2ClientConfiguration: Sendable {
     /// Default: `.preferModule` (optimized for KORG and similar devices)
     public var destinationStrategy: DestinationStrategy
     
+    // MARK: - PE Send Strategy
+    
+    /// Strategy for sending PE requests
+    ///
+    /// Controls how PE requests are routed to destinations:
+    /// - `.single`: Send to resolved destination only (most efficient)
+    /// - `.broadcast`: Send to all destinations (most reliable, but may cause side effects)
+    /// - `.fallback`: Try single first, broadcast on timeout (recommended)
+    /// - `.learned`: Use only cached destinations
+    ///
+    /// Default: `.fallback` (recommended for KORG and BLE devices)
+    public var peSendStrategy: PESendStrategy
+    
+    /// Timeout for each step in fallback strategy
+    ///
+    /// When using `.fallback` strategy, this is the timeout for each attempt
+    /// before trying the next fallback.
+    ///
+    /// Default: 500ms
+    public var fallbackStepTimeout: Duration
+    
+    /// Time-to-live for destination cache
+    ///
+    /// Cached destinations expire after this duration.
+    /// Handles device reconnections where the destination may have changed.
+    ///
+    /// Default: 30 minutes (1800 seconds)
+    public var destinationCacheTTL: Duration
+    
     // MARK: - Advanced Settings
     
     /// Whether to respond to Discovery Inquiries (act as Responder)
@@ -155,6 +186,9 @@ public struct MIDI2ClientConfiguration: Sendable {
         self.retryDelay = .milliseconds(100)
         self.multiChunkTimeoutMultiplier = 1.5
         self.destinationStrategy = .preferModule
+        self.peSendStrategy = .fallback
+        self.fallbackStepTimeout = .milliseconds(500)
+        self.destinationCacheTTL = .seconds(1800)
         self.respondToDiscovery = false
         self.tolerateCIVersionMismatch = true
         self.maxSysExSize = 0

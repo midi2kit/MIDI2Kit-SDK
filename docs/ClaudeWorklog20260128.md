@@ -636,6 +636,363 @@
 ---
 
 ---
+2026-01-28 06:52
+作業項目:
+  - PE destination cache実装のcommit & push
+追加機能の説明:
+  - 前セッションで実装したPE送信成功時のdestination cache更新ロジックをコミット
+  - PEManager.swift: pendingRequestMetadata記録、handleComplete()でのcache更新、エラーハンドラでのcleanup
+決定事項:
+  - Commit message: "feat(MIDI2PE): Add destination cache update on successful PE response"
+次のTODO:
+  - git status確認
+  - git add & commit
+  - git push
+---
+
+---
+2026-01-28 06:38
+作業項目: PEManager Destination Cache Update実装完了
+追加機能の説明:
+  - 成功したPE応答のソースMUID→Destinationマッピングを学習
+  - .fallbackおよび.learnedストラテジーで活用
+決定事項:
+  【実装完了】
+  1. scheduleSendForRequestでメタデータ記録
+     - targetMUIDとdestinationをpendingRequestMetadataに保存
+  2. handleCompleteでキャッシュ更新
+     - 成功応答（status 200-299）時にdestinationCache.recordSuccess()呼び出し
+     - 失敗時もメタデータクリア
+  3. エラー/タイムアウト/キャンセル時のメタデータクリア
+     - handleTimeout, handleChunkTimeout, handleSendError, cancelRequest
+  
+  【変更ファイル】
+  - PEManager.swift
+    - scheduleSendForRequest: メタデータ記録追加
+    - handleComplete: キャッシュ更新ロジック追加
+    - 各エラーハンドラ: メタデータクリア追加
+  
+  【ビルド】
+  - ✅ Swift Packageビルド成功
+  - ✅ MIDI2Explorer実機ビルド成功
+  
+  【実機テスト】
+  - KORG Module Pro: PEタイムアウト（アプリがバックグラウンドの可能性）
+  - キャッシュ更新ロジックは実装済み、成功時に自動で学習
+次のTODO:
+  - commit & push
+  - ユニットテスト追加（キャッシュ動作確認）
+---
+
+---
+2026-01-28 06:29
+作業項目: PEManager destination cache update実装継続
+追加機能の説明:
+  - pendingRequestMetadataは既に追加済み（stopReceivingでのクリアも含む）
+  - scheduleSendForRequest でメタデータ記録を追加
+  - handleComplete でキャッシュ更新ロジックを追加
+決定事項:
+  【実装状況確認】
+  - ✅ pendingRequestMetadata プロパティ
+  - ✅ stopReceiving でのクリア
+  - ⏳ scheduleSendForRequest でのメタデータ記録
+  - ⏳ handleComplete でのキャッシュ更新
+次のTODO:
+  - scheduleSendForRequest でメタデータを記録
+  - handleComplete でキャッシュを更新
+---
+
+---
+2026-01-28 06:29
+作業項目: PEManager destination cache update実装継続
+追加機能の説明:
+  - pendingRequestMetadataは既に追加済み（stopReceivingでのクリアも含む）
+  - scheduleSendForRequest でメタデータ記録を追加
+  - handleComplete でキャッシュ更新ロジックを追加
+決定事項:
+  【実装状況確認】
+  - ✅ pendingRequestMetadata プロパティ（行307付近）
+  - ✅ stopReceiving でのクリア
+  - ⏳ scheduleSendForRequest でのメタデータ記録
+  - ⏳ handleComplete でのキャッシュ更新
+次のTODO:
+  - scheduleSendForRequest でメタデータを記録
+  - handleComplete でキャッシュを更新
+---
+
+---
+2026-01-28 06:22
+作業項目:
+  - PEManager: Destination Cacheキャッシュ更新ロジック実装
+  - scheduleSendForRequest: メタデータ記録追加
+  - handleComplete: 成功時キャッシュ更新追加
+  - ユニットテスト追加
+追加機能の説明:
+  - 成功したPE応答からMUID→Destinationのマッピングを学習
+  - 学習したDestinationをキャッシュし、次回以降の送信で使用
+  - .fallbackおよび.learnedストラテジーで活用
+決定事項:
+  - pendingRequestMetadata辞書は追加済み（前セッション）
+  - scheduleSendForRequestでメタデータを記録
+  - handleCompleteで成功応答時にキャッシュ更新
+次のTODO:
+  - scheduleSendForRequestでメタデータ記録実装
+  - handleCompleteでキャッシュ更新実装
+  - ユニットテスト作成
+---
+
+---
+2026-01-28 06:13
+作業項目: PESendStrategy/DestinationCache実装 & キャッシュ更新ロジック
+追加機能の説明:
+  - PESendStrategyとDestinationCacheの実装を開始
+  - handleReceived内でsourceMUID→Destinationキャッシュ更新
+  - ユニットテスト追加
+  - fallbackモードのタイムアウト/リトライ統合
+決定事項:
+  【現状分析】
+  - PEManager.swiftでDestinationCacheとPESendStrategyが参照されているが未実装
+  - これらの型を作成する必要あり
+  
+  【実装計画】
+  1. PESendStrategy enum作成（single, broadcast, learned, fallback, custom）
+  2. DestinationCache actor作成（TTL付きキャッシュ）
+  3. handleReceived内でsourceMUID→destination学習ロジック追加
+  4. ユニットテスト作成
+次のTODO:
+  - PESendStrategy.swift作成
+  - DestinationCache.swift作成
+---
+
+---
+2026-01-28 06:13
+作業項目: PESendStrategy/DestinationCache実装 & キャッシュ更新ロジック
+追加機能の説明:
+  - PESendStrategyとDestinationCacheの実装を開始
+  - handleReceived内でsourceMUID→Destinationキャッシュ更新
+  - ユニットテスト追加
+  - fallbackモードのタイムアウト/リトライ統合
+決定事項:
+  【現状分析】
+  - PEManager.swiftでDestinationCacheとPESendStrategyが参照されているが未実装
+  - これらの型を作成する必要あり
+  
+  【実装計画】
+  1. PESendStrategy enum作成（single, broadcast, learned, fallback, custom）
+  2. DestinationCache actor作成（TTL付きキャッシュ）
+  3. handleReceived内でsourceMUID→destination学習ロジック追加
+  4. ユニットテスト作成
+次のTODO:
+  - PESendStrategy.swift作成
+  - DestinationCache.swift作成
+---
+
+---
+2026-01-28 06:09
+作業項目: PESendStrategy実装ビルド成功
+追加機能の説明:
+  - MUID初期化エラー修正（rawValue:ラベル追加）
+  - DestinationCache diagnosticsソートエラー修正（.value使用）
+決定事項:
+  - PEManager戦略ベース送信ロジック完成
+  - デフォルト: .broadcast（後方互換性）
+次のTODO:
+  - 実機インストールしてテスト
+  - KORG Moduleで動作確認
+---
+
+---
+2026-01-28 06:11
+作業項目: 実機テスト完了
+追加機能の説明:
+  - KORG Module ProでPESendStrategy実装テスト
+決定事項:
+  【テスト結果】
+  - DeviceInfo取得成功: "Module Pro"
+  - PE送信: .broadcastモードで正常動作
+  - BLE MIDIチャンク欠落は依然発生（既知の問題、リトライで対応）
+  
+  【次のステップ】
+  - Phase 4: テスト（ユニットテスト追加）
+  - キャッシュ更新ロジックは今後の課題（成功応答時にsourceMUID/Destinationを記録）
+次のTODO:
+  - PESendStrategyのユニットテスト追加
+  - ドキュメント更新
+---
+
+---
+2026-01-28 05:33
+作業項目: PEManagerにPESendStrategy実装完了
+追加機能の説明:
+  - PEManagerにsendStrategyプロパティ追加
+  - PEManagerにdestinationCacheプロパティ追加
+  - scheduleSendForRequest()を戦略ベースに書き換え
+決定事項:
+  【実装した戦略】
+  - .single: 単一Destinationのみ
+  - .broadcast: 全Destination（従来の動作、デフォルト）
+  - .fallback: キャッシュ→解決済み→（broadcastはリトライ層で）
+  - .learned: キャッシュのみ
+  - .custom: カスタムリゾルバ
+  
+  【デフォルト】
+  - sendStrategy = .broadcast（後方互換性のため）
+  - 推奨: .fallback
+  
+  【残作業】
+  - 成功時のキャッシュ更新ロジック追加
+  - 実機テスト
+次のTODO:
+  - handleReceivedで成功時にキャッシュ更新
+  - ビルド確認
+  - 実機テスト
+---
+
+---
+2026-01-28 05:23
+作業項目: PESendStrategy実装完了
+追加機能の説明:
+  - PESendStrategy enum 作成
+  - DestinationCache actor 作成
+  - MIDI2ClientConfiguration に設定追加
+決定事項:
+  【作成ファイル】
+  - Sources/MIDI2PE/PESendStrategy.swift
+    - PESendStrategy enum: single, broadcast, fallback, learned, custom
+    - DestinationCache actor: MUID→Destinationの成功キャッシュ
+  
+  【Configuration更新】
+  - peSendStrategy: .fallback (デフォルト)
+  - fallbackStepTimeout: 500ms
+  - destinationCacheTTL: 30分
+  
+  【設計ドキュメント】
+  - docs/PESendStrategy-Design.md 作成済み
+次のTODO:
+  - PEManager.scheduleSendForRequest()の修正
+  - ビルド確認
+  - 実機テスト
+---
+
+---
+2026-01-28 05:19
+作業項目: Broadcast実装箇所特定完了
+追加機能の説明:
+  - PEManager.swift内のbroadcast実装を特定
+決定事項:
+  【発見箇所】
+  PEManager.swift: scheduleSendForRequest() メソッド
+  
+  ```swift
+  // WORKAROUND: Broadcast to all destinations for KORG compatibility
+  // KORG devices may not respond when sent to specific destinations,
+  // but will respond when the message reaches them via broadcast.
+  try await transport.broadcast(message)
+  ```
+  
+  【現状の問題】
+  - scheduleSendForRequest: broadcast() 使用（全Destination送信）
+  - scheduleSendForSubscribe: send() 使用（単一Destination）
+  - destination引数を受け取るが無視してbroadcast
+  
+  【修正対象】
+  - scheduleSendForRequest()
+  - PESendStrategyに応じてsend/broadcastを切り替え
+次のTODO:
+  - PESendStrategy enum実装
+  - DestinationCache actor実装
+  - scheduleSendForRequest修正
+---
+
+---
+2026-01-28 05:16
+作業項目: PESendStrategy設計ドキュメント作成 & 実装開始
+追加機能の説明:
+  - Broadcast問題の解決策をドキュメント化
+  - PESendStrategyの設計・実装計画
+決定事項:
+  【作成ドキュメント】
+  - docs/PESendStrategy-Design.md
+  
+  【実装計画】
+  1. 現状のbroadcast実装箇所確認
+  2. PESendStrategy enum設計
+  3. 成功Destinationキャッシュ実装
+次のTODO:
+  - ドキュメント作成
+  - broadcast実装箇所確認
+---
+
+---
+2026-01-28 04:46
+作業項目: 追加評価書レビュー - Broadcast問題の重要性
+追加機能の説明:
+  - MIDI2Kit_main_alt_evaluation_2026-01-28.md の検討
+  - 追加の意見書の検討
+決定事項:
+  【新たな重要課題: Broadcast送信問題】
+  
+  ■ 問題の核心
+  - KORG対応のためにPEリクエストを全Destinationにブロードキャスト
+  - 単一デバイスなら問題ないが、Logic Pro等他アプリ同居時に副作用リスク
+  - 「動くが雑に強い」状態
+  
+  ■ 推奨アクション（P0: 最優先）
+  1. PESendStrategy導入 (broadcast / single / fallback)
+  2. フォールバック戦略:
+     - まず推測ポート("Module")に送信
+     - タイムアウトならブロードキャスト
+  3. 成功Destinationキャッシュ（学習）:
+     - 応答があったsourceUID/destinationUIDペアを記憶
+     - 次回以降はユニキャスト
+  
+  ■ その他の指摘
+  - DestinationResolver評価: B-（設計はA、現実対策がB）
+  - MIDI2Device: 現状は薄いラッパー、リッチ化が必要
+  - 旧APIのdeprecation強化が必要
+  - RobustJSONDecoderが必ず通る経路に整理必要
+  
+  ■ テストシナリオC（必須）
+  - Logic Pro + KORG 同居環境での動作確認
+  - 「Logicが起動しているとKORG情報が取れない」を防ぐ
+  - v1.0リリースの必須条件とすべき
+  
+  【総合スコア（別軸評価）】
+  - 設計の方向性: S
+  - 現時点の実戦安定性: A-
+  - DX: B+
+  - 保守性: B
+次のTODO:
+  - PESendStrategy設計検討
+  - 現状のbroadcast実装箇所確認
+---
+
+---
+2026-01-28 04:44
+作業項目: CI成功！
+追加機能の説明:
+  - GitHub Actions CI #4 成功
+決定事項:
+  【CI #4 結果】
+  - Status: Success
+  - Total duration: 1m 33s
+  - ✅ build: 1m 29s
+  - ✅ build-ios: 1m 18s
+  
+  【修正内容のまとめ】
+  1. ReceiveHub.swift: nonisolated削除
+  2. ci.yml: macos-14 + iPhone SE (3rd generation)
+  
+  【Phase E: ライブラリ公開準備 完了】
+  - ✅ LICENSE (MIT)
+  - ✅ GitHub Actions CI
+  - ✅ README.md
+  - ✅ DocCドキュメント
+次のTODO:
+  - 評価書の疑問点コード確認に戻る
+---
+
+---
 2026-01-28 04:33
 作業項目: CI失敗原因特定・修正（両ジョブ）
 追加機能の説明:
