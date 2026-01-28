@@ -699,3 +699,184 @@
   - git commit/push
   - 今後の対策検討（USB接続、リトライ強化等）
 ---
+
+---
+2026-01-27 19:08
+作業項目: Logic Pro 接続テスト
+追加機能の説明:
+  - KORG以外のMIDI 2.0デバイスでのテスト
+  - Logic ProがMIDI-CI対応かどうか確認
+決定事項:
+  （テスト実施中）
+次のTODO:
+  - Logic Pro起動してMIDI2Explorerで検出されるか確認
+  - PE通信が可能か確認
+---
+
+---
+2026-01-27 23:41
+作業項目: 高レベルAPI設計議事録レビュー
+追加機能の説明:
+  - 2026-01-27-HighLevelAPI-Planning.md の内容確認
+  - アップロードされたドキュメントの分析結果を確認
+決定事項:
+  【ドキュメント確認完了】
+  アップロードされた議事録には以下が整理されている:
+  
+  ■ 3つの主要問題
+  1. AsyncStream単一コンシューマ問題 (Critical)
+  2. Destination mismatch - KORGポート構造問題 (Critical)
+  3. PE Get Inquiryフォーマット問題 (High - 修正済み)
+  
+  ■ 外部レビューからの追加要件
+  - makeEventStream() によるMulticast対応
+  - MIDI2ClientConfiguration 構造化設定
+  - stop()/deinit の責務明確化
+  - フォールバック付きDestination解決
+  - JSONプリプロセッサ（耐障害性パース）
+  - MIDI2Error 体系
+  
+  ■ 採用した3フェーズロードマップ
+  Phase 1: Core Update (P0 緊急)
+    - 1-1: 実機テストでPE取得成功確認
+    - 1-2: handleReceivedExternal() 公式API化
+    - 1-3: PE Inquiry/Replyフォーマットテスト追加
+  
+  Phase 2: High-Level API (P1 重要)
+    - 2-1: MIDI2Client Actor実装
+    - 2-2: MIDI2ClientConfiguration
+    - 2-3: DestinationStrategy.preferModule
+    - 2-4: MIDI2Device Actor実装
+    - 2-5: MIDI2Error 3ケース実装
+  
+  Phase 3: Resilience (P2 改善)
+    - 3-1: JSONプリプロセッサ
+    - 3-2: マルチキャストイベントシステム完成
+    - 3-3: デバッグ支援
+    - 3-4: README/ドキュメント更新
+    - 3-5: Coreリポジトリ Public化
+次のTODO:
+  - ユーザーの指示を待つ
+  - Phase 1-1（実機テスト）or 他の作業に着手
+---
+
+---
+2026-01-27 23:42
+作業項目: Phase 1-1 実機テストでPE取得成功確認
+追加機能の説明:
+  - KORG Module Pro実機でPE通信の現状を検証
+  - AsyncStream修正後の効果を確認
+決定事項:
+  【Phase 1-1 実機テスト結果】
+  
+  ■ 成功した部分
+  ✅ Discovery Reply検出: 正常動作
+  ✅ DeviceInfo取得 (auto-fetch): 成功 - "Module Pro"
+  ✅ ResourceList取得 (auto-fetch): 成功 - 6 resources
+  ✅ DeviceInfo手動取得: 成功 (reqID=3, single chunk)
+  ✅ DestinationResolver: Module選択成功 (MIDIDestinationID 1089812)
+  ✅ KORGフォーマットパーサー: 正しく動作
+  
+  ■ 問題が残る部分
+  ❌ ResourceList手動取得: 5回連続失敗 (reqID=4,5,6,7,8)
+  - chunk 1/3 と chunk 3/3 は到着
+  - chunk 2/3 が毎回欠落
+  - 5秒タイムアウトでエラー
+  
+  ■ ログ分析詳細
+  [reqID=1] auto-fetch ResourceList:
+    chunk 1/3: ✅ (215B)
+    chunk 2/3: ✅ (229B)  ← auto-fetchでは成功
+    chunk 3/3: ✅ (31B)
+    結果: COMPLETE! 475B
+  
+  [reqID=4-8] 手動取得ResourceList:
+    chunk 1/3: ✅
+    chunk 2/3: ❌ 欠落
+    chunk 3/3: ✅
+    結果: タイムアウト
+  
+  ■ 考察
+  - auto-fetchとmanual fetchで結果が異なる
+  - auto-fetchは直後に実行されるためタイミングが良い可能性
+  - BLE MIDIの物理層不安定性は依然として問題
+  - chunk 2/3の欠落パターンは一貫している
+
+次のTODO:
+  - chunk 2/3欠落の根本原因調査
+  - リトライロジックの改善検討
+  - または問題をドキュメント化してPhase 2に進む
+---
+
+---
+2026-01-27 23:49
+作業項目: タイミング調査 - auto-fetch vs 手動fetchの違い分析
+追加機能の説明:
+  - auto-fetchと手動fetchで結果が異なる原因を調査
+  - コードの実行パスの違いを分析
+決定事項:
+  【タイミング調査結果】
+  
+  ■ コード分析
+  - auto-fetchとmanual fetchは同じ client.getResourceList() を使用
+  - パスの違いなし - 純粋にタイミングの問題
+  
+  ■ ログ分析詳細
+  auto-fetch (reqID=1):
+    - Discovery Reply受信直後に実行
+    - chunk 1/3, 2/3, 3/3 全て到着
+    - chunk 2/3はCI12フォーマットで正しくパース
+  
+  manual fetch (reqID=4-8):
+    - ユーザー操作後（数秒～数分後）に実行
+    - chunk 1/3, 3/3 は到着
+    - chunk 2/3 のログがそもそも出力されていない
+    - → BLE MIDIレベルでパケットが欠落している
+  
+  ■ 仮説: BLE MIDIアイドル状態
+  - auto-fetch: Discovery直後はBLE接続が「アクティブ」
+  - manual fetch: 数秒後はBLE接続が「アイドル」状態
+  - アイドル状態ではパケットロスが発生しやすい可能性
+  
+  ■ 結論
+  - パーサーやChunkAssemblerの問題ではない
+  - BLE MIDIの物理層の信頼性問題
+  - chunk 2/3の欠落パターンは一貫している（偶然ではない）
+次のTODO:
+  - 対策案を検討:
+    1. BLE 「keep-alive」 - 定期的に小さなメッセージを送る
+    2. リトライ強化 - タイムアウトを短くして高速リトライ
+    3. ドキュメント化 - 既知の制限として記載
+---
+
+---
+2026-01-27 23:58
+作業項目: BLE keep-alive実装計画
+追加機能の説明:
+  - BLE接続をアクティブに保つための定期的なDiscovery送信
+  - MIDI2Clientにkeep-alive機能を追加
+決定事項:
+  【実装方針】
+  
+  ■ アプローチ
+  - CIManagerのDiscoveryは既に定期実行されている
+  - discoveryInterval を短く設定すればkeep-aliveになる
+  - 現在の explorer preset: 5秒間隔
+  - これが「keep-alive」として機能しているはず
+  
+  ■ 問題の再考
+  - Discoveryは5秒間隔で送信されている
+  - なのに手動操作時にchunk欠落が発生
+  - → Discovery送信だけではBLEを十分にkeep-aliveできていない可能性
+  
+  ■ 代替案: PEリクエスト前に"warm-up"
+  - PEリクエストの直前に小さなメッセージを送信
+  - 例: DeviceInfo取得前にDiscoveryを送信
+  - BLEを「起こして」から本番のResourceListを取得
+  
+  ■ 実装場所
+  - MIDI2Client.getResourceList() の内部でwarm-upを実行
+  - またはPEManager.getResourceList() のwarm-upオプション
+次のTODO:
+  - warm-upロジックを実装してテスト
+---

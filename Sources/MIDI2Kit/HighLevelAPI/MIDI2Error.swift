@@ -23,7 +23,12 @@ public enum MIDI2Error: Error, Sendable {
     /// - Device is offline or disconnected
     /// - Wrong destination port being used
     /// - Device is busy and cannot respond
-    case deviceNotResponding(muid: MUID, timeout: Duration)
+    ///
+    /// - Parameters:
+    ///   - muid: The device MUID that didn't respond
+    ///   - resource: The resource that was being requested (if known)
+    ///   - timeout: The timeout duration that elapsed
+    case deviceNotResponding(muid: MUID, resource: String?, timeout: Duration)
     
     /// The requested property/resource is not supported by the device
     ///
@@ -62,8 +67,12 @@ public enum MIDI2Error: Error, Sendable {
 extension MIDI2Error: CustomStringConvertible {
     public var description: String {
         switch self {
-        case .deviceNotResponding(let muid, let timeout):
-            return "Device \(muid) did not respond within \(timeout)"
+        case .deviceNotResponding(let muid, let resource, let timeout):
+            if let resource {
+                return "Device \(muid) did not respond to '\(resource)' within \(timeout)"
+            } else {
+                return "Device \(muid) did not respond within \(timeout)"
+            }
         case .propertyNotSupported(let resource):
             return "Property '\(resource)' is not supported by the device"
         case .communicationFailed(let underlying):
@@ -115,11 +124,16 @@ extension MIDI2Error: LocalizedError {
 
 extension MIDI2Error {
     /// Create from a PEError
-    public init(from peError: PEError, muid: MUID? = nil) {
+    ///
+    /// - Parameters:
+    ///   - peError: The underlying PE error
+    ///   - muid: The device MUID (if known)
+    ///   - timeout: The timeout duration (defaults to 5 seconds if not specified)
+    public init(from peError: PEError, muid: MUID? = nil, timeout: Duration = .seconds(5)) {
         switch peError {
         case .timeout(let resource):
             if let muid {
-                self = .deviceNotResponding(muid: muid, timeout: .seconds(5))
+                self = .deviceNotResponding(muid: muid, resource: resource, timeout: timeout)
             } else {
                 self = .communicationFailed(underlying: peError)
             }
@@ -127,8 +141,9 @@ extension MIDI2Error {
             self = .cancelled
         case .deviceNotFound(let foundMUID):
             self = .deviceNotFound(muid: foundMUID)
-        case .deviceError(let status, _) where status == 404:
-            self = .propertyNotSupported(resource: "unknown")
+        case .deviceError(let status, let message) where status == 404:
+            // Extract resource name from message if possible
+            self = .propertyNotSupported(resource: message ?? "unknown")
         default:
             self = .communicationFailed(underlying: peError)
         }

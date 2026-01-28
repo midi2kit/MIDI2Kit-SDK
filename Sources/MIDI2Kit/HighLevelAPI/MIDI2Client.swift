@@ -91,6 +91,9 @@ public actor MIDI2Client {
     /// Discovered devices by MUID
     private var devices: [MUID: MIDI2Device] = [:]
     
+    /// Cached DeviceInfo by MUID
+    private var deviceInfoCache: [MUID: PEDeviceInfo] = [:]
+    
     /// Last destination diagnostics
     private var _lastDestinationDiagnostics: DestinationDiagnostics?
     
@@ -277,6 +280,7 @@ public actor MIDI2Client {
         
         // 7. Clear device cache
         devices.removeAll()
+        deviceInfoCache.removeAll()
         await destinationResolver.clearCache()
     }
     
@@ -319,7 +323,11 @@ public actor MIDI2Client {
     
     // MARK: - Property Exchange
     
-    /// Get DeviceInfo from a device
+    /// Get DeviceInfo from a device (with caching)
+    ///
+    /// The result is cached for the lifetime of the device connection.
+    /// Use `getCachedDeviceInfo(for:)` to check if a cached value exists
+    /// without making a network request.
     ///
     /// - Parameter muid: The device MUID
     /// - Returns: The device's PE DeviceInfo
@@ -327,11 +335,20 @@ public actor MIDI2Client {
     public func getDeviceInfo(from muid: MUID) async throws -> PEDeviceInfo {
         guard isRunning else { throw MIDI2Error.clientNotRunning }
         
+        // Return cached value if available
+        if let cached = deviceInfoCache[muid] {
+            MIDI2Logger.pe.midi2Debug("DeviceInfo cache hit for \(muid)")
+            return cached
+        }
+        
         let destination = try await resolveDestination(for: muid)
         let handle = PEDeviceHandle(muid: muid, destination: destination)
         
         do {
-            return try await peManager.getDeviceInfo(from: handle)
+            let info = try await peManager.getDeviceInfo(from: handle)
+            // Cache the result
+            deviceInfoCache[muid] = info
+            return info
         } catch let error as PEError {
             // Try fallback on timeout
             if case .timeout = error {
@@ -339,8 +356,9 @@ public actor MIDI2Client {
                     let retryHandle = PEDeviceHandle(muid: muid, destination: nextDest)
                     do {
                         let result = try await peManager.getDeviceInfo(from: retryHandle)
-                        // Cache successful destination
+                        // Cache successful destination and result
                         await destinationResolver.cacheDestination(nextDest, for: muid)
+                        deviceInfoCache[muid] = result
                         return result
                     } catch {
                         throw MIDI2Error(from: error as! PEError, muid: muid)
@@ -351,7 +369,29 @@ public actor MIDI2Client {
         }
     }
     
+    /// Get cached DeviceInfo without making a network request
+    ///
+    /// - Parameter muid: The device MUID
+    /// - Returns: The cached DeviceInfo, or nil if not cached
+    public func getCachedDeviceInfo(for muid: MUID) -> PEDeviceInfo? {
+        deviceInfoCache[muid]
+    }
+    
+    /// Clear the DeviceInfo cache for a specific device
+    ///
+    /// Use this to force a fresh fetch on the next `getDeviceInfo()` call.
+    ///
+    /// - Parameter muid: The device MUID
+    public func clearDeviceInfoCache(for muid: MUID) {
+        deviceInfoCache.removeValue(forKey: muid)
+    }
+    
     /// Get ResourceList from a device
+    ///
+    /// When `configuration.warmUpBeforeResourceList` is enabled (default),
+    /// this method first fetches DeviceInfo as a "warm-up". This helps
+    /// establish a reliable BLE connection before requesting the multi-chunk
+    /// ResourceList, which is more prone to packet loss on idle connections.
     ///
     /// - Parameter muid: The device MUID
     /// - Returns: Array of available resources
@@ -361,6 +401,21 @@ public actor MIDI2Client {
         
         let destination = try await resolveDestination(for: muid)
         let handle = PEDeviceHandle(muid: muid, destination: destination)
+        
+        // Optional warm-up: Fetch DeviceInfo first to wake up BLE connection
+        if configuration.warmUpBeforeResourceList {
+            MIDI2Logger.pe.midi2Debug("Warm-up: fetching DeviceInfo before ResourceList")
+            do {
+                _ = try await peManager.getDeviceInfo(from: handle)
+                MIDI2Logger.pe.midi2Debug("Warm-up successful, proceeding with ResourceList")
+            } catch {
+                // Warm-up failure is not fatal - proceed with ResourceList anyway
+                MIDI2Logger.pe.midi2Warning("Warm-up failed (\(error)), proceeding anyway")
+            }
+            
+            // Small delay to let BLE connection stabilize
+            try? await Task.sleep(for: .milliseconds(50))
+        }
         
         do {
             return try await peManager.getResourceList(from: handle)
@@ -496,42 +551,43 @@ public actor MIDI2Client {
         receiveDispatcherTask = Task { [weak self] in
             guard let self else { return }
             
-            print("[DISPATCHER] Started receive dispatcher, waiting for messages...")
+            MIDI2Logger.dispatcher.midi2Info("Started receive dispatcher")
             
             for await received in transport.received {
                 if Task.isCancelled { break }
                 
                 let data = received.data
-                let sourceInfo = received.sourceID.map { "from source \($0)" } ?? "no source"
+                let sourceInfo = received.sourceID.map { "source \($0)" } ?? "no source"
                 
-                // Log ALL SysEx messages for debugging
+                // Log SysEx messages
                 if data.count >= 5 && data[0] == 0xF0 {
-                    let hexPreview = data.prefix(40).map { String(format: "%02X", $0) }.joined(separator: " ")
                     let subID2 = data.count > 4 ? data[4] : 0x00
-                    print("[DISPATCHER] SysEx recv: subID2=0x\(String(format: "%02X", subID2)) len=\(data.count) (\(sourceInfo))")
-                    print("[DISPATCHER]   Hex: \(hexPreview)\(data.count > 40 ? "..." : "")")
                     
-                    // Specific PE message types
+                    // Log message type
+                    let messageType: String
                     switch subID2 {
-                    case 0x35: // PE Get Reply
-                        print("[DISPATCHER] >>> PE GET REPLY detected!")
-                    case 0x36: // PE Set Reply
-                        print("[DISPATCHER] >>> PE SET REPLY detected!")
-                    case 0x34: // PE Get Inquiry
-                        print("[DISPATCHER] >>> PE GET INQUIRY detected!")
-                    case 0x70: // Discovery
-                        print("[DISPATCHER] >>> Discovery request")
-                    case 0x71: // Discovery Reply
-                        print("[DISPATCHER] >>> Discovery REPLY detected!")
-                    case 0x7F: // NAK
-                        print("[DISPATCHER] >>> NAK detected!")
-                    default:
-                        break
+                    case 0x35: messageType = "PE GET REPLY"
+                    case 0x36: messageType = "PE SET REPLY"
+                    case 0x34: messageType = "PE GET INQUIRY"
+                    case 0x70: messageType = "Discovery Request"
+                    case 0x71: messageType = "Discovery Reply"
+                    case 0x7F: messageType = "NAK"
+                    default: messageType = "SysEx"
+                    }
+                    
+                    MIDI2Logger.dispatcher.midi2Debug("\(messageType) len=\(data.count) (\(sourceInfo))")
+                    
+                    // Verbose: hex dump
+                    if MIDI2Logger.isVerbose {
+                        let hexPreview = data.prefix(40).map { String(format: "%02X", $0) }.joined(separator: " ")
+                        MIDI2Logger.dispatcher.midi2Verbose("Hex: \(hexPreview)\(data.count > 40 ? "..." : "")")
                     }
                 } else {
-                    // Non-SysEx message
-                    let hexPreview = data.prefix(20).map { String(format: "%02X", $0) }.joined(separator: " ")
-                    print("[DISPATCHER] Non-SysEx: len=\(data.count) \(hexPreview)")
+                    // Non-SysEx: only log in verbose mode
+                    if MIDI2Logger.isVerbose {
+                        let hexPreview = data.prefix(20).map { String(format: "%02X", $0) }.joined(separator: " ")
+                        MIDI2Logger.dispatcher.midi2Verbose("Non-SysEx: len=\(data.count) \(hexPreview)")
+                    }
                 }
                 
                 // Dispatch to both CI and PE managers
@@ -539,7 +595,7 @@ public actor MIDI2Client {
                 await peManager.handleReceivedExternal(received.data)
             }
             
-            print("[DISPATCHER] Receive dispatcher ended")
+            MIDI2Logger.dispatcher.midi2Info("Receive dispatcher ended")
         }
     }
     
@@ -581,6 +637,7 @@ public actor MIDI2Client {
     
     private func handleDeviceLost(_ muid: MUID) async {
         devices.removeValue(forKey: muid)
+        deviceInfoCache.removeValue(forKey: muid)
         await destinationResolver.invalidate(muid: muid)
         await eventHub.broadcast(.deviceLost(muid))
     }
@@ -633,6 +690,7 @@ public actor MIDI2Client {
             _lastDestinationDiagnostics = await destinationResolver.lastDiagnostics
             throw MIDI2Error.deviceNotResponding(
                 muid: muid,
+                resource: nil,
                 timeout: configuration.peTimeout
             )
         }

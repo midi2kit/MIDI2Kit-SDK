@@ -190,6 +190,11 @@ public enum CIMessageParser {
     }
     
     /// Parse PE Reply in CI 1.2 format (with numChunks/thisChunk fields)
+    ///
+    /// KORG devices send chunks with varying dataSize values. For subsequent chunks (2, 3, etc.),
+    /// the dataSize may not match the actual payload length. We handle this by:
+    /// 1. First trying to parse with exact dataSize (standard CI12)
+    /// 2. If that fails, fall back to using remaining payload as propertyData
     private static func parsePEReplyCI12(_ payload: [UInt8]) -> PEReplyPayload? {
         // Minimum: requestID(1) + headerSize(2) + numChunks(2) + thisChunk(2) + dataSize(2) = 9 bytes
         guard payload.count >= 9 else { return nil }
@@ -215,11 +220,29 @@ public enum CIMessageParser {
         // Extract header data (comes after the size fields)
         let headerStart = 9
         let headerEnd = headerStart + headerSize
+        
+        // Validate header fits
+        guard headerEnd <= payload.count else { return nil }
+        
+        let headerData = Data(payload[headerStart..<headerEnd])
+        
+        // Extract property data
         let dataStart = headerEnd
         let dataEnd = dataStart + dataSize
-        guard payload.count >= dataEnd else { return nil }
-        let headerData = Data(payload[headerStart..<headerEnd])
-        let propertyData = Data(payload[dataStart..<dataEnd])
+        
+        let propertyData: Data
+        if dataEnd <= payload.count {
+            // Standard case: dataSize matches actual data
+            propertyData = Data(payload[dataStart..<dataEnd])
+        } else {
+            // KORG compatibility: dataSize may not match actual payload length for subsequent chunks
+            // Use all remaining data as propertyData
+            if dataStart < payload.count {
+                propertyData = Data(payload[dataStart...])
+            } else {
+                propertyData = Data()
+            }
+        }
         
         return PEReplyPayload(
             requestID: requestID,

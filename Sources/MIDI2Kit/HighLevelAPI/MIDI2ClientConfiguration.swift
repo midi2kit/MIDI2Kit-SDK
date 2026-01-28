@@ -74,6 +74,15 @@ public struct MIDI2ClientConfiguration: Sendable {
     /// Default: 2
     public var maxInflightPerDevice: Int
     
+    /// Whether to fetch DeviceInfo before ResourceList as a "warm-up"
+    ///
+    /// Some devices (especially over BLE) benefit from a single-chunk
+    /// request before multi-chunk requests. DeviceInfo is ideal for this
+    /// because it's always single-chunk.
+    ///
+    /// Default: true (recommended for KORG and BLE devices)
+    public var warmUpBeforeResourceList: Bool
+    
     // MARK: - Destination Resolution
     
     /// Strategy for resolving MUID to destination
@@ -87,6 +96,14 @@ public struct MIDI2ClientConfiguration: Sendable {
     ///
     /// Default: false (most apps are Initiator-only)
     public var respondToDiscovery: Bool
+    
+    /// Whether to tolerate CI version mismatches
+    ///
+    /// Some devices (e.g., KORG) report CI 1.2 but send PE messages in CI 1.1 format.
+    /// When enabled (default), the parser will try multiple format versions before failing.
+    ///
+    /// Default: true (recommended for maximum compatibility)
+    public var tolerateCIVersionMismatch: Bool
     
     /// Maximum SysEx size (0 = no limit)
     ///
@@ -108,8 +125,10 @@ public struct MIDI2ClientConfiguration: Sendable {
         self.autoStartDiscovery = true
         self.peTimeout = .seconds(5)
         self.maxInflightPerDevice = 2
+        self.warmUpBeforeResourceList = true
         self.destinationStrategy = .preferModule
         self.respondToDiscovery = false
+        self.tolerateCIVersionMismatch = true
         self.maxSysExSize = 0
         self.deviceIdentity = .default
         self.categorySupport = .propertyExchange

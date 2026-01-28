@@ -157,19 +157,14 @@ internal actor DestinationResolver {
         destinations: [MIDIDestinationInfo],
         triedOrder: inout [MIDIDestinationID]
     ) async -> MIDIDestinationID? {
-        // Debug: log strategy selection
-        print("[DestResolver] resolveAutomatic for \(muid)")
-        print("[DestResolver]   Destinations count: \(destinations.count)")
-        for dest in destinations {
-            print("[DestResolver]   - '\(dest.name)'")
-        }
+        MIDI2Logger.destination.midi2Debug("resolveAutomatic for \(muid)")
+        MIDI2Logger.destination.midi2Verbose("Destinations: \(destinations.map { $0.name })")
         
         // Check if "Module" destination exists
         let hasModule = destinations.contains { $0.name.lowercased().contains("module") }
-        print("[DestResolver]   hasModule: \(hasModule)")
         
         if hasModule {
-            print("[DestResolver]   Using preferModule strategy")
+            MIDI2Logger.destination.midi2Debug("Using preferModule strategy")
             return await resolvePreferModule(
                 muid: muid,
                 sourceID: sourceID,
@@ -177,6 +172,7 @@ internal actor DestinationResolver {
                 triedOrder: &triedOrder
             )
         } else {
+            MIDI2Logger.destination.midi2Debug("Using preferNameMatch strategy")
             return await resolvePreferNameMatch(
                 muid: muid,
                 sourceID: sourceID,
@@ -192,38 +188,50 @@ internal actor DestinationResolver {
         destinations: [MIDIDestinationInfo],
         triedOrder: inout [MIDIDestinationID]
     ) async -> MIDIDestinationID? {
-        // Debug: log all destinations
-        print("[DestResolver] resolvePreferModule for \(muid)")
-        print("[DestResolver]   Available destinations:")
-        for dest in destinations {
-            print("[DestResolver]     - '\(dest.name)' -> \(dest.destinationID)")
-        }
+        MIDI2Logger.destination.midi2Debug("resolvePreferModule for \(muid)")
+        MIDI2Logger.destination.midi2Verbose("Available: \(destinations.map { "\($0.name)->\($0.destinationID)" })")
         
         // Priority 1: "Module" destination
         if let moduleDest = destinations.first(where: { $0.name.lowercased().contains("module") }) {
-            print("[DestResolver]   Selected Module: '\(moduleDest.name)' -> \(moduleDest.destinationID)")
+            MIDI2Logger.destination.midi2Debug("Selected Module: '\(moduleDest.name)'")
             triedOrder.append(moduleDest.destinationID)
             return moduleDest.destinationID
         }
-        print("[DestResolver]   No Module port found!")
         
-        // Priority 2: Entity-based matching
+        // Priority 2: "Session" destination (KORG BLE MIDI uses "Session 1")
+        if let sessionDest = destinations.first(where: { $0.name.lowercased().contains("session") }) {
+            MIDI2Logger.destination.midi2Debug("Fallback to Session: '\(sessionDest.name)'")
+            triedOrder.append(sessionDest.destinationID)
+            return sessionDest.destinationID
+        }
+        
+        // Priority 3: Entity-based matching
         if let sourceID,
            let matched = await transport.findMatchingDestination(for: sourceID) {
+            MIDI2Logger.destination.midi2Debug("Entity match: \(matched)")
             triedOrder.append(matched)
             return matched
         }
         
-        // Priority 3: Name-based matching
+        // Priority 4: Name-based matching
         if let sourceID {
             let sources = await transport.sources
             if let sourceInfo = sources.first(where: { $0.sourceID == sourceID }),
                let matchingDest = destinations.first(where: { $0.name == sourceInfo.name }) {
+                MIDI2Logger.destination.midi2Debug("Name match: '\(matchingDest.name)'")
                 triedOrder.append(matchingDest.destinationID)
                 return matchingDest.destinationID
             }
         }
         
+        // Priority 5: First available (last resort)
+        if let first = destinations.first {
+            MIDI2Logger.destination.midi2Warning("Last resort fallback: '\(first.name)'")
+            triedOrder.append(first.destinationID)
+            return first.destinationID
+        }
+        
+        MIDI2Logger.destination.midi2Error("No destination found")
         return nil
     }
     
