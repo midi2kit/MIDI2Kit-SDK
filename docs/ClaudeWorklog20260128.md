@@ -634,3 +634,123 @@
 次のTODO:
   - ユーザーに次のフェーズを確認
 ---
+
+---
+2026-01-28 01:29
+作業項目: Phase 2-A「Public API整備」計画
+追加機能の説明:
+  - APIドキュメント整備
+  - 非推奨APIの整理
+  - 公開用README作成
+決定事項:
+  【Phase 2-A タスク一覧】
+  1. 現状のPublic API確認
+     - MIDI2Kitの公開APIリスト作成
+     - 非推奨APIの洗い出し
+  
+  2. APIドキュメント
+     - MIDI2ClientのDocCドキュメント
+     - 使用例の追加
+  
+  3. README作成
+     - ライブラリの概要
+     - インストール方法
+     - クイックスタート
+     - 既知の制限事項（KORG等）
+  
+  4. 非推奨API整理
+     - @deprecatedマークの確認
+     - 代替方法の案内
+次のTODO:
+  - タスク1: 現状のPublic API確認
+---
+
+---
+2026-01-28 01:30
+作業項目: Phase 2-A タスク1,3完了 - Public API確認 & README作成
+追加機能の説明:
+  - Public API構造の確認
+  - README.md作成
+決定事項:
+  【Public API一覧】
+  ■ MIDI2Client (actor)
+    - init(name:), init(name:preset:), init(name:configuration:)
+    - start(), stop()
+    - makeEventStream() -> AsyncStream<MIDI2ClientEvent>
+    - discoveredDevices, peCapableDevices, device(for:)
+    - getDeviceInfo(from:), getCachedDeviceInfo(for:), clearDeviceInfoCache(for:)
+    - getResourceList(from:)
+    - get(_:from:), get(_:channel:from:)
+    - set(_:data:to:)
+    - diagnostics, lastDestinationDiagnostics
+  
+  ■ MIDI2ClientConfiguration (struct)
+    - Discovery: discoveryInterval, deviceTimeout, autoStartDiscovery
+    - PE: peTimeout, maxInflightPerDevice, warmUpBeforeResourceList
+    - Resilience: maxRetries, retryDelay, multiChunkTimeoutMultiplier
+    - Advanced: destinationStrategy, tolerateCIVersionMismatch, etc.
+  
+  ■ MIDI2Device (struct)
+    - muid, displayName, identity
+    - supportsPropertyExchange, supportsProfileConfiguration
+    - manufacturerName
+  
+  ■ MIDI2ClientEvent (enum)
+    - deviceDiscovered, deviceLost, deviceUpdated
+    - discoveryStarted, discoveryStopped
+    - notification, started, stopped, error
+  
+  ■ MIDI2Error (enum)
+    - deviceNotResponding, propertyNotSupported, communicationFailed
+    - deviceNotFound, clientNotRunning, cancelled, transportError
+  
+  ■ MIDI2Logger (enum)
+    - isEnabled, isVerbose
+    - client, dispatcher, destination, pe (Logger instances)
+  
+  ■ DestinationStrategy (enum)
+    - automatic, preferModule, preferNameMatch, custom
+  
+  ■ ClientPreset (enum)
+    - default, explorer, minimal
+  
+  【README.md作成】
+  - Features, Requirements, Installation
+  - Quick Start例
+  - Configuration説明
+  - API Referenceテーブル
+  - Logging説明
+  - Known Limitations（KORG）
+  - Architecture図
+次のTODO:
+  - タスク2: APIドキュメント（DocC）
+  - タスク4: 非推奨API整理
+---
+
+---
+2026-01-28 01:33
+作業項目: Phase 2-A タスク2,4 - DocC & 非推奨API整理
+追加機能の説明:
+  - DocCドキュメント確認
+  - 非推奨APIの洗い出し
+決定事項:
+  【DocCドキュメント更新】
+  - MIDI2Kit.md: High-Level APIセクション追加
+    - MIDI2Client, MIDI2ClientConfiguration, MIDI2ClientEvent
+    - MIDI2Device, MIDI2Error, MIDI2Logger
+    - DestinationStrategy, ClientPreset
+  - GettingStarted.md: MIDI2Clientベースに書き換え
+    - 新しいインストール方法
+    - MIDI2Clientの使用例
+    - ConfigurationとPresetの説明
+  
+  【非推奨API確認】
+  - @available(*, deprecated)の明示的な使用: なし
+  - Low-Level API（CIManager, PEManager直接使用）:
+    - 非推奨ではないが、MIDI2Clientを推奨
+    - CIManagerPEExtension: Bridgeとして残す
+  - 結論: 現状では明示的なdeprecationは不要
+    - DocCで「High-Level API（Recommended）」と記載済み
+次のTODO:
+  - commit & push
+---

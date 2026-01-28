@@ -1,25 +1,20 @@
 # MIDI2Kit
 
-A modern Swift library for MIDI 2.0 / MIDI-CI / Property Exchange / UMP.
-
-[![Swift 6.0](https://img.shields.io/badge/Swift-6.0-orange.svg)](https://swift.org)
-[![Platforms](https://img.shields.io/badge/Platforms-iOS%2017%20|%20macOS%2014-blue.svg)](https://developer.apple.com)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+A Swift library for MIDI 2.0 / MIDI-CI / Property Exchange on Apple platforms.
 
 ## Features
 
-- **MIDI2Core** - Foundation types (MUID, DeviceIdentity, Mcoded7, **UMP Builder/Parser**)
-- **MIDI2CI** - Capability Inquiry (Discovery, Protocol Negotiation, Profiles)
-- **MIDI2PE** - Property Exchange (Get/Set resources, Subscriptions, Transaction management)
-- **MIDI2Transport** - CoreMIDI integration with duplicate connection prevention, **UMP support**
-- **Per-device rate limiting** - Prevents overwhelming slow devices
-- **Auto-reconnecting subscriptions** - Survives device disconnections
+- **MIDI-CI Device Discovery** - Automatically discover MIDI 2.0 capable devices
+- **Property Exchange** - Get and set device properties via PE protocol
+- **High-Level API** - Simple `MIDI2Client` actor for common use cases
+- **KORG Compatibility** - Works with KORG Module Pro and similar devices
+- **Swift Concurrency** - Built with async/await and Sendable types
 
 ## Requirements
 
-- iOS 17.0+ / macOS 14.0+
-- Swift 6.0+
-- Xcode 16.0+
+- iOS 16.0+ / macOS 13.0+
+- Xcode 15.0+
+- Swift 5.9+
 
 ## Installation
 
@@ -29,557 +24,176 @@ Add to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/hakaru/MIDI2Kit.git", from: "0.1.0")
+    .package(url: "https://github.com/hakaru/MIDI2Kit.git", from: "1.0.0")
 ]
 ```
 
-Or in Xcode: File → Add Package Dependencies → Enter repository URL.
-
-## MIDI 2.0 UMP Support
-
-MIDI2Kit provides full support for MIDI 2.0 Universal MIDI Packet (UMP) messages with high-resolution data.
-
-### UMP Builder
-
-Build MIDI 2.0 messages easily:
-
-```swift
-import MIDI2Core
-
-// MIDI 2.0 Control Change (32-bit resolution)
-let ccWords = UMPBuilder.midi2ControlChange(
-    group: 0,
-    channel: 0,
-    controller: 74,  // Filter cutoff
-    value: 0x80000000  // Full 32-bit value
-)
-
-// With normalized value (0.0-1.0)
-let normalizedCC = UMPBuilder.midi2ControlChangeNormalized(
-    group: 0,
-    channel: 0,
-    controller: 74,
-    normalizedValue: 0.5
-)
-
-// MIDI 2.0 Note On (16-bit velocity)
-let noteWords = UMPBuilder.midi2NoteOn(
-    group: 0,
-    channel: 0,
-    note: 60,
-    velocity: 0xC000,
-    attributeType: .pitch7_9,
-    attributeData: 0x1234
-)
-
-// Program Change with bank select
-let pcWords = UMPBuilder.midi2ProgramChange(
-    group: 0,
-    channel: 0,
-    program: 10,
-    bank: ProgramBank(msb: 0, lsb: 32)
-)
-
-// Per-Note Pitch Bend (MPE)
-let perNotePB = UMPBuilder.midi2PerNotePitchBend(
-    group: 0,
-    channel: 1,
-    note: 60,
-    value: PitchBendValue.center
-)
-
-// RPN with 32-bit value
-let rpnWords = UMPBuilder.midi2RegisteredController(
-    group: 0,
-    channel: 0,
-    address: RegisteredController.pitchBendSensitivity,
-    value: 0x30000000
-)
-
-// MIDI 1.0 over UMP (for compatibility)
-let midi1Words = UMPBuilder.midi1ControlChange(
-    group: 0,
-    channel: 0,
-    controller: 1,
-    value: 64
-)
-```
-
-### UMP Parser
-
-Parse received UMP messages:
-
-```swift
-import MIDI2Core
-
-let words: [UInt32] = [0x40903C00, 0xC0000000]
-
-if let message = UMPParser.parse(words) {
-    switch message {
-    case .midi2ChannelVoice(let cv):
-        print("Status: \(cv.status)")
-        print("Channel: \(cv.channel)")
-        
-        switch cv.status {
-        case .noteOn:
-            print("Note: \(cv.noteNumber), Velocity: \(cv.velocity16)")
-        case .controlChange:
-            print("CC \(cv.controllerNumber): \(cv.controllerValue32)")
-        case .pitchBend:
-            print("Pitch Bend: \(cv.pitchBendValue32)")
-        default:
-            break
-        }
-        
-    case .midi1ChannelVoice(let cv):
-        print("MIDI 1.0: \(cv.statusByte), \(cv.data1), \(cv.data2)")
-        
-    case .utility(let group, let status, let data):
-        print("Utility message: \(status)")
-        
-    default:
-        break
-    }
-}
-```
-
-### Sending UMP via Transport
-
-```swift
-import MIDI2Transport
-import MIDI2Core
-
-let transport = try CoreMIDITransport(clientName: "MyApp")
-
-// Build MIDI 2.0 message
-let words = UMPBuilder.midi2ControlChange(
-    group: 0,
-    channel: 0,
-    controller: 74,
-    value: 0x80000000
-)
-
-// Send via UMP
-try await transport.sendUMP(words, to: destination)
-
-// Check if destination supports MIDI 2.0
-if transport.supportsMIDI2(destination) {
-    try await transport.sendUMP(words, to: destination, protocol: ._2_0)
-} else {
-    // Fallback to MIDI 1.0
-    let midi1Words = UMPBuilder.midi1ControlChange(
-        group: 0, channel: 0, controller: 74, value: 64
-    )
-    try await transport.sendUMP(midi1Words, to: destination, protocol: ._1_0)
-}
-```
-
-### Value Scaling Utilities
-
-```swift
-import MIDI2Core
-
-// 7-bit ↔ 32-bit scaling
-let value32 = UMPValueScaling.scale7To32(64)    // 0x80000000
-let value7 = UMPValueScaling.scale32To7(0x80000000)  // 64
-
-// 14-bit ↔ 32-bit scaling (for pitch bend)
-let pb32 = UMPValueScaling.scale14To32(8192)   // Center
-let pb14 = UMPValueScaling.scale32To14(0x80000000)
-
-// Velocity scaling
-let vel16 = UMPValueScaling.scaleVelocity7To16(100)
-let vel7 = UMPValueScaling.scaleVelocity16To7(0xC000)
-
-// Normalized values
-let normalized = UMPValueScaling.normalizedTo32(0.5)  // ~2^31
-```
-
----
-
-## Minimal Example
-
-A complete, working example that discovers MIDI-CI devices and fetches DeviceInfo via Property Exchange:
-
-```swift
-import MIDI2Kit
-
-@MainActor
-class MIDIController {
-    private var transport: CoreMIDITransport?
-    private var ciManager: CIManager?
-    private var peManager: PEManager?
-    
-    func start() async throws {
-        // 1. Create transport
-        transport = try CoreMIDITransport(clientName: "MyApp")
-        try await transport?.connectToAllSources()
-        
-        // 2. Create CI manager for device discovery
-        ciManager = CIManager(transport: transport!)
-        try await ciManager?.start()
-        
-        // 3. Handle setup changes
-        Task {
-            guard let transport else { return }
-            for await _ in transport.setupChanged {
-                try? await transport.connectToAllSources()
-            }
-        }
-        
-        // 4. Handle device discovery
-        Task {
-            guard let ciManager else { return }
-            for await event in ciManager.events {
-                switch event {
-                case .deviceDiscovered(let device):
-                    print("Found: \(device.displayName)")
-                    if device.supportsPropertyExchange {
-                        await fetchDeviceInfo(device)
-                    }
-                case .deviceLost(let muid):
-                    print("Lost: \(muid)")
-                default:
-                    break
-                }
-            }
-        }
-    }
-    
-    private func fetchDeviceInfo(_ device: DiscoveredDevice) async {
-        guard let ciManager, let transport,
-              let destination = await ciManager.destination(for: device.muid) else {
-            return
-        }
-        
-        // Create PE manager on first use
-        if peManager == nil {
-            peManager = PEManager(
-                transport: transport,
-                sourceMUID: ciManager.muid
-            )
-            await peManager?.startReceiving()
-        }
-        
-        // Fetch DeviceInfo
-        let handle = PEDeviceHandle(muid: device.muid, destination: destination)
-        
-        do {
-            let response = try await peManager!.get("DeviceInfo", from: handle)
-            if let info = try? JSONDecoder().decode(PEDeviceInfo.self, from: response.body) {
-                print("✅ Product: \(info.productName ?? "Unknown")")
-            }
-        } catch {
-            print("❌ Error: \(error)")
-        }
-    }
-}
-```
+Or in Xcode: File → Add Package Dependencies → Enter the repository URL.
 
 ## Quick Start
 
-### Basic Usage
-
 ```swift
 import MIDI2Kit
 
-// Create transport
-let transport = try CoreMIDITransport(clientName: "MyApp")
+// Create and start the client
+let client = try MIDI2Client(name: "MyApp")
+try await client.start()
 
-// Connect to all MIDI sources (differential - prevents duplicates)
-try await transport.connectToAllSources()
-
-// Listen for MIDI data
+// Listen for device discovery
 Task {
-    for await data in transport.received {
-        print("Received: \(data.data.map { String(format: "%02X", $0) }.joined(separator: " "))")
+    for await event in await client.makeEventStream() {
+        switch event {
+        case .deviceDiscovered(let device):
+            print("Found: \(device.displayName)")
+            
+            // Get device info if PE is supported
+            if device.supportsPropertyExchange {
+                let info = try await client.getDeviceInfo(from: device.muid)
+                print("Product: \(info.productName ?? "Unknown")")
+            }
+            
+        case .deviceLost(let muid):
+            print("Lost: \(muid)")
+            
+        default:
+            break
+        }
     }
 }
 
-// Handle setup changes
-Task {
-    for await _ in transport.setupChanged {
-        try await transport.connectToAllSources()
-    }
-}
+// Later: clean shutdown
+await client.stop()
 ```
 
-### MIDI-CI Discovery
+## Configuration
+
+Customize behavior with `MIDI2ClientConfiguration`:
 
 ```swift
-import MIDI2CI
+var config = MIDI2ClientConfiguration()
 
-// Create and start CI manager
-let ciManager = CIManager(transport: transport)
-try await ciManager.start()
+// Discovery settings
+config.discoveryInterval = .seconds(5)
+config.deviceTimeout = .seconds(30)
 
-// Listen for device events
-for await event in ciManager.events {
-    switch event {
-    case .deviceDiscovered(let device):
-        print("Found: \(device.displayName)")
-        print("Supports PE: \(device.supportsPropertyExchange)")
-    case .deviceLost(let muid):
-        print("Lost: \(muid)")
-    default:
-        break
-    }
-}
+// PE settings
+config.peTimeout = .seconds(10)
+config.maxRetries = 3
 
-// Get destination for sending to a device
-if let destination = await ciManager.destination(for: device.muid) {
-    try await transport.send(message, to: destination)
-}
+// Create client with custom config
+let client = try MIDI2Client(name: "MyApp", configuration: config)
 ```
 
-### Property Exchange
+Or use presets:
 
 ```swift
-import MIDI2PE
-
-// Create PE manager
-let peManager = PEManager(
-    transport: transport,
-    sourceMUID: ciManager.muid
-)
-await peManager.startReceiving()
-
-// Create handle for target device
-let handle = PEDeviceHandle(
-    muid: device.muid,
-    destination: destination
-)
-
-// GET request
-let response = try await peManager.get("DeviceInfo", from: handle)
-let deviceInfo = try JSONDecoder().decode(PEDeviceInfo.self, from: response.body)
-
-// GET with timeout
-let response = try await peManager.get(
-    "ChCtrlList",
-    from: handle,
-    timeout: .seconds(10)
-)
-
-// Channel-specific GET
-let response = try await peManager.get(
-    "ProgramInfo",
-    channel: 0,
-    from: handle
-)
+let client = try MIDI2Client(name: "MyApp", preset: .explorer)  // Longer timeouts
+let client = try MIDI2Client(name: "MyApp", preset: .minimal)   // Short timeouts
 ```
 
-### Auto-Reconnecting Subscriptions
+## API Reference
+
+### MIDI2Client
+
+The main entry point for MIDI 2.0 operations.
+
+| Method | Description |
+|--------|-------------|
+| `start()` | Start discovery and event processing |
+| `stop()` | Stop and clean up all resources |
+| `makeEventStream()` | Get an AsyncStream of events |
+| `getDeviceInfo(from:)` | Get DeviceInfo from a device |
+| `getResourceList(from:)` | Get available PE resources |
+| `get(_:from:)` | Get a PE resource |
+| `set(_:data:to:)` | Set a PE resource |
+
+### MIDI2Device
+
+Represents a discovered MIDI 2.0 device.
+
+| Property | Description |
+|----------|-------------|
+| `muid` | Unique MIDI ID |
+| `displayName` | Human-readable name |
+| `supportsPropertyExchange` | PE capability |
+| `manufacturerName` | Manufacturer (if known) |
+
+### MIDI2ClientEvent
+
+Events emitted by the client.
+
+| Event | Description |
+|-------|-------------|
+| `.deviceDiscovered(device)` | New device found |
+| `.deviceLost(muid)` | Device disconnected |
+| `.deviceUpdated(device)` | Device info updated |
+| `.notification(notification)` | PE subscription notification |
+| `.started` / `.stopped` | Client lifecycle |
+
+## Logging
+
+MIDI2Kit uses `os.Logger` for efficient logging:
 
 ```swift
-import MIDI2PE
+// Disable all logs
+MIDI2Logger.isEnabled = false
 
-// Create subscription manager
-let subscriptionManager = PESubscriptionManager(
-    peManager: peManager,
-    ciManager: ciManager
-)
-await subscriptionManager.start()
-
-// Subscribe with device identity for matching after MUID changes
-try await subscriptionManager.subscribe(
-    to: "ProgramList",
-    on: device.muid,
-    identity: device.identity  // Used for matching after reconnection
-)
-
-// Handle events (survives device reconnections)
-for await event in subscriptionManager.events {
-    switch event {
-    case .notification(let notification):
-        print("Data changed: \(notification.resource)")
-        
-    case .suspended(let intentID, let reason):
-        print("Subscription suspended: \(reason)")
-        
-    case .restored(let intentID, let newSubscribeId):
-        print("Subscription restored!")
-        
-    case .failed(let intentID, let reason):
-        print("Subscription failed: \(reason)")
-        
-    case .subscribed(let intentID, let subscribeId):
-        print("Initial subscription established")
-    }
-}
+// Enable verbose logging
+MIDI2Logger.isVerbose = true
 ```
 
-## Modules
-
-### MIDI2Core
-
-Foundation types used throughout the library.
-
-```swift
-import MIDI2Core
-
-// MUID - 28-bit unique identifier (0x00000000 - 0x0FFFFFFF)
-let muid = MUID.random()
-let broadcast = MUID.broadcast
-
-// Device Identity
-let identity = DeviceIdentity(
-    manufacturerID: .korg,
-    familyID: 0x0001,
-    modelID: 0x0001,
-    versionID: 0x00010000
-)
-
-// Mcoded7 encoding (8-bit → 7-bit for SysEx)
-let encoded = Mcoded7.encode(originalData)
-let decoded = Mcoded7.decode(encodedData)
-
-// UMP Message Building
-let words = UMPBuilder.midi2ControlChange(group: 0, channel: 0, controller: 74, value: 0x80000000)
-
-// UMP Message Parsing
-if let message = UMPParser.parse(words) {
-    // Handle parsed message
-}
+Filter logs in Console.app:
+```
+subsystem == "com.midi2kit"
 ```
 
-### MIDI2CI
+## Known Limitations
 
-MIDI Capability Inquiry protocol implementation.
+### KORG Module Pro
 
+- **DeviceInfo**: ✅ Works reliably
+- **ResourceList**: ⚠️ May timeout due to chunk loss (KORG-side issue)
+
+KORG devices use a non-standard PE format. MIDI2Kit handles this automatically, but multi-chunk responses (like ResourceList) may be unreliable due to CoreMIDI virtual port buffering issues.
+
+**Workaround**: Access known resources directly instead of using ResourceList:
 ```swift
-import MIDI2CI
+// Instead of:
+let resources = try await client.getResourceList(from: device.muid)
 
-// Create manager
-let ciManager = CIManager(transport: transport)
-try await ciManager.start()
-
-// Configure discovery
-let config = CIManagerConfiguration(
-    discoveryInterval: 5.0,
-    deviceTimeout: 15.0,
-    categorySupport: .propertyExchange
-)
-let ciManager = CIManager(transport: transport, configuration: config)
-
-// Access discovered devices
-let devices = await ciManager.discoveredDevices
-let device = await ciManager.device(for: muid)
-
-// Find destination for a device (via Entity mapping)
-let destination = await ciManager.destination(for: device.muid)
-```
-
-### MIDI2PE
-
-Property Exchange with transaction management and per-device rate limiting.
-
-```swift
-import MIDI2PE
-
-// Transaction manager with per-device limiting
-let transactionManager = PETransactionManager(
-    maxInflightPerDevice: 2,  // Max 2 concurrent requests per device
-    logger: logger
-)
-
-// High-level PE manager
-let peManager = PEManager(
-    transport: transport,
-    sourceMUID: muid,
-    transactionManager: transactionManager
-)
-await peManager.startReceiving()
-
-// Device disconnection cleanup
-await transactionManager.cancelAll(for: deviceMUID)
-
-// Monitor state
-print(await transactionManager.diagnostics)
-// Active transactions: 3
-// Available IDs: 125
-// Device states:
-//   MUID(0x01234567): inflight=2, waiting=1
-```
-
-### MIDI2Transport
-
-CoreMIDI abstraction with connection management and UMP support.
-
-```swift
-import MIDI2Transport
-
-let transport = try CoreMIDITransport(clientName: "MyApp")
-
-// Differential connection (prevents duplicates)
-try await transport.connectToAllSources()
-
-// Check connection state
-let isConnected = await transport.isConnected(to: sourceID)
-let count = await transport.connectedSourceCount
-
-// Full reconnection when needed
-try await transport.reconnectAllSources()
-
-// Send UMP messages (MIDI 2.0)
-let words = UMPBuilder.midi2ControlChange(group: 0, channel: 0, controller: 74, value: 0x80000000)
-try await transport.sendUMP(words, to: destination)
-
-// Check MIDI 2.0 support
-if transport.supportsMIDI2(destination) {
-    // Use MIDI 2.0 features
-}
+// Access directly if you know the resource name:
+let response = try await client.get("CMList", from: device.muid)
 ```
 
 ## Architecture
 
-See [Documentation/Architecture.md](Documentation/Architecture.md) for detailed architecture overview.
+MIDI2Kit is organized into layers:
 
-## Best Practices
-
-See [Documentation/BestPractices.md](Documentation/BestPractices.md) for:
-- Preventing Request ID leaks
-- Per-device rate limiting
-- Handling duplicate MIDI connections
-- Auto-reconnecting subscriptions
-- Error handling patterns
-
-## Testing
-
-```bash
-swift test
 ```
+MIDI2Kit (High-Level API)
+├── MIDI2Client      - Unified async client
+├── MIDI2Device      - Device representation
+└── Configuration    - Settings & presets
 
-Or in Xcode: `Cmd+U`
+MIDI2PE (Property Exchange)
+├── PEManager        - Request/response handling
+└── PETransactionManager
+
+MIDI2CI (Capability Inquiry)
+├── CIManager        - Discovery protocol
+└── CIMessageParser  - Message parsing
+
+MIDI2Transport
+└── CoreMIDITransport - Apple MIDI integration
+
+MIDI2Core
+└── Types, protocols, utilities
+```
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details.
+MIT License - see LICENSE file for details.
 
 ## Contributing
 
-Contributions welcome! Please read the architecture documentation before submitting PRs.
-
----
-
-## Changelog
-
-See [Documentation/CHANGELOG.md](Documentation/CHANGELOG.md) for detailed version history.
-
-### Latest (2026-01-11)
-
-- **Added MIDI 2.0 UMP support**
-  - `UMPBuilder` for constructing UMP messages
-  - `UMPParser` for parsing received UMP messages
-  - `UMPTypes` with message types, status codes, and value scaling
-  - `CoreMIDITransport.sendUMP()` for UMP transmission
-  - MIDI 2.0 protocol detection via `supportsMIDI2()`
-- Added `PESubscriptionManager` for auto-reconnecting subscriptions
-- Added per-device inflight limiting (`maxInflightPerDevice`)
-- Added `CIManagerEvent` for event-driven device discovery
-- Fixed Source-to-Destination mapping via Entity
-- Improved responsibility separation between `PETransactionManager` and `PEManager`
-<<<<<<< HEAD
-- 150 tests passing
-=======
->>>>>>> 49d496f99bac8a075c3e1360287cdd6680c07345
+Contributions welcome! Please open an issue first to discuss proposed changes.
