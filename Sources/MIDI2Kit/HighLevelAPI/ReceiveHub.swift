@@ -29,7 +29,7 @@ internal actor ReceiveHub<Event: Sendable> {
     private var subscribers: [UUID: AsyncStream<Event>.Continuation] = [:]
     
     /// Buffer policy for new streams
-    nonisolated let bufferPolicy: AsyncStream<Event>.Continuation.BufferingPolicy
+    private let bufferPolicy: AsyncStream<Event>.Continuation.BufferingPolicy
     
     /// Whether the hub has been stopped
     private var isStopped = false

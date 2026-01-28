@@ -636,6 +636,45 @@
 ---
 
 ---
+2026-01-28 04:33
+作業項目: CI失敗原因特定・修正（両ジョブ）
+追加機能の説明:
+  - ReceiveHub.swiftのSwift Concurrencyエラー修正
+  - ci.ymlのiOS Simulator指定修正
+決定事項:
+  【buildジョブのエラー】
+  - ファイル: ReceiveHub.swift:32
+  - エラー: 'nonisolated' can not be applied to variable with non-'Sendable' type
+  - 修正: nonisolated let → private let
+  
+  【build-iosジョブのエラー】
+  - エラー: Unable to find a device matching 'iPhone 15'
+  - 原因: macos-14ランナーにiPhone 15シミュレータがない
+  - 修正: 'iPhone SE (3rd generation),OS=18.1' に変更
+次のTODO:
+  - commit & push
+  - CI結果確認
+---
+
+---
+2026-01-28 04:29
+作業項目: CI #3も失敗 - 詳細ログ確認必要
+追加機能の説明:
+  - 前回の修正でもCI失敗
+  - 詳細なエラーログ確認が必要
+決定事項:
+  【状況】
+  - CI #3: fix: Update CI configuration (c2e9e43) - 失敗
+  - 1m 27sで失敗
+  
+  【次のアクション】
+  - GitHub Actionsの失敗ログを確認
+  - 具体的なエラーメッセージを特定
+次のTODO:
+  - CI失敗ログを確認して共有
+---
+
+---
 2026-01-28 04:25
 作業項目: GitHub Actions CI失敗の調査・修正
 追加機能の説明:
