@@ -560,7 +560,42 @@
   - Git commit & push
   - 実機テストでリトライ動作確認
 決定事項:
+  【Git】
+  - commit: f2e3f08
+  - push: main -> main 完了
+  
+  【実機テスト結果】
+  - DeviceInfo: ✅ 成功（1チャンク、安定）
+  - ResourceList: ❌ 失敗（全リトライでchunk 2が欠落）
+  
+  【問題の詳細】
+  - ResourceListは3チャンク構成
+  - chunk 1とchunk 3は毎回届く
+  - chunk 2がほぼ毎回欠落（30回以上試行して数回のみ届いた）
+  - リトライ機能は動作しているが、chunk 2が届かない問題は解決できない
+  
+  【考察】
+  - chunk 2はデータ量が最大（229B）
+  - chunk 1: 215B（KORGフォーマット）
+  - chunk 3: 31B（標準CI12フォーマット）
+  - CoreMIDIバッファ問題か、KORGアプリの送信タイミング問題の可能性
+  
+  【結論】
+  - リトライ機能自体は正常に動作
+  - KORG Module ProのResourceListは根本的に不安定
+  - これはMIDI2Kitでは解決不可能なKORG側の問題
+次のTODO:
+  - Phase 1完了
+  - 次のフェーズへ
+---
+
+---
+2026-01-28 01:22
+作業項目: ワークログcommit & push
+追加機能の説明:
+  - ワークログ更新のcommit
+決定事項:
   - （実行後に記載）
 次のTODO:
-  - commit完了後、実機テスト
+  - commit & push
 ---
