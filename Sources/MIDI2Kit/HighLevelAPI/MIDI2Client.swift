@@ -386,16 +386,18 @@ public actor MIDI2Client {
         deviceInfoCache.removeValue(forKey: muid)
     }
     
-    /// Get ResourceList from a device
+    /// Get ResourceList from a device (with automatic retry)
     ///
     /// When `configuration.warmUpBeforeResourceList` is enabled (default),
     /// this method first fetches DeviceInfo as a "warm-up". This helps
     /// establish a reliable BLE connection before requesting the multi-chunk
     /// ResourceList, which is more prone to packet loss on idle connections.
     ///
+    /// On timeout, the request is automatically retried up to `configuration.maxRetries` times.
+    ///
     /// - Parameter muid: The device MUID
     /// - Returns: Array of available resources
-    /// - Throws: `MIDI2Error` on failure
+    /// - Throws: `MIDI2Error` on failure after all retries
     public func getResourceList(from muid: MUID) async throws -> [PEResourceEntry] {
         guard isRunning else { throw MIDI2Error.clientNotRunning }
         
@@ -417,11 +419,43 @@ public actor MIDI2Client {
             try? await Task.sleep(for: .milliseconds(50))
         }
         
-        do {
-            return try await peManager.getResourceList(from: handle)
-        } catch let error as PEError {
-            throw MIDI2Error(from: error, muid: muid)
+        // Calculate timeout for multi-chunk request
+        let timeout = Duration.seconds(
+            configuration.peTimeout.asTimeInterval * configuration.multiChunkTimeoutMultiplier
+        )
+        
+        // Retry loop
+        var lastError: PEError?
+        for attempt in 0...configuration.maxRetries {
+            if attempt > 0 {
+                MIDI2Logger.pe.midi2Warning("ResourceList retry \(attempt)/\(configuration.maxRetries) for \(muid)")
+                try? await Task.sleep(for: configuration.retryDelay)
+            }
+            
+            do {
+                // Note: PEManager.getResourceList has its own internal retry mechanism,
+                // but we add this outer retry at MIDI2Client level for additional resilience
+                let result = try await peManager.getResourceList(from: handle)
+                if attempt > 0 {
+                    MIDI2Logger.pe.midi2Info("ResourceList succeeded on retry \(attempt)")
+                }
+                return result
+            } catch let error as PEError {
+                lastError = error
+                
+                // Only retry on timeout
+                if case .timeout = error {
+                    MIDI2Logger.pe.midi2Warning("ResourceList timeout (attempt \(attempt + 1)/\(configuration.maxRetries + 1))")
+                    continue
+                } else {
+                    // Non-timeout errors: don't retry
+                    throw MIDI2Error(from: error, muid: muid)
+                }
+            }
         }
+        
+        // All retries exhausted
+        throw MIDI2Error(from: lastError ?? .timeout(resource: "ResourceList"), muid: muid, timeout: timeout)
     }
     
     /// Get a property from a device

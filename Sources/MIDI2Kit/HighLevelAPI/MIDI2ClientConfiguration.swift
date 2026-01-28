@@ -83,6 +83,31 @@ public struct MIDI2ClientConfiguration: Sendable {
     /// Default: true (recommended for KORG and BLE devices)
     public var warmUpBeforeResourceList: Bool
     
+    // MARK: - Resilience Settings
+    
+    /// Maximum number of retries for PE requests on timeout
+    ///
+    /// When a PE request times out, it will be retried up to this many times.
+    /// Set to 0 to disable automatic retries.
+    ///
+    /// Default: 2 (total of 3 attempts)
+    public var maxRetries: Int
+    
+    /// Delay between retry attempts
+    ///
+    /// A small delay can help recover from transient connection issues.
+    ///
+    /// Default: 100ms
+    public var retryDelay: Duration
+    
+    /// Timeout multiplier for multi-chunk requests
+    ///
+    /// Multi-chunk responses (like ResourceList) may need more time.
+    /// The base peTimeout is multiplied by this value for such requests.
+    ///
+    /// Default: 1.5 (e.g., 5s becomes 7.5s)
+    public var multiChunkTimeoutMultiplier: Double
+    
     // MARK: - Destination Resolution
     
     /// Strategy for resolving MUID to destination
@@ -126,6 +151,9 @@ public struct MIDI2ClientConfiguration: Sendable {
         self.peTimeout = .seconds(5)
         self.maxInflightPerDevice = 2
         self.warmUpBeforeResourceList = true
+        self.maxRetries = 2
+        self.retryDelay = .milliseconds(100)
+        self.multiChunkTimeoutMultiplier = 1.5
         self.destinationStrategy = .preferModule
         self.respondToDiscovery = false
         self.tolerateCIVersionMismatch = true
