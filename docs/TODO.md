@@ -1,7 +1,113 @@
 # MIDI2Kit TODO リスト
 
-**最終更新**: 2026-01-30 03:09
+**最終更新**: 2026-01-30 04:54
 **ソース**: [2026-01-27-HighLevelAPI-Planning.md](./2026-01-27-HighLevelAPI-Planning.md)
+
+**重要**: 2026-01-30レビューで **Phase 5-1よりも優先すべきP0問題** が発覚（設定と実装のズレ）
+
+---
+
+## Phase 0: Critical Fixes（P0 緊急 - Phase 5-1より優先）
+
+**背景**: 2026-01-30レビューで「設定が実装に配線されていない」問題が発覚。
+timeout問題の原因切り分けを難しくしているため、Phase 5-1より優先して修正。
+
+### 0-1. peSendStrategy 配線
+
+**優先度**: 🔴 最優先（timeout の外的要因を抑制）
+
+- [ ] MIDI2ClientConfiguration.peSendStrategy を PEManager に配線
+- [ ] PEManager 初期化時に sendStrategy を設定
+- [ ] fallbackStepTimeout の扱いを決定
+
+**現状問題**:
+- MIDI2ClientConfiguration に peSendStrategy 設定があるが未反映
+- PEManager がデフォルト（broadcast）のまま動作
+- broadcast により他ポート/他アプリが反応 → timeout の外的要因
+
+**工数**: 0.5日
+**状態**: 📋 計画
+
+---
+
+### 0-2. multiChunkTimeoutMultiplier 適用
+
+**優先度**: 🔴 最優先（実際の待ち時間が設定通りになっていない）
+
+- [ ] MIDI2Client.getResourceList() で計算した timeout を peManager に渡す
+- [ ] multiChunkTimeoutMultiplier が実際のPEリクエストに反映される
+
+**現状問題**:
+- timeout計算はしているが peManager.getResourceList() に渡していない
+- 実際の待ち時間が伸びていない（PEManager側の既定値のまま）
+
+**工数**: 0.5日
+**状態**: 📋 計画
+
+---
+
+### 0-3. print デバッグ統一
+
+**優先度**: 🔴 最優先（ログ品質）
+
+- [ ] PEChunkAssembler の print() を logger に統一
+- [ ] verbose フラグで制御可能にする
+
+**現状問題**:
+- PEChunkAssembler.addChunk() が print() を大量出力
+- アプリ利用時にノイズ、ログ収集も困難
+
+**工数**: 0.5日
+**状態**: 📋 計画
+
+---
+
+### 0-4. RobustJSONDecoder 安全化（P1）
+
+**優先度**: 🟡 中（正しいJSONを壊す可能性）
+
+- [ ] escapeControlCharacters を文字列リテラル内のみ対象にする
+- [ ] removeComments を文字列外のみ厳密に保証
+
+**現状問題**:
+- 改行が文字列外にある通常の pretty JSON を壊す可能性
+- "https://" の // をコメント扱いして壊す可能性
+
+**工数**: 1日
+**状態**: 📋 計画
+
+---
+
+### 0-5. PEDecodingDiagnostics 外部公開（P1）
+
+**優先度**: 🟡 中（診断情報が取得できない）
+
+- [ ] PEManager.lastDecodingDiagnostics プロパティ追加
+- [ ] decodeResponse() で生成した diagnostics を保持
+- [ ] エラーに診断情報を付帯
+
+**現状問題**:
+- PEDecodingDiagnostics の Usage サンプルと実装がズレ
+- diagnostics は生成しているが throw時に捨てている
+
+**工数**: 0.5日
+**状態**: 📋 計画
+
+---
+
+### 0-6. CI テスト失敗検知（P2）
+
+**優先度**: 🟢 低（CI品質）
+
+- [ ] || echo を削除または continue-on-error に変更
+- [ ] テスト失敗を成功扱いしない
+
+**現状問題**:
+- swift test -v || echo で失敗を握りつぶす
+- 回帰検知ができない
+
+**工数**: 0.5日
+**状態**: 📋 計画
 
 ---
 
@@ -431,15 +537,16 @@
 
 ---
 
-## Phase 5: Refactoring（P2 重要）
+## Phase 5: Refactoring（P1 重要）
 
 **進捗サマリー**:
-- **全体進捗**: 0%（計画段階）
-- 🔴 5-1. PEManager機能分離（最優先）
+- **全体進捗**: 5%（Phase 1/7完了）
+- 🔴 5-1. PEManager機能分離 - Phase 1完了（2026-01-30）
 - 🟢 5-2. エラーハンドリング高度化
 - 🟡 5-3. PEManager Actor設計見直し
 
-**注**: Phase 5は品質・保守性向上のため、Phase 4より優先度が高い項目もあります。
+**重要**: 2026-01-30レビューで **Phase 0（Critical Fixes）が Phase 5-1より優先** と判明。
+Phase 0完了後に Phase 5-1 Phase 2を継続。
 
 ---
 
@@ -452,15 +559,28 @@
 - Subscribe機能が122箇所に分散
 - 単一クラスとしての責務過大
 
-**分離計画**:
-- [ ] Subscribe機能を PESubscriptionManager に分離
-- [ ] Notification機能を PENotificationManager に分離
-- [ ] デコード処理を PEDecoder に集約
-- [ ] PEManager を 500-800行程度に削減
+**分離計画**（7フェーズ、20-30時間）:
+- [x] Phase 1: PESubscriptionHandler skeleton作成（2026-01-30完了）
+- [ ] Phase 2: Subscribe State Management（PEManagerとの統合）
+- [ ] Phase 3: Subscribe/Unsubscribe Public API（API delegation）
+- [ ] Phase 4: Notification Handling（Notify routing）
+- [ ] Phase 5: Subscribe Reply Handling（Reply dispatch）
+- [ ] Phase 6: Cleanup and Documentation
+- [ ] Phase 7: Final Testing and Validation
 
-**工数**: 3-5日
-**状態**: 📋 計画
-**備考**: Phase 4より優先度が高い。Phase 3完了後、Phase 5-1 → Phase 4の順で実施推奨
+**Phase 1実装内容**（2026-01-30完了）:
+- PESubscriptionHandler.swift作成（251行）
+- Actor構造、Dependencies、Callbacks定義
+- スタブメソッド実装
+- ビルド成功 ✅
+
+**目標**:
+- PEManager: 1,872行 → 600-700行（60%削減）
+- PESubscriptionHandler: 300-350行（新規）
+
+**工数**: 20-30時間（残り18-27時間）
+**状態**: 🔄 Phase 1完了、Phase 2以降は Phase 0完了後に継続
+**備考**: **Phase 0（Critical Fixes）を優先**。Phase 0完了後に Phase 2を再開。
 
 ---
 

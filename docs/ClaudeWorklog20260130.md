@@ -2287,3 +2287,52 @@ Phase 5-1進捗:
   - PEManagerにsubscriptionHandler統合
   - 見積もり: 3-4時間
 ---
+
+---
+2026-01-30 04:54
+作業項目: 追加レビュー確認と評価
+レビューファイル: /Users/hakaru/Downloads/MIDI2Kit_main_review_2026-01-30.md
+レビュー評価:
+  - アーキテクチャ: 4/5（良好）
+  - 正しさ/一貫性: 2.5/5（設定と実装のズレ）
+  - レジリエンス: 3/5（基本は良い）
+  - デバッグ容易性: 3/5（診断機能あるが配線不足）
+  - CI/テスト: 2/5（テスト失敗を握りつぶす設定）
+
+重要指摘（P0 - 最優先）:
+  1. peSendStrategy が PEManager に配線されていない 🔴
+     - MIDI2ClientConfiguration.peSendStrategy 設定が未反映
+     - デフォルト（broadcast）のまま動作 → timeout の外的要因
+  2. multiChunkTimeoutMultiplier が実際のPEリクエストに未適用 🔴
+     - getResourceList で計算しているが peManager に渡していない
+     - 実際の待ち時間が伸びていない
+  3. PEChunkAssembler の print デバッグがそのまま 🔴
+     - logger 統一が必要
+
+重要指摘（P1）:
+  4. RobustJSONDecoder が正しいJSONを壊す可能性 🟡
+     - escapeControlCharacters が改行を壊す
+     - removeComments が "https://" を壊す
+  5. PEDecodingDiagnostics が外に出ていない 🟡
+     - lastDecodingDiagnostics プロパティが存在しない
+
+重要指摘（P2）:
+  6. CI がテスト失敗を握りつぶしている 🟢
+     - || echo で失敗を成功扱い
+
+PE timeout 切り分けチェックポイント:
+  - Receive dispatcher 動作確認
+  - destination 解決確認
+  - RequestID 管理確認（リーク、取り違え）
+  - MUID フィルタ確認
+  - チャンク欠落確認
+
+決定事項:
+  - P0指摘3点は Phase 5-1 より優先度高い
+  - 次回: P0修正 → Phase 5-1継続
+次のTODO:
+  - P0-1: peSendStrategy配線
+  - P0-2: multiChunkTimeoutMultiplier適用
+  - P0-3: print → logger統一
+  - TODO.mdに反映
+---
