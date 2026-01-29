@@ -645,14 +645,14 @@ public actor MIDI2Client {
                 
                 switch event {
                 case .deviceDiscovered(let discovered):
-                    let device = MIDI2Device(from: discovered)
+                    let device = MIDI2Device(from: discovered, client: self)
                     await self.handleDeviceDiscovered(device)
-                    
+
                 case .deviceLost(let muid):
                     await self.handleDeviceLost(muid)
-                    
+
                 case .deviceUpdated(let discovered):
-                    let device = MIDI2Device(from: discovered)
+                    let device = MIDI2Device(from: discovered, client: self)
                     await self.handleDeviceUpdated(device)
                     
                 case .discoveryStarted:

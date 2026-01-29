@@ -1408,3 +1408,148 @@ Phase 2進捗状況:
 次のTODO:
   - ワークログをコミット・プッシュ
 ---
+---
+2026-01-30 03:22
+作業項目: ワークログ更新コミット完了
+追加機能の説明:
+  - ワークログ更新のコミットとプッシュ完了
+コミット情報:
+  - コミットハッシュ: 6d71af5
+  - コミットメッセージ: Update worklog: Phase 2 investigation and deprecation completion
+  - 変更: 1ファイル, 67行追加
+プッシュ結果:
+  - プッシュ範囲: c584c2c..6d71af5
+  - ステータス: ✅ 成功
+決定事項:
+  - 本日の作業記録を完全にコミット・プッシュ完了
+  - Phase 1完了、Phase 2は85%完了
+次のTODO:
+  - Phase 2-4 MIDI2Device拡張（P1）
+  - Phase 2-3 リトライ回数制限（P2）
+  - Phase 2-6 ドキュメント（P3）
+---
+---
+2026-01-30 03:24
+作業項目: セッション終了
+追加機能の説明:
+  - 本日の作業セッション終了
+本日の成果:
+  - Phase 1: 100%完了（実機テスト、PE取得検証、フォーマットテスト）
+  - Phase 2: 85%完了（調査、Deprecation対応）
+  - コミット数: 3件（b04bf95, c584c2c, 6d71af5）
+  - すべてリモートにプッシュ済み
+次回の優先タスク:
+  - Phase 2-4 MIDI2Device拡張（P1）: キャッシュAPIと型安全getProperty実装
+  - Phase 2-3 リトライ回数制限（P2）: fallback動作の仕様確認と修正
+  - Phase 2-6 ドキュメント（P3）: 移行ガイドとCHANGELOG作成
+セッション終了時刻: 2026-01-30 03:24
+---
+
+---
+2026-01-30 03:37
+作業項目: セッション再開・Phase 2続行
+追加機能の説明:
+  - 前回セッションからの作業再開
+  - Phase 2の残タスクを継続
+現在の状況:
+  - Phase 1: 100%完了
+  - Phase 2: 85%完了
+  - 優先タスク: Phase 2-4 MIDI2Device拡張（P1）
+決定事項:
+  - Phase 2-4の実装を開始
+次のTODO:
+  - Phase 2-4 MIDI2Device拡張の実装
+  - キャッシュAPI: deviceInfo, resourceList プロパティ
+  - 型安全API: getProperty<T>()
+  - キャッシュ無効化: invalidateCache()
+---
+
+---
+2026-01-30 03:39
+作業項目: Phase 2-4タスク1 - deviceInfoプロパティ実装開始
+追加機能の説明:
+  - MIDI2DeviceにdeviceInfoキャッシュ付きプロパティを追加
+  - 現在のMIDI2Device実装を確認
+  - キャッシュ機構の設計と実装
+決定事項:
+  - Phase 2-4のタスク1から順に実装
+  - deviceInfoプロパティから開始
+次のTODO:
+  - MIDI2Device.swiftの現在の実装を確認
+  - deviceInfoプロパティの実装
+  - キャッシュ機構の追加
+---
+
+---
+2026-01-30 03:42
+作業項目: MIDI2Device設計方針決定 - actorへの変更
+追加機能の説明:
+  - 設計の矛盾を発見（structとコメント例の不一致）
+  - 選択肢A採用: MIDI2Deviceにclientへの参照を追加
+  - structからactorへ変更が必要
+  - await device.deviceInfo 形式のAPIを実装
+決定事項:
+  - MIDI2Deviceをactorに変更
+  - MIDI2Clientへの参照を保持
+  - deviceInfo, resourceList プロパティを追加
+  - getProperty<T>, invalidateCache() メソッドを追加
+次のTODO:
+  - MIDI2Device.swiftをstructからactorに変更
+  - clientプロパティ追加
+  - deviceInfoプロパティ実装
+  - resourceListプロパティ実装
+  - getProperty<T>メソッド実装
+  - invalidateCache()メソッド実装
+---
+
+---
+2026-01-30 03:45
+作業項目: Phase 2-4実装完了（部分）- MIDI2Device拡張
+追加機能の説明:
+  - MIDI2Deviceをstructからactorに変更完了
+  - MIDI2Clientへの参照を追加
+  - deviceInfoプロパティ実装（キャッシュ付き）
+  - resourceListプロパティ実装（キャッシュ付き）
+  - invalidateCache()メソッド実装
+  - ビルド成功確認
+実装内容:
+  - public actor MIDI2Device に変更
+  - private let client: MIDI2Client プロパティ追加
+  - private var cachedDeviceInfo/cachedResourceList 追加
+  - deviceInfo: PEDeviceInfo? { get async throws }
+  - resourceList: [PEResourceEntry]? { get async throws }
+  - invalidateCache() メソッド
+  - nonisolated修飾子を同期プロパティに追加
+  - Equatableのみ維持（Hashable等は削除）
+  - MIDI2Client.swiftでMIDI2Device作成時にclient引数を追加
+決定事項:
+  - Phase 2-4タスク: deviceInfo ✅, resourceList ✅, invalidateCache ✅
+  - 残タスク: getProperty<T>（MIDI2Clientにメソッドがないため保留）
+  - ビルド成功、エラーなし
+次のTODO:
+  - getProperty<T>の実装（MIDI2Clientにメソッド追加が必要）
+  - または次のPhaseに進む
+  - テスト実行
+  - TODO.md更新
+---
+
+---
+2026-01-30 03:46
+作業項目: Phase 2-4コミット・プッシュ
+追加機能の説明:
+  - Phase 2-4実装内容をコミット
+  - MIDI2Device actor化完了
+  - TODO.md更新完了
+変更ファイル:
+  - Sources/MIDI2Kit/HighLevelAPI/MIDI2Device.swift
+  - Sources/MIDI2Kit/HighLevelAPI/MIDI2Client.swift
+  - docs/TODO.md
+  - docs/ClaudeWorklog20260130.md
+決定事項:
+  - Phase 2-4をほぼ完了として記録（83%）
+  - リモートにプッシュして記録
+次のTODO:
+  - コミット作成
+  - リモートにプッシュ
+  - Phase 2-3またはPhase 3へ進む
+---
