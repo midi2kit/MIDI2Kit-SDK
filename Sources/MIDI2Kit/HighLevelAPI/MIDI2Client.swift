@@ -169,7 +169,8 @@ public actor MIDI2Client {
         self.peManager = PEManager(
             transport: transport,
             sourceMUID: muid,
-            maxInflightPerDevice: configuration.maxInflightPerDevice
+            maxInflightPerDevice: configuration.maxInflightPerDevice,
+            logger: configuration.logger
         )
         
         // Initialize event hub

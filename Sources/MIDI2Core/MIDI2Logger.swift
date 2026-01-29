@@ -268,6 +268,66 @@ extension MIDI2LogLevel {
 
 #endif
 
+// MARK: - File Logger
+
+/// Logger that writes to a file
+public final class FileMIDI2Logger: MIDI2Logger, @unchecked Sendable {
+    public let minimumLevel: MIDI2LogLevel
+    private let fileURL: URL
+    private let includeLocation: Bool
+    private let lock = NSLock()
+    private let fileHandle: FileHandle?
+
+    public init(fileURL: URL, minimumLevel: MIDI2LogLevel = .debug, includeLocation: Bool = false) {
+        self.minimumLevel = minimumLevel
+        self.fileURL = fileURL
+        self.includeLocation = includeLocation
+
+        // Create or open file
+        FileManager.default.createFile(atPath: fileURL.path, contents: nil, attributes: nil)
+        self.fileHandle = try? FileHandle(forWritingTo: fileURL)
+
+        // Write header
+        if let fileHandle = fileHandle {
+            let header = "=== MIDI2Kit Log Session Started ===\n".data(using: .utf8)!
+            try? fileHandle.write(contentsOf: header)
+        }
+    }
+
+    deinit {
+        try? fileHandle?.close()
+    }
+
+    public func log(
+        level: MIDI2LogLevel,
+        message: @autoclosure () -> String,
+        category: String,
+        file: String,
+        function: String,
+        line: Int
+    ) {
+        guard shouldLog(level), let fileHandle = fileHandle else { return }
+
+        let msg = message()
+        let timestamp = ISO8601DateFormatter().string(from: Date())
+
+        var output = "\(timestamp) \(level.symbol) [\(category)] \(msg)"
+
+        if includeLocation {
+            let filename = (file as NSString).lastPathComponent
+            output += " (\(filename):\(line) \(function))"
+        }
+
+        output += "\n"
+
+        lock.lock()
+        if let data = output.data(using: .utf8) {
+            try? fileHandle.write(contentsOf: data)
+        }
+        lock.unlock()
+    }
+}
+
 // MARK: - Composite Logger
 
 /// Logger that forwards to multiple loggers

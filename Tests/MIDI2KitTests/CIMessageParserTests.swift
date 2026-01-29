@@ -575,4 +575,211 @@ struct CIMessageParserTests {
         #expect(result?.resource == "SomeResource")
         #expect(result?.propertyData == propertyData)
     }
+
+    // MARK: - PE Format Tests (Phase 1-3)
+
+    @Test("PE Get Inquiry does not contain chunk fields")
+    func testPEGetInquiryDoesNotContainChunkFields() {
+        // PE Get Inquiry format:
+        // F0 7E 7F 0D 34 [ciVer] [srcMUID:4] [dstMUID:4]
+        // [requestID] [headerSize:2] [headerData...] F7
+        //
+        // Important: NO numChunks/thisChunk/dataSize fields
+
+        let sourceMUID = MUID(rawValue: 0x01020304)!
+        let destMUID = MUID(rawValue: 0x05060708)!
+        let headerData = Data("{\"resource\":\"DeviceInfo\"}".utf8)
+        let requestID: UInt8 = 0x42
+
+        let message = CIMessageBuilder.peGetInquiry(
+            sourceMUID: sourceMUID,
+            destinationMUID: destMUID,
+            requestID: requestID,
+            headerData: headerData
+        )
+
+        // Expected structure:
+        // 0: F0 (SysEx start)
+        // 1: 7E (Non-realtime)
+        // 2: 7F (Device ID)
+        // 3: 0D (CI Sub-ID)
+        // 4: 34 (PE Get Inquiry)
+        // 5: 01 (CI Version)
+        // 6-9: sourceMUID (4 bytes)
+        // 10-13: destMUID (4 bytes)
+        // 14: requestID
+        // 15-16: headerSize (2 bytes, 14-bit)
+        // 17+: headerData
+        // last: F7 (SysEx end)
+
+        #expect(message[4] == 0x34)  // PE Get Inquiry
+        #expect(message[14] == requestID)
+
+        // Header size (14-bit encoding)
+        let headerSize = Int(message[15]) | (Int(message[16]) << 7)
+        #expect(headerSize == headerData.count)
+
+        // Header data starts immediately after headerSize (no chunk fields)
+        let headerStart = 17
+        let extractedHeaderData = Data(message[headerStart..<headerStart + headerSize])
+        #expect(extractedHeaderData == headerData)
+
+        // Verify message ends correctly
+        #expect(message.last == 0xF7)
+
+        // Total length should be: 6 (header) + 4 (srcMUID) + 4 (dstMUID) + 1 (requestID) + 2 (headerSize) + headerData.count + 1 (F7)
+        let expectedLength = 6 + 4 + 4 + 1 + 2 + headerData.count + 1
+        #expect(message.count == expectedLength)
+    }
+
+    @Test("PE Get Reply contains chunk fields")
+    func testPEGetReplyContainsChunkFields() {
+        // PE Get Reply format:
+        // F0 7E 7F 0D 35 [ciVer] [srcMUID:4] [dstMUID:4]
+        // [requestID] [headerSize:2] [numChunks:2] [thisChunk:2] [dataSize:2]
+        // [headerData...] [propertyData...] F7
+
+        let sourceMUID = MUID(rawValue: 0x01020304)!
+        let destMUID = MUID(rawValue: 0x05060708)!
+        let headerData = Data("{\"status\":200}".utf8)
+        let propertyData = Data("{\"manufacturerId\":66}".utf8)
+        let requestID: UInt8 = 0x42
+
+        // Build message manually to ensure correct format
+        var message: [UInt8] = [
+            0xF0, 0x7E, 0x7F, 0x0D,
+            0x35,  // PE Get Reply
+            0x01   // CI Version
+        ]
+        message.append(contentsOf: sourceMUID.bytes)
+        message.append(contentsOf: destMUID.bytes)
+        message.append(requestID)
+
+        // Header size (14-bit)
+        message.append(UInt8(headerData.count & 0x7F))
+        message.append(UInt8((headerData.count >> 7) & 0x7F))
+
+        // Chunk fields (these MUST be present in Reply)
+        message.append(0x01)  // numChunks low
+        message.append(0x00)  // numChunks high
+        message.append(0x01)  // thisChunk low
+        message.append(0x00)  // thisChunk high
+
+        // Data size (14-bit)
+        message.append(UInt8(propertyData.count & 0x7F))
+        message.append(UInt8((propertyData.count >> 7) & 0x7F))
+
+        // Header data
+        message.append(contentsOf: headerData)
+
+        // Property data
+        message.append(contentsOf: propertyData)
+
+        message.append(0xF7)
+
+        // Parse the message
+        let result = CIMessageParser.parsePEReply(Array(message[14..<message.count-1]))
+
+        #expect(result != nil)
+        #expect(result?.requestID == requestID)
+        #expect(result?.numChunks == 1)
+        #expect(result?.thisChunk == 1)
+        #expect(result?.headerData == headerData)
+        #expect(result?.propertyData == propertyData)
+    }
+
+    @Test("PE Inquiry vs Reply: headerData start position differs")
+    func testHeaderDataStartPositionDiffers() {
+        let headerData = Data("TEST".utf8)
+        let sourceMUID = MUID(rawValue: 0x01234567)!  // Valid MUID (28-bit max: 0x0FFFFFFF)
+        let destMUID = MUID.broadcast
+        let requestID: UInt8 = 0x10
+
+        // Inquiry: headerData starts at position 17 (after requestID + headerSize)
+        let inquiryMessage = CIMessageBuilder.peGetInquiry(
+            sourceMUID: sourceMUID,
+            destinationMUID: destMUID,
+            requestID: requestID,
+            headerData: headerData
+        )
+
+        // Position breakdown for Inquiry:
+        // 0-5: SysEx header (F0 7E 7F 0D 34 01)
+        // 6-9: sourceMUID
+        // 10-13: destMUID
+        // 14: requestID
+        // 15-16: headerSize
+        // 17+: headerData <-- Immediately after headerSize
+
+        let inquiryHeaderStart = 17
+        let extractedInquiryHeader = Data(inquiryMessage[inquiryHeaderStart..<inquiryHeaderStart + headerData.count])
+        #expect(extractedInquiryHeader == headerData)
+
+        // Reply: headerData starts at position 23 (after chunk fields)
+        var replyPayload: [UInt8] = [requestID]
+        replyPayload.append(UInt8(headerData.count & 0x7F))
+        replyPayload.append(UInt8((headerData.count >> 7) & 0x7F))
+        replyPayload.append(contentsOf: [0x01, 0x00, 0x01, 0x00])  // numChunks, thisChunk
+        replyPayload.append(contentsOf: [0x00, 0x00])  // dataSize = 0
+        replyPayload.append(contentsOf: headerData)
+
+        // Parse Reply
+        let replyResult = CIMessageParser.parsePEReply(replyPayload)
+        #expect(replyResult != nil)
+        #expect(replyResult?.headerData == headerData)
+
+        // Verify: Inquiry has headerData 6 bytes earlier than Reply
+        // (due to missing numChunks, thisChunk, dataSize fields)
+    }
+
+    @Test("14-bit encoding for large header and data sizes")
+    func test14BitEncodingLargeSizes() {
+        // Test values that require both bytes of 14-bit encoding
+        // 128 = 0x80 = 0b10000000 = 0x00 (low 7 bits) + 0x01 (high 7 bits)
+        // 200 = 0xC8 = 0b11001000 = 0x48 (low 7 bits) + 0x01 (high 7 bits)
+        // 16383 = 0x3FFF = max 14-bit = 0x7F (low) + 0x7F (high)
+
+        let testCases: [(size: Int, expectedLow: UInt8, expectedHigh: UInt8)] = [
+            (128, 0x00, 0x01),     // 0x00 | (0x01 << 7) = 128
+            (200, 0x48, 0x01),     // 0x48 | (0x01 << 7) = 72 + 128 = 200
+            (1000, 0x68, 0x07),    // 0x68 | (0x07 << 7) = 104 + 896 = 1000
+            (16383, 0x7F, 0x7F)    // Max 14-bit
+        ]
+
+        for (size, expectedLow, expectedHigh) in testCases {
+            // Create headerData of specified size
+            let headerData = Data(repeating: 0x41, count: size)
+            let propertyData = Data(repeating: 0x42, count: size)
+
+            // Build PE Reply with large header and data
+            var payload: [UInt8] = [0x01]  // requestID
+
+            // Header size (14-bit)
+            payload.append(UInt8(size & 0x7F))
+            payload.append(UInt8((size >> 7) & 0x7F))
+
+            #expect(payload[1] == expectedLow, "HeaderSize low byte mismatch for size \(size)")
+            #expect(payload[2] == expectedHigh, "HeaderSize high byte mismatch for size \(size)")
+
+            // Chunk fields
+            payload.append(contentsOf: [0x01, 0x00, 0x01, 0x00])
+
+            // Data size (14-bit)
+            payload.append(UInt8(size & 0x7F))
+            payload.append(UInt8((size >> 7) & 0x7F))
+
+            #expect(payload[7] == expectedLow, "DataSize low byte mismatch for size \(size)")
+            #expect(payload[8] == expectedHigh, "DataSize high byte mismatch for size \(size)")
+
+            // Append header and property data
+            payload.append(contentsOf: headerData)
+            payload.append(contentsOf: propertyData)
+
+            // Parse and verify
+            let result = CIMessageParser.parsePEReply(payload)
+            #expect(result != nil, "Parse failed for size \(size)")
+            #expect(result?.headerData.count == size, "HeaderData size mismatch for \(size)")
+            #expect(result?.propertyData.count == size, "PropertyData size mismatch for \(size)")
+        }
+    }
 }

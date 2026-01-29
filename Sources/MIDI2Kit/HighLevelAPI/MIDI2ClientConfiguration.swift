@@ -171,7 +171,19 @@ public struct MIDI2ClientConfiguration: Sendable {
     
     /// Category support to advertise
     public var categorySupport: CategorySupport
-    
+
+    /// Logger for MIDI2Kit operations
+    ///
+    /// Default: NullMIDI2Logger() (silent)
+    ///
+    /// For debugging, use:
+    /// ```swift
+    /// let logger = OSLogMIDI2Logger(subsystem: "com.myapp.midi", minimumLevel: .debug)
+    /// var config = MIDI2ClientConfiguration()
+    /// config.logger = logger
+    /// ```
+    public var logger: any MIDI2Core.MIDI2Logger
+
     // MARK: - Initialization
     
     /// Create configuration with default values
@@ -194,6 +206,7 @@ public struct MIDI2ClientConfiguration: Sendable {
         self.maxSysExSize = 0
         self.deviceIdentity = .default
         self.categorySupport = .propertyExchange
+        self.logger = MIDI2Core.NullMIDI2Logger()
     }
     
     /// Create configuration from preset
