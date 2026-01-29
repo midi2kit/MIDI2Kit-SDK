@@ -87,9 +87,16 @@ let client = try MIDI2Client(name: "MyApp", configuration: config)
 Or use presets:
 
 ```swift
-let client = try MIDI2Client(name: "MyApp", preset: .explorer)  // Longer timeouts
-let client = try MIDI2Client(name: "MyApp", preset: .minimal)   // Short timeouts
+// KORG BLE MIDI devices (warm-up enabled, longer timeouts)
+let client = try MIDI2Client(name: "MyApp", preset: .korgBLEMIDI)
+
+// Standard MIDI 2.0 devices (default settings)
+let client = try MIDI2Client(name: "MyApp", preset: .standard)
 ```
+
+**Available presets:**
+- `.korgBLEMIDI` - Optimized for KORG Module Pro and BLE MIDI devices
+- `.standard` - Default settings for standard MIDI 2.0 devices
 
 ## API Reference
 
@@ -109,14 +116,36 @@ The main entry point for MIDI 2.0 operations.
 
 ### MIDI2Device
 
-Represents a discovered MIDI 2.0 device.
+Represents a discovered MIDI 2.0 device with cached property access.
 
-| Property | Description |
+| Property/Method | Description |
 |----------|-------------|
 | `muid` | Unique MIDI ID |
 | `displayName` | Human-readable name |
 | `supportsPropertyExchange` | PE capability |
 | `manufacturerName` | Manufacturer (if known) |
+| `deviceInfo` | Cached DeviceInfo (auto-fetched) |
+| `resourceList` | Cached resource list (auto-fetched) |
+| `getProperty<T>(_:as:)` | Type-safe property decoding |
+| `invalidateCache()` | Force fresh fetch on next access |
+
+**Example:**
+```swift
+let device: MIDI2Device = // from .deviceDiscovered event
+
+// Cached access (auto-fetches on first call)
+if let info = try await device.deviceInfo {
+    print("Product: \(info.productName ?? "Unknown")")
+}
+
+// Type-safe property access
+struct CustomProperty: Codable {
+    let value: String
+}
+if let prop = try await device.getProperty("X-Custom", as: CustomProperty.self) {
+    print("Custom: \(prop.value)")
+}
+```
 
 ### MIDI2ClientEvent
 
@@ -147,22 +176,56 @@ Filter logs in Console.app:
 subsystem == "com.midi2kit"
 ```
 
+## Debugging & Diagnostics
+
+MIDI2Client provides diagnostic tools for troubleshooting:
+
+```swift
+// Get comprehensive diagnostics
+let diag = await client.diagnostics
+print(diag)
+
+// Check destination resolution details
+if let destDiag = await client.lastDestinationDiagnostics {
+    print("Tried destinations: \(destDiag.triedOrder)")
+    print("Resolved to: \(destDiag.resolvedDestination)")
+}
+
+// View last communication trace
+if let trace = await client.lastCommunicationTrace {
+    print(trace.description)
+    // Shows: operation, MUID, resource, duration, result, errors
+}
+```
+
+## Migration from Low-Level API
+
+If you're using `CIManager` or `PEManager` directly, see the [Migration Guide](docs/MigrationGuide.md) for step-by-step instructions to migrate to `MIDI2Client`.
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for version history and recent updates.
+
 ## Known Limitations
 
 ### KORG Module Pro
 
 - **DeviceInfo**: ✅ Works reliably
-- **ResourceList**: ⚠️ May timeout due to chunk loss (KORG-side issue)
+- **ResourceList**: ⚠️ May timeout due to chunk loss (physical layer limitation)
+- **Auto-Retry**: ✅ MIDI2Client automatically retries with fallback destinations
 
-KORG devices use a non-standard PE format. MIDI2Kit handles this automatically, but multi-chunk responses (like ResourceList) may be unreliable due to CoreMIDI virtual port buffering issues.
+KORG devices use a non-standard PE format. MIDI2Kit handles this automatically, but multi-chunk responses (like ResourceList) may be unreliable over BLE MIDI due to packet loss.
 
-**Workaround**: Access known resources directly instead of using ResourceList:
+**Built-in optimizations** (when using `.korgBLEMIDI` preset):
+- Warm-up request before ResourceList to establish stable BLE connection
+- Automatic destination fallback on timeout
+- Extended timeout for multi-chunk responses
+
+**Workaround** (if ResourceList still fails):
 ```swift
-// Instead of:
-let resources = try await client.getResourceList(from: device.muid)
-
-// Access directly if you know the resource name:
+// Access known resources directly instead of using ResourceList:
 let response = try await client.get("CMList", from: device.muid)
+let response = try await client.get("ChannelList", from: device.muid)
 ```
 
 ## Architecture
