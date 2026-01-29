@@ -96,7 +96,10 @@ public actor MIDI2Client {
     
     /// Last destination diagnostics
     private var _lastDestinationDiagnostics: DestinationDiagnostics?
-    
+
+    /// Last communication trace
+    private var _lastCommunicationTrace: CommunicationTrace?
+
     // MARK: - Tasks
     
     /// Receive dispatcher task
@@ -335,20 +338,28 @@ public actor MIDI2Client {
     /// - Throws: `MIDI2Error` on failure
     public func getDeviceInfo(from muid: MUID) async throws -> PEDeviceInfo {
         guard isRunning else { throw MIDI2Error.clientNotRunning }
-        
+
         // Return cached value if available
         if let cached = deviceInfoCache[muid] {
             MIDI2Logger.pe.midi2Debug("DeviceInfo cache hit for \(muid)")
             return cached
         }
-        
+
+        let startTime = Date()
         let destination = try await resolveDestination(for: muid)
         let handle = PEDeviceHandle(muid: muid, destination: destination)
-        
+
         do {
             let info = try await peManager.getDeviceInfo(from: handle)
             // Cache the result
             deviceInfoCache[muid] = info
+            recordTrace(
+                operation: .getDeviceInfo,
+                muid: muid,
+                result: .success,
+                destination: destination,
+                duration: Date().timeIntervalSince(startTime)
+            )
             return info
         } catch let error as PEError {
             // Try fallback on timeout
@@ -360,12 +371,39 @@ public actor MIDI2Client {
                         // Cache successful destination and result
                         await destinationResolver.cacheDestination(nextDest, for: muid)
                         deviceInfoCache[muid] = result
+                        recordTrace(
+                            operation: .getDeviceInfo,
+                            muid: muid,
+                            result: .success,
+                            destination: nextDest,
+                            duration: Date().timeIntervalSince(startTime)
+                        )
                         return result
                     } catch {
+                        recordTrace(
+                            operation: .getDeviceInfo,
+                            muid: muid,
+                            result: .timeout,
+                            destination: nextDest,
+                            duration: Date().timeIntervalSince(startTime),
+                            errorMessage: error.localizedDescription
+                        )
                         throw MIDI2Error(from: error as! PEError, muid: muid)
                     }
                 }
             }
+            let resultType: CommunicationTrace.Result = {
+                if case .timeout = error { return .timeout }
+                return .error
+            }()
+            recordTrace(
+                operation: .getDeviceInfo,
+                muid: muid,
+                result: resultType,
+                destination: destination,
+                duration: Date().timeIntervalSince(startTime),
+                errorMessage: error.localizedDescription
+            )
             throw MIDI2Error(from: error, muid: muid)
         }
     }
@@ -402,6 +440,7 @@ public actor MIDI2Client {
     public func getResourceList(from muid: MUID) async throws -> [PEResourceEntry] {
         guard isRunning else { throw MIDI2Error.clientNotRunning }
 
+        let startTime = Date()
         let destination = try await resolveDestination(for: muid)
         let handle = PEDeviceHandle(muid: muid, destination: destination)
 
@@ -427,6 +466,14 @@ public actor MIDI2Client {
 
         do {
             let result = try await peManager.getResourceList(from: handle)
+            recordTrace(
+                operation: .getResourceList,
+                muid: muid,
+                resource: "ResourceList",
+                result: .success,
+                destination: destination,
+                duration: Date().timeIntervalSince(startTime)
+            )
             return result
         } catch let error as PEError {
             // Try fallback on timeout
@@ -439,13 +486,43 @@ public actor MIDI2Client {
                         // Cache successful destination
                         await destinationResolver.cacheDestination(nextDest, for: muid)
                         MIDI2Logger.pe.midi2Info("ResourceList succeeded with fallback destination")
+                        recordTrace(
+                            operation: .getResourceList,
+                            muid: muid,
+                            resource: "ResourceList",
+                            result: .success,
+                            destination: nextDest,
+                            duration: Date().timeIntervalSince(startTime)
+                        )
                         return result
                     } catch {
                         MIDI2Logger.pe.midi2Error("ResourceList failed on fallback destination: \(error)")
+                        recordTrace(
+                            operation: .getResourceList,
+                            muid: muid,
+                            resource: "ResourceList",
+                            result: .timeout,
+                            destination: nextDest,
+                            duration: Date().timeIntervalSince(startTime),
+                            errorMessage: error.localizedDescription
+                        )
                         throw MIDI2Error(from: error as? PEError ?? .timeout(resource: "ResourceList"), muid: muid, timeout: timeout)
                     }
                 }
             }
+            let resultType: CommunicationTrace.Result = {
+                if case .timeout = error { return .timeout }
+                return .error
+            }()
+            recordTrace(
+                operation: .getResourceList,
+                muid: muid,
+                resource: "ResourceList",
+                result: resultType,
+                destination: destination,
+                duration: Date().timeIntervalSince(startTime),
+                errorMessage: error.localizedDescription
+            )
             throw MIDI2Error(from: error, muid: muid, timeout: timeout)
         }
     }
@@ -465,15 +542,25 @@ public actor MIDI2Client {
     ) async throws -> PEResponse {
         guard isRunning else { throw MIDI2Error.clientNotRunning }
 
+        let startTime = Date()
         let destination = try await resolveDestination(for: muid)
         let handle = PEDeviceHandle(muid: muid, destination: destination)
 
         do {
-            return try await peManager.get(
+            let result = try await peManager.get(
                 resource,
                 from: handle,
                 timeout: timeout ?? configuration.peTimeout
             )
+            recordTrace(
+                operation: .getProperty,
+                muid: muid,
+                resource: resource,
+                result: .success,
+                destination: destination,
+                duration: Date().timeIntervalSince(startTime)
+            )
+            return result
         } catch let error as PEError {
             // Try fallback on timeout
             if case .timeout = error {
@@ -483,12 +570,42 @@ public actor MIDI2Client {
                     do {
                         let result = try await peManager.get(resource, from: retryHandle, timeout: timeout ?? configuration.peTimeout)
                         await destinationResolver.cacheDestination(nextDest, for: muid)
+                        recordTrace(
+                            operation: .getProperty,
+                            muid: muid,
+                            resource: resource,
+                            result: .success,
+                            destination: nextDest,
+                            duration: Date().timeIntervalSince(startTime)
+                        )
                         return result
                     } catch {
+                        recordTrace(
+                            operation: .getProperty,
+                            muid: muid,
+                            resource: resource,
+                            result: .timeout,
+                            destination: nextDest,
+                            duration: Date().timeIntervalSince(startTime),
+                            errorMessage: error.localizedDescription
+                        )
                         throw MIDI2Error(from: error as? PEError ?? .timeout(resource: resource), muid: muid)
                     }
                 }
             }
+            let resultType: CommunicationTrace.Result = {
+                if case .timeout = error { return .timeout }
+                return .error
+            }()
+            recordTrace(
+                operation: .getProperty,
+                muid: muid,
+                resource: resource,
+                result: resultType,
+                destination: destination,
+                duration: Date().timeIntervalSince(startTime),
+                errorMessage: error.localizedDescription
+            )
             throw MIDI2Error(from: error, muid: muid)
         }
     }
@@ -548,16 +665,26 @@ public actor MIDI2Client {
     ) async throws -> PEResponse {
         guard isRunning else { throw MIDI2Error.clientNotRunning }
 
+        let startTime = Date()
         let destination = try await resolveDestination(for: muid)
         let handle = PEDeviceHandle(muid: muid, destination: destination)
 
         do {
-            return try await peManager.set(
+            let result = try await peManager.set(
                 resource,
                 data: data,
                 to: handle,
                 timeout: timeout ?? configuration.peTimeout
             )
+            recordTrace(
+                operation: .setProperty,
+                muid: muid,
+                resource: resource,
+                result: .success,
+                destination: destination,
+                duration: Date().timeIntervalSince(startTime)
+            )
+            return result
         } catch let error as PEError {
             // Try fallback on timeout
             if case .timeout = error {
@@ -567,12 +694,42 @@ public actor MIDI2Client {
                     do {
                         let result = try await peManager.set(resource, data: data, to: retryHandle, timeout: timeout ?? configuration.peTimeout)
                         await destinationResolver.cacheDestination(nextDest, for: muid)
+                        recordTrace(
+                            operation: .setProperty,
+                            muid: muid,
+                            resource: resource,
+                            result: .success,
+                            destination: nextDest,
+                            duration: Date().timeIntervalSince(startTime)
+                        )
                         return result
                     } catch {
+                        recordTrace(
+                            operation: .setProperty,
+                            muid: muid,
+                            resource: resource,
+                            result: .timeout,
+                            destination: nextDest,
+                            duration: Date().timeIntervalSince(startTime),
+                            errorMessage: error.localizedDescription
+                        )
                         throw MIDI2Error(from: error as? PEError ?? .timeout(resource: resource), muid: muid)
                     }
                 }
             }
+            let resultType: CommunicationTrace.Result = {
+                if case .timeout = error { return .timeout }
+                return .error
+            }()
+            recordTrace(
+                operation: .setProperty,
+                muid: muid,
+                resource: resource,
+                result: resultType,
+                destination: destination,
+                duration: Date().timeIntervalSince(startTime),
+                errorMessage: error.localizedDescription
+            )
             throw MIDI2Error(from: error, muid: muid)
         }
     }
@@ -585,7 +742,15 @@ public actor MIDI2Client {
             await destinationResolver.lastDiagnostics
         }
     }
-    
+
+    /// Last communication trace
+    ///
+    /// Provides detailed information about the most recent Property Exchange
+    /// operation for debugging purposes.
+    public var lastCommunicationTrace: CommunicationTrace? {
+        _lastCommunicationTrace
+    }
+
     /// Diagnostic information string
     public var diagnostics: String {
         get async {
@@ -730,8 +895,31 @@ public actor MIDI2Client {
         }
     }
     
+    // MARK: - Private: Trace Recording
+
+    /// Record a communication trace
+    private func recordTrace(
+        operation: CommunicationTrace.Operation,
+        muid: MUID,
+        resource: String? = nil,
+        result: CommunicationTrace.Result,
+        destination: MIDIDestinationID? = nil,
+        duration: TimeInterval,
+        errorMessage: String? = nil
+    ) {
+        _lastCommunicationTrace = CommunicationTrace(
+            operation: operation,
+            muid: muid,
+            resource: resource,
+            result: result,
+            destination: destination,
+            duration: duration,
+            errorMessage: errorMessage
+        )
+    }
+
     // MARK: - Private: Setup Change Handling
-    
+
     private func startSetupChangeHandling() {
         setupChangeTask = Task { [weak self] in
             guard let self else { return }

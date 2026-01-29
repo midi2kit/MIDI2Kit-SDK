@@ -279,36 +279,62 @@
 
 **ReceiveHub最適化**
 
-- [ ] 複数購読者への配信最適化
-- [ ] 購読者管理（追加/削除）
-- [ ] メモリリーク防止
-- [ ] `onTermination` での自動クリーンアップ
+- [x] 複数購読者への配信最適化
+- [x] 購読者管理（追加/削除）
+- [x] メモリリーク防止
+- [x] `onTermination` での自動クリーンアップ
 
-**工数**: 1日  
-**状態**: 📋 計画
+**工数**: 1日
+**状態**: ✅ 完了（2026-01-30 04:12）
+**実装内容**:
+  - ReceiveHub actor で全要件実装済み
+  - subscribers辞書で複数購読者を管理
+  - broadcast()メソッドで全購読者に配信
+  - onTerminationハンドラで自動削除（weak self使用）
+  - メモリリーク防止機構完備
+**実装場所**: Sources/MIDI2Kit/HighLevelAPI/ReceiveHub.swift
 
 ---
 
 ### 3-3. デバッグ支援
 
-- [ ] `diagnostics` プロパティ実装
-- [ ] `lastCommunicationTrace` プロパティ実装
-- [ ] `logLevel` 設定
-- [ ] `DestinationDiagnostics` の統合
+- [x] `diagnostics` プロパティ実装
+- [x] `lastCommunicationTrace` プロパティ実装
+- [x] `logLevel` 設定
+- [x] `DestinationDiagnostics` の統合
 
-**工数**: 0.5日  
-**状態**: 📋 計画
+**工数**: 0.5日
+**状態**: ✅ 完了（2026-01-30 04:18）
+**実装内容**:
+  - CommunicationTrace構造体を新規作成（操作種別、結果、タイムスタンプ、duration、エラーメッセージ）
+  - MIDI2Client.lastCommunicationTrace プロパティ追加
+  - 全PE操作（getDeviceInfo, getResourceList, get, set）でトレース記録
+  - 成功時・タイムアウト時・エラー時の全パターンでトレース記録
+  - MIDI2Client.diagnostics プロパティ（既存）
+  - MIDI2ClientConfiguration.logger プロパティ（既存）
+  - MIDI2Client.lastDestinationDiagnostics プロパティ（既存）
+**実装場所**:
+  - Sources/MIDI2Kit/HighLevelAPI/CommunicationTrace.swift（新規）
+  - Sources/MIDI2Kit/HighLevelAPI/MIDI2Client.swift
 
 ---
 
 ### 3-4. README/ドキュメント更新
 
-- [ ] KORG互換性の注意事項追記
-- [ ] 高レベルAPI使用法
-- [ ] 移行ガイド作成
+- [x] KORG互換性の注意事項追記
+- [x] 高レベルAPI使用法
+- [x] 移行ガイド作成
 
-**工数**: 0.5日  
-**状態**: 📋 計画
+**工数**: 0.5日
+**状態**: ✅ 完了（2026-01-30 04:18）
+**実装内容**:
+  - README.md: MIDI2Device新機能（deviceInfo, resourceList, getProperty<T>）追加
+  - README.md: プリセット説明更新（.korgBLEMIDI, .standard）
+  - README.md: デバッグ・診断機能セクション追加
+  - README.md: Migration GuideとCHANGELOGへのリンク追加
+  - README.md: KORG互換性セクション更新（warm-up、auto-retry、fallback）
+  - Migration Guide: 既に完了（Phase 2-6）
+**更新ファイル**: README.md
 
 ---
 
