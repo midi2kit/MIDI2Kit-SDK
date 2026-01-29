@@ -2064,3 +2064,79 @@ Phase 2進捗状況:
   - TODO.md更新（Phase 3-6完了マーク）
   - Phase 3進捗サマリー更新
 ---
+
+---
+2026-01-30 04:29
+作業項目: 今後の課題・リファクタリング推奨事項の確認
+追加機能の説明:
+  - /Users/hakaru/Downloads/Midi2Kit20260130.md を確認
+  - 今後の課題とリファクタリング推奨事項を把握
+今後問題になる可能性がある点:
+  1. BLE MIDIパケット欠落（物理層の制限、解決困難）
+  2. PEManager実行ボトルネック（Actor直列化による高負荷時の遅延）
+  3. メモリリークリスク（長期運用時のReceiveHub購読者管理）
+  4. CoreMIDI仮想ポートバッファリング問題（ライブラリ側制御困難）
+推奨リファクタリング:
+  1. PEManager巨大化解消（約1,500行、Subscribe機能分離検討）
+  2. デコードフロー統一（RobustJSONDecoder確実適用）
+  3. ReceiveHub最適化（配信効率、自動クリーンアップ強化）
+  4. エラーハンドリング高度化（リトライ可能判定メソッド追加）
+  5. テストコード拡充（Batch API、エラーリカバリー、CoreMIDI統合）
+決定事項:
+  - 最優先事項: PEManager機能分離、ReceiveHubメモリ管理徹底
+  - Phase 4（Testing & Examples）の重要性を認識
+次のTODO:
+  - 今後の課題をTODO.mdに反映するか検討
+  - Phase 4実施の判断
+---
+
+---
+2026-01-30 04:30
+作業項目: ドキュメント内容の評価
+評価結果:
+  【既に対応済み ✅】
+    1. BLE MIDIパケット欠落対策
+       - warmUpBeforeResourceList実装済み（Phase 2）
+       - destination fallback実装済み（Phase 2）
+       - ドキュメント記載済み
+    2. デコードフロー統一
+       - RobustJSONDecoder全箇所適用済み（Phase 3-1）
+       - decodeDeviceInfo, decodeResourceList, decodeResponse使用
+    3. ReceiveHub最適化（基本実装）
+       - onTermination自動クリーンアップ実装済み（Phase 3-2）
+       - weak self使用でメモリリーク対策済み
+       - 131行でコンパクト
+
+  【部分的に対応済み ⚠️】
+    4. メモリリークリスク
+       - ReceiveHub実装は完了
+       - 長期運用テストは未実施
+
+  【未対応・今後の課題 📋】
+    1. PEManager巨大化解消 🔴 最優先
+       - 現在1,872行（ドキュメント予測1,500行以上）
+       - Subscribe機能（122箇所）の分離が必要
+    2. PEManager実行ボトルネック 🟡
+       - Actor設計による直列化
+       - 高負荷時の応答遅延リスク
+    3. エラーハンドリング高度化 🟢
+       - PEError.isRetryable メソッド未実装
+       - 実装容易で効果大
+    4. テストコード拡充 🟢
+       - Phase 4として計画済み
+    5. CoreMIDI仮想ポートバッファリング 🔵
+       - 物理層の問題、ライブラリ側では対処困難
+
+評価サマリー:
+  - ドキュメントの指摘は的確、優先順位も妥当 ✅
+  - Phase 3で多くの課題に対応済み
+  - 最優先課題: PEManager機能分離（1,872行 → 分割）
+  - 次点: エラーハンドリング高度化（実装容易）
+  - Phase 4（テスト）は計画通り実施推奨
+
+決定事項:
+  - ドキュメント評価: 高品質、実装状況と整合
+  - TODO.mdにPhase 4以降のタスクとして追加する
+次のTODO:
+  - TODO.mdにリファクタリングタスク追加
+---
