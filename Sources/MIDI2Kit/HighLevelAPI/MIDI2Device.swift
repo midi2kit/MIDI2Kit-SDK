@@ -173,6 +173,41 @@ public actor MIDI2Device: Identifiable {
         cachedDeviceInfo = nil
         cachedResourceList = nil
     }
+
+    /// Get a property value with type-safe decoding
+    ///
+    /// This method fetches a property value from the device and decodes it as the specified type.
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// struct CustomProperty: Codable {
+    ///     let value: String
+    ///     let enabled: Bool
+    /// }
+    ///
+    /// if let prop = try await device.getProperty("X-CustomProp", as: CustomProperty.self) {
+    ///     print("Custom property: \(prop.value), enabled: \(prop.enabled)")
+    /// }
+    /// ```
+    ///
+    /// - Parameters:
+    ///   - resource: The resource identifier (e.g., "DeviceInfo", "X-CustomProp")
+    ///   - type: The expected Decodable type
+    /// - Returns: The decoded property value, or nil if the device doesn't support PE
+    /// - Throws: `MIDI2Error` if the fetch or decoding fails
+    public func getProperty<T: Decodable>(_ resource: String, as type: T.Type) async throws -> T? {
+        guard supportsPropertyExchange else { return nil }
+
+        let response = try await client.get(resource, from: muid)
+
+        guard !response.body.isEmpty else {
+            throw MIDI2Error.propertyNotSupported(resource: resource)
+        }
+
+        let decoder = JSONDecoder()
+        return try decoder.decode(T.self, from: response.body)
+    }
 }
 
 // MARK: - Equatable

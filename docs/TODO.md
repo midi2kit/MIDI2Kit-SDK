@@ -73,19 +73,22 @@
 
 ## Phase 2: High-Level API（P1 重要）
 
-**進捗サマリー（2026-01-30 03:45更新）**:
-- **全体進捗**: 約92%完了（6タスク中3完了、3部分実装）
+**進捗サマリー（2026-01-30 03:56更新）**:
+- **全体進捗**: 約98%完了（6タスク中5完了、1部分実装）
 - ✅ 2-1. MIDI2Client Actor実装 - 100%完了
 - ✅ 2-2. MIDI2ClientConfiguration - 100%完了
-- ⚠️ 2-3. DestinationStrategy.preferModule - 90%完了（リトライ回数制御要確認）
-- ⚠️ 2-4. MIDI2Device Actor実装 - 83%完了（getProperty<T>のみ保留）
+- ✅ 2-3. DestinationStrategy.preferModule - 100%完了（2026-01-30 03:54）
+- ✅ 2-4. MIDI2Device Actor実装 - 100%完了（2026-01-30 03:56）
 - ✅ 2-5. MIDI2Error 3ケース実装 - 100%完了
 - ⚠️ 2-6. Deprecation対応 - 90%完了（12項目Deprecated、ドキュメント残）
 
-**優先推奨事項**:
-1. Phase 2-3 リトライ回数制限（P1）: fallback動作の仕様確認と修正
-2. Phase 2-4 getProperty<T>実装（P2）: MIDI2Clientに汎用getPropertyメソッド追加
-3. Phase 2-6 ドキュメント（P3）: 移行ガイドとCHANGELOG作成（優先度低）
+**Phase 2ほぼ完了！残タスク**:
+- Phase 2-6 ドキュメント作成（移行ガイド、CHANGELOG）のみ
+- コア機能は全て実装完了
+
+**次のステップ推奨**:
+1. Phase 2-6 ドキュメント作成（P2）: 移行ガイドとCHANGELOG作成（オプショナル）
+2. Phase 3への移行（P1）: Testing/Documentation/Publishingへ進む
 
 ---
 
@@ -147,7 +150,7 @@
 - [x] `custom` ケース実装
 
 #### 安全弁（fallback）
-- [ ] タイムアウト時に次候補へ**1回だけ**リトライ（⚠️ 実装はあるがリトライ回数制御要確認）
+- [x] タイムアウト時に次候補へ**1回だけ**リトライ（2026-01-30 03:54完了）
 - [x] 成功ポートのMUID寿命中キャッシュ
 
 #### Diagnostics
@@ -160,10 +163,14 @@
 - [x] 失敗時のログ出力（候補一覧/試行順/最後のdest）
 
 **工数**: 1日
-**状態**: ⚠️ 部分実装（2026-01-30）
-**進捗**: 90%完了
-**残タスク**: リトライ回数制御の仕様確認と修正
-**実装場所**: Sources/MIDI2Kit/HighLevelAPI/DestinationStrategy.swift
+**状態**: ✅ 完了（2026-01-30 03:54）
+**進捗**: 100%完了
+**完了内容**:
+  - 全てのPEメソッド（getDeviceInfo, getResourceList, get, set）にdestination fallback実装
+  - タイムアウト時にgetNextCandidate()で次の候補を取得し、1回だけリトライ
+  - 成功時はcacheDestination()で記録
+  - 実装の一貫性を確保（全メソッドで同じパターン）
+**実装場所**: Sources/MIDI2Kit/HighLevelAPI/MIDI2Client.swift, DestinationStrategy.swift, DestinationResolver.swift
 
 ---
 
@@ -173,19 +180,19 @@
 - [x] `supportsPropertyExchange` プロパティ
 - [x] `deviceInfo` キャッシュ付きプロパティ（2026-01-30 03:45完了）
 - [x] `resourceList` キャッシュ付きプロパティ（2026-01-30 03:45完了）
-- [ ] `getProperty<T>(_:as:)` 型安全API（保留: MIDI2Clientにメソッド追加が必要）
+- [x] `getProperty<T>(_:as:)` 型安全API（2026-01-30 03:56完了）
 - [x] `invalidateCache()` メソッド（2026-01-30 03:45完了）
 
 **工数**: 1-2日
-**状態**: ⚠️ ほぼ完了（2026-01-30 03:45更新）
-**進捗**: 83%完了（6項目中5項目完了）
-**備考**: MIDI2Deviceをactorに変更完了。MIDI2Clientへの参照を保持し、キャッシュ機構を実装。
+**状態**: ✅ 完了（2026-01-30 03:56）
+**進捗**: 100%完了（全6項目完了）
 **完了内容**:
   - structからactorに変更
+  - MIDI2Clientへの参照を保持し、キャッシュ機構を実装
   - deviceInfo/resourceListプロパティ実装（キャッシュ付き）
+  - getProperty<T>メソッド実装（型安全なProperty取得API）
   - invalidateCache()メソッド実装
   - nonisolated修飾子で同期プロパティをマーク
-**残タスク**: getProperty<T> 型安全API（MIDI2Clientに汎用getPropertyメソッドが必要）
 **実装場所**: Sources/MIDI2Kit/HighLevelAPI/MIDI2Device.swift
 
 ---

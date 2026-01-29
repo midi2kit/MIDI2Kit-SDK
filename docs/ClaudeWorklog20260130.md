@@ -1553,3 +1553,176 @@ Phase 2進捗状況:
   - リモートにプッシュ
   - Phase 2-3またはPhase 3へ進む
 ---
+
+---
+2026-01-30 03:48
+作業項目: Phase 2-4コミット・プッシュ完了
+追加機能の説明:
+  - Phase 2-4実装をコミット・プッシュ完了
+  - MIDI2Device actor化完了
+  - deviceInfo/resourceListキャッシュ機能実装
+コミット情報:
+  - コミットハッシュ: a083795
+  - コミットメッセージ: "feat(MIDI2Device): Convert to actor with cached property access"
+  - 変更: 4ファイル, 258行追加, 75行削除
+  - プッシュ範囲: 6d71af5..a083795
+  - ステータス: ✅ 成功
+Phase 2進捗状況:
+  - 全体: 92%完了（85% → 92%）
+  - 2-1 MIDI2Client: 100% ✅
+  - 2-2 Configuration: 100% ✅
+  - 2-3 DestinationStrategy: 90% ⚠️
+  - 2-4 MIDI2Device: 83% ⚠️（40% → 83%）
+  - 2-5 MIDI2Error: 100% ✅
+  - 2-6 Deprecation: 90% ⚠️
+決定事項:
+  - Phase 2-4ほぼ完了（getProperty<T>のみ保留）
+  - リモートリポジトリに記録完了
+  - Phase 2全体が92%完了
+次のTODO:
+  - Phase 2-3 リトライ回数制限（P1）
+  - Phase 2-4 getProperty<T>実装（P2）
+  - Phase 2-6 ドキュメント（P3）
+---
+
+---
+2026-01-30 03:49
+作業項目: Phase 2-3開始 - リトライ回数制限の調査
+追加機能の説明:
+  - Phase 2-3（DestinationStrategy.preferModule）の残タスク確認
+  - リトライ回数制御の仕様確認と修正
+  - fallback動作の検証
+決定事項:
+  - Phase 2-3を最優先で実施
+  - リトライ回数制限の実装状況を調査
+次のTODO:
+  - TODO.mdでPhase 2-3の詳細確認
+  - DestinationStrategy.swiftの実装確認
+  - リトライ回数制御の問題点を特定
+  - 修正実装
+---
+
+---
+2026-01-30 03:51
+作業項目: Phase 2-3問題特定完了・修正開始
+追加機能の説明:
+  - destination fallbackの実装状況を調査完了
+  - getResourceListにdestination fallbackが未実装と判明
+  - getDeviceInfoには正しく実装済み（1回のみfallback）
+  - getResourceListを修正してfallback実装を追加
+問題点:
+  - getResourceList: 同じdestinationに複数回リトライのみ
+  - タイムアウト時に次のdestination候補を試していない
+  - getDeviceInfoとの実装の不一致
+修正方針:
+  - getResourceListにgetDeviceInfoと同様のfallbackロジックを追加
+  - タイムアウト時にgetNextCandidate()を呼び出し
+  - 次の候補で1回だけリトライ（最大2つのdestinationを試す）
+決定事項:
+  - getResourceListにdestination fallback実装を追加
+  - get/set/subscribeメソッドも確認が必要
+次のTODO:
+  - MIDI2Client.swiftのgetResourceListメソッドを修正
+  - 他のメソッド（get/set/subscribe）も確認・修正
+  - ビルド・テスト
+  - TODO.md更新
+---
+
+---
+2026-01-30 03:54
+作業項目: Phase 2-3実装完了 - destination fallback統一
+追加機能の説明:
+  - 全てのPEメソッドにdestination fallback実装完了
+  - getResourceList, get (2種), set にfallback追加
+  - タイムアウト時に次のdestination候補で1回リトライ
+  - getDeviceInfoとの実装一貫性を確保
+実装内容:
+  - getResourceList: maxRetriesループ削除、destination fallback追加
+  - get (resource): destination fallback追加
+  - get (resource, channel): destination fallback追加
+  - set: destination fallback追加
+  - 全て同じパターン: timeout → getNextCandidate → 1回リトライ
+  - 成功時はcacheDestination()で次回のために記録
+ビルド結果:
+  - ✅ ビルド成功（警告のみ、エラーなし）
+  - destination fallback実装が完全に統一された
+決定事項:
+  - Phase 2-3完了（100%）
+  - 全PEメソッドでdestination fallbackが一貫して実装
+  - リトライ回数制御: 最大2つのdestinationを試す（1回のfallback）
+次のTODO:
+  - TODO.md更新（Phase 2-3完了）
+  - コミット・プッシュ
+  - Phase 2残タスク確認
+---
+
+---
+2026-01-30 03:55
+作業項目: Phase 2-4 getProperty<T>実装開始
+追加機能の説明:
+  - MIDI2Device.getProperty<T>の実装
+  - MIDI2Clientに汎用getPropertyメソッドが必要
+  - 型安全なProperty取得APIの実装
+現状確認:
+  - MIDI2Client.get()はPEResponseを返す（Data付き）
+  - MIDI2Device.getProperty<T>はDecodableで型安全に取得
+  - JSONDecoderでデコード
+実装方針:
+  - MIDI2Clientに汎用getPropertyメソッドを追加（Data返却）
+  - または、MIDI2Device内でget()を呼び出してデコード
+  - 後者の方がシンプル（MIDI2Client拡張不要）
+決定事項:
+  - MIDI2Device.getProperty<T>を実装
+  - 内部でclient.get()を使用してPEResponseからDataを取得
+  - JSONDecoderでDecodable型にデコード
+次のTODO:
+  - MIDI2Device.swiftにgetProperty<T>メソッド追加
+  - ビルド・テスト
+  - TODO.md更新
+---
+
+---
+2026-01-30 03:56
+作業項目: Phase 2-4 getProperty<T>実装完了
+追加機能の説明:
+  - MIDI2Device.getProperty<T>メソッド実装完了
+  - 型安全なProperty取得APIの提供
+  - JSONDecoderで自動デコード
+実装内容:
+  - public func getProperty<T: Decodable>(_ resource: String, as type: T.Type) async throws -> T?
+  - client.get()でPEResponseを取得
+  - response.bodyをJSONDecoderでデコード
+  - 空のbodyの場合はMIDI2Error.propertyNotSupportedをthrow
+  - supportsPropertyExchangeでPEサポート確認
+ビルド結果:
+  - ✅ ビルド成功（警告のみ、エラーなし）
+決定事項:
+  - Phase 2-4完了（100%）
+  - 全タスク完了（deviceInfo, resourceList, getProperty<T>, invalidateCache）
+次のTODO:
+  - TODO.md更新（Phase 2-4完了）
+  - Phase 2全体完了確認
+  - コミット・プッシュ
+---
+
+---
+2026-01-30 03:58
+作業項目: Phase 2-3, 2-4コミット・プッシュ
+追加機能の説明:
+  - Phase 2-3（destination fallback統一）完了
+  - Phase 2-4（MIDI2Device拡張）完了
+  - TODO.md更新完了
+変更ファイル:
+  - Sources/MIDI2Kit/HighLevelAPI/MIDI2Client.swift
+  - Sources/MIDI2Kit/HighLevelAPI/MIDI2Device.swift
+  - docs/TODO.md
+  - docs/ClaudeWorklog20260130.md
+決定事項:
+  - Phase 2がほぼ完了（98%）
+  - コア機能は全て実装完了
+  - リモートにプッシュして記録
+次のTODO:
+  - git status確認
+  - git add & commit
+  - git push
+---

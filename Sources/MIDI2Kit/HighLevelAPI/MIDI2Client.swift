@@ -387,24 +387,24 @@ public actor MIDI2Client {
         deviceInfoCache.removeValue(forKey: muid)
     }
     
-    /// Get ResourceList from a device (with automatic retry)
+    /// Get ResourceList from a device (with automatic retry and destination fallback)
     ///
     /// When `configuration.warmUpBeforeResourceList` is enabled (default),
     /// this method first fetches DeviceInfo as a "warm-up". This helps
     /// establish a reliable BLE connection before requesting the multi-chunk
     /// ResourceList, which is more prone to packet loss on idle connections.
     ///
-    /// On timeout, the request is automatically retried up to `configuration.maxRetries` times.
+    /// On timeout, the method tries the next destination candidate (max 1 retry).
     ///
     /// - Parameter muid: The device MUID
     /// - Returns: Array of available resources
     /// - Throws: `MIDI2Error` on failure after all retries
     public func getResourceList(from muid: MUID) async throws -> [PEResourceEntry] {
         guard isRunning else { throw MIDI2Error.clientNotRunning }
-        
+
         let destination = try await resolveDestination(for: muid)
         let handle = PEDeviceHandle(muid: muid, destination: destination)
-        
+
         // Optional warm-up: Fetch DeviceInfo first to wake up BLE connection
         if configuration.warmUpBeforeResourceList {
             MIDI2Logger.pe.midi2Debug("Warm-up: fetching DeviceInfo before ResourceList")
@@ -415,48 +415,39 @@ public actor MIDI2Client {
                 // Warm-up failure is not fatal - proceed with ResourceList anyway
                 MIDI2Logger.pe.midi2Warning("Warm-up failed (\(error)), proceeding anyway")
             }
-            
+
             // Small delay to let BLE connection stabilize
             try? await Task.sleep(for: .milliseconds(50))
         }
-        
+
         // Calculate timeout for multi-chunk request
         let timeout = Duration.seconds(
             configuration.peTimeout.asTimeInterval * configuration.multiChunkTimeoutMultiplier
         )
-        
-        // Retry loop
-        var lastError: PEError?
-        for attempt in 0...configuration.maxRetries {
-            if attempt > 0 {
-                MIDI2Logger.pe.midi2Warning("ResourceList retry \(attempt)/\(configuration.maxRetries) for \(muid)")
-                try? await Task.sleep(for: configuration.retryDelay)
-            }
-            
-            do {
-                // Note: PEManager.getResourceList has its own internal retry mechanism,
-                // but we add this outer retry at MIDI2Client level for additional resilience
-                let result = try await peManager.getResourceList(from: handle)
-                if attempt > 0 {
-                    MIDI2Logger.pe.midi2Info("ResourceList succeeded on retry \(attempt)")
-                }
-                return result
-            } catch let error as PEError {
-                lastError = error
-                
-                // Only retry on timeout
-                if case .timeout = error {
-                    MIDI2Logger.pe.midi2Warning("ResourceList timeout (attempt \(attempt + 1)/\(configuration.maxRetries + 1))")
-                    continue
-                } else {
-                    // Non-timeout errors: don't retry
-                    throw MIDI2Error(from: error, muid: muid)
+
+        do {
+            let result = try await peManager.getResourceList(from: handle)
+            return result
+        } catch let error as PEError {
+            // Try fallback on timeout
+            if case .timeout = error {
+                if let nextDest = await destinationResolver.getNextCandidate(after: destination, for: muid) {
+                    MIDI2Logger.pe.midi2Info("ResourceList timeout, trying fallback destination: \(nextDest)")
+                    let retryHandle = PEDeviceHandle(muid: muid, destination: nextDest)
+                    do {
+                        let result = try await peManager.getResourceList(from: retryHandle)
+                        // Cache successful destination
+                        await destinationResolver.cacheDestination(nextDest, for: muid)
+                        MIDI2Logger.pe.midi2Info("ResourceList succeeded with fallback destination")
+                        return result
+                    } catch {
+                        MIDI2Logger.pe.midi2Error("ResourceList failed on fallback destination: \(error)")
+                        throw MIDI2Error(from: error as? PEError ?? .timeout(resource: "ResourceList"), muid: muid, timeout: timeout)
+                    }
                 }
             }
+            throw MIDI2Error(from: error, muid: muid, timeout: timeout)
         }
-        
-        // All retries exhausted
-        throw MIDI2Error(from: lastError ?? .timeout(resource: "ResourceList"), muid: muid, timeout: timeout)
     }
     
     /// Get a property from a device
@@ -473,10 +464,10 @@ public actor MIDI2Client {
         timeout: Duration? = nil
     ) async throws -> PEResponse {
         guard isRunning else { throw MIDI2Error.clientNotRunning }
-        
+
         let destination = try await resolveDestination(for: muid)
         let handle = PEDeviceHandle(muid: muid, destination: destination)
-        
+
         do {
             return try await peManager.get(
                 resource,
@@ -484,6 +475,20 @@ public actor MIDI2Client {
                 timeout: timeout ?? configuration.peTimeout
             )
         } catch let error as PEError {
+            // Try fallback on timeout
+            if case .timeout = error {
+                if let nextDest = await destinationResolver.getNextCandidate(after: destination, for: muid) {
+                    MIDI2Logger.pe.midi2Debug("Get '\(resource)' timeout, trying fallback destination")
+                    let retryHandle = PEDeviceHandle(muid: muid, destination: nextDest)
+                    do {
+                        let result = try await peManager.get(resource, from: retryHandle, timeout: timeout ?? configuration.peTimeout)
+                        await destinationResolver.cacheDestination(nextDest, for: muid)
+                        return result
+                    } catch {
+                        throw MIDI2Error(from: error as? PEError ?? .timeout(resource: resource), muid: muid)
+                    }
+                }
+            }
             throw MIDI2Error(from: error, muid: muid)
         }
     }
@@ -496,10 +501,10 @@ public actor MIDI2Client {
         timeout: Duration? = nil
     ) async throws -> PEResponse {
         guard isRunning else { throw MIDI2Error.clientNotRunning }
-        
+
         let destination = try await resolveDestination(for: muid)
         let handle = PEDeviceHandle(muid: muid, destination: destination)
-        
+
         do {
             return try await peManager.get(
                 resource,
@@ -508,6 +513,20 @@ public actor MIDI2Client {
                 timeout: timeout ?? configuration.peTimeout
             )
         } catch let error as PEError {
+            // Try fallback on timeout
+            if case .timeout = error {
+                if let nextDest = await destinationResolver.getNextCandidate(after: destination, for: muid) {
+                    MIDI2Logger.pe.midi2Debug("Get '\(resource)' (channel \(channel)) timeout, trying fallback destination")
+                    let retryHandle = PEDeviceHandle(muid: muid, destination: nextDest)
+                    do {
+                        let result = try await peManager.get(resource, channel: channel, from: retryHandle, timeout: timeout ?? configuration.peTimeout)
+                        await destinationResolver.cacheDestination(nextDest, for: muid)
+                        return result
+                    } catch {
+                        throw MIDI2Error(from: error as? PEError ?? .timeout(resource: resource), muid: muid)
+                    }
+                }
+            }
             throw MIDI2Error(from: error, muid: muid)
         }
     }
@@ -528,10 +547,10 @@ public actor MIDI2Client {
         timeout: Duration? = nil
     ) async throws -> PEResponse {
         guard isRunning else { throw MIDI2Error.clientNotRunning }
-        
+
         let destination = try await resolveDestination(for: muid)
         let handle = PEDeviceHandle(muid: muid, destination: destination)
-        
+
         do {
             return try await peManager.set(
                 resource,
@@ -540,6 +559,20 @@ public actor MIDI2Client {
                 timeout: timeout ?? configuration.peTimeout
             )
         } catch let error as PEError {
+            // Try fallback on timeout
+            if case .timeout = error {
+                if let nextDest = await destinationResolver.getNextCandidate(after: destination, for: muid) {
+                    MIDI2Logger.pe.midi2Debug("Set '\(resource)' timeout, trying fallback destination")
+                    let retryHandle = PEDeviceHandle(muid: muid, destination: nextDest)
+                    do {
+                        let result = try await peManager.set(resource, data: data, to: retryHandle, timeout: timeout ?? configuration.peTimeout)
+                        await destinationResolver.cacheDestination(nextDest, for: muid)
+                        return result
+                    } catch {
+                        throw MIDI2Error(from: error as? PEError ?? .timeout(resource: resource), muid: muid)
+                    }
+                }
+            }
             throw MIDI2Error(from: error, muid: muid)
         }
     }
