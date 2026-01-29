@@ -2140,3 +2140,112 @@ Phase 2進捗状況:
 次のTODO:
   - TODO.mdにリファクタリングタスク追加
 ---
+
+---
+2026-01-30 04:32
+作業項目: Phase 4、Phase 5タスク追加完了
+追加機能の説明:
+  - TODO.mdにPhase 4（Testing & Examples）追加
+  - TODO.mdにPhase 5（Refactoring）追加
+  - 既知の制限事項セクション追加
+追加内容:
+  【Phase 4: Testing & Examples】（計画段階）
+    - 4-1: テストコード拡充
+    - 4-2: サンプルアプリ作成
+    - 4-3: 長期運用テスト
+
+  【Phase 5: Refactoring】（計画段階）
+    - 5-1: PEManager機能分離（🔴最優先、1,872行→500-800行）
+    - 5-2: エラーハンドリング高度化（🟢中、実装容易）
+    - 5-3: PEManager Actor設計見直し（🟡低）
+
+  【既知の制限事項】
+    - CoreMIDI仮想ポートバッファリング（対応不可）
+推奨実施順序:
+  1. Phase 5-1（PEManager機能分離）- 最優先
+  2. Phase 4（Testing & Examples）
+  3. Phase 5-2、5-3（その他リファクタリング）
+コミット内容:
+  - docs: Phase 4（Testing）、Phase 5（Refactoring）追加
+  - コミット b8768c3 をリモートにプッシュ完了
+  - 2 files changed, 214 insertions
+決定事項:
+  - ドキュメント評価完了: 高品質、指摘的確
+  - 今後のロードマップ明確化
+  - 本日の全作業完了
+次のステップ:
+  - Phase 5-1（PEManager機能分離）実施を検討
+  - Phase 4（Testing）実施を検討
+---
+
+---
+2026-01-30 04:33
+作業項目: Phase 5-1開始 - PEManager機能分離
+追加機能の説明:
+  - PEManager.swift（1,872行）の機能分離リファクタリング開始
+  - Subscribe機能分離
+  - Notification機能分離
+  - デコード処理集約
+目標:
+  - PEManager.swift: 1,872行 → 500-800行
+  - Subscribe機能を PESubscriptionManager に分離
+  - Notification機能を PENotificationManager に分離
+  - デコード処理を PEDecoder に集約
+決定事項:
+  - Phase 5-1を最優先で実施
+  - 段階的にリファクタリング
+次のTODO:
+  - PEManager.swift の構造分析
+  - Subscribe機能の箇所特定
+  - 分離計画立案
+---
+
+---
+2026-01-30 04:42
+作業項目: Phase 5-1 Phase 1実装開始 - PESubscriptionHandler skeleton作成
+追加機能の説明:
+  - プラン承認完了（Plan mode完了）
+  - Phase 1: PESubscriptionHandler.swift作成
+実装計画:
+  - 7フェーズで段階的にリファクタリング
+  - 目標: PEManager 1,872行 → 600-700行
+  - 新規: PESubscriptionHandler 300-350行
+Phase 1目標:
+  - PESubscriptionHandler.swift 作成
+  - Actor構造定義（State, Dependencies, Callbacks）
+  - スタブメソッド追加
+  - コンパイル成功、テスト不破
+決定事項:
+  - Dependency Injection パターン採用
+  - Actor isolation維持
+  - API互換性100%維持
+次のTODO:
+  - PETypes.swift確認（PESubscription等の型定義）
+  - PESubscriptionHandler.swift作成
+  - 初期ビルド確認
+---
+
+---
+2026-01-30 04:45
+作業項目: Phase 5-1 Phase 1完了 - PESubscriptionHandler skeleton作成成功
+追加機能の説明:
+  - PESubscriptionHandler.swift作成完了（251行）
+  - Actor構造定義完了
+  - スタブメソッド追加完了
+実装内容:
+  - State: pendingSubscribeContinuations, activeSubscriptions, notificationContinuation
+  - Dependencies: transactionManager, notifyAssemblyManager, logger
+  - Callbacks: scheduleTimeout, cancelTimeout, scheduleSend, cancelSend
+  - スタブメソッド: beginSubscribe, beginUnsubscribe, handleSubscribeReply, handleNotify, handleNotifyParts, handleTimeout, cancelAll, startNotificationStream, subscriptions
+  - State management: addPendingContinuation, removePendingContinuation, addActiveSubscription, removeActiveSubscription
+ビルド結果:
+  - ✅ ビルド成功（iOS実機ターゲット）
+  - import MIDI2Transport追加（MIDIDestinationID解決）
+決定事項:
+  - Phase 1完了 ✅
+  - 次はPhase 2（Subscribe State Management）
+次のTODO:
+  - TODO.md更新（Phase 5-1 Phase 1完了）
+  - コミット・プッシュ
+  - Phase 2開始判断（時刻確認）
+---
