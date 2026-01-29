@@ -1,6 +1,6 @@
 # MIDI2Kit TODO リスト
 
-**最終更新**: 2026-01-30 02:56
+**最終更新**: 2026-01-30 03:09
 **ソース**: [2026-01-27-HighLevelAPI-Planning.md](./2026-01-27-HighLevelAPI-Planning.md)
 
 ---
@@ -73,101 +73,137 @@
 
 ## Phase 2: High-Level API（P1 重要）
 
+**進捗サマリー（2026-01-30 03:09更新）**:
+- **全体進捗**: 約85%完了（6タスク中3完了、3部分実装）
+- ✅ 2-1. MIDI2Client Actor実装 - 100%完了
+- ✅ 2-2. MIDI2ClientConfiguration - 100%完了
+- ⚠️ 2-3. DestinationStrategy.preferModule - 90%完了（リトライ回数制御要確認）
+- ⚠️ 2-4. MIDI2Device Actor実装 - 40%完了（キャッシュAPI未実装）
+- ✅ 2-5. MIDI2Error 3ケース実装 - 100%完了
+- ⚠️ 2-6. Deprecation対応 - 90%完了（12項目Deprecated、ドキュメント残）
+
+**優先推奨事項**:
+1. Phase 2-4 MIDI2Device拡張（P1）: キャッシュAPIと型安全`getProperty`の実装
+2. Phase 2-3 リトライ回数制限（P2）: fallback動作の仕様確認と修正
+3. Phase 2-6 ドキュメント（P3）: 移行ガイドとCHANGELOG作成（優先度低）
+
+---
+
 ### 2-1. MIDI2Client Actor実装
 
 **内蔵**: ReceiveHub、stop()完了条件明確化
 
 #### 初期化
-- [ ] `init(name:preset:)` 実装
-- [ ] `init(name:configuration:)` 実装
+- [x] `init(name:preset:)` 実装
+- [x] `init(name:configuration:)` 実装
 
 #### ライフサイクル
-- [ ] `isRunning: Bool` プロパティ実装
-- [ ] `start()` 実装
-- [ ] `stop()` 実装
-  - [ ] 全pending PEを`PEError.cancelled`で解放（ID枯渇防止）
-  - [ ] 受信タスク停止
-  - [ ] 全イベントストリームをfinish
-  - [ ] MUID無効化放送
+- [x] `isRunning: Bool` プロパティ実装
+- [x] `start()` 実装
+- [x] `stop()` 実装
+  - [x] 全pending PEを`PEError.cancelled`で解放（ID枯渇防止）
+  - [x] 受信タスク停止
+  - [x] 全イベントストリームをfinish
+  - [x] MUID無効化放送
 
 #### イベント（Multicast）
-- [ ] `makeEventStream()` 実装
-  - [ ] バッファポリシー: `.bufferingNewest(100)`
-  - [ ] stop()後は即finishされたストリームを返す
+- [x] `makeEventStream()` 実装
+  - [x] バッファポリシー: `.bufferingNewest(100)`
+  - [x] stop()後は即finishされたストリームを返す
 
 #### その他
-- [ ] `devices` プロパティ実装
-- [ ] PE Convenience API実装
-- [ ] `lastDestinationDiagnostics` プロパティ実装
+- [x] `devices` プロパティ実装
+- [x] PE Convenience API実装 (getDeviceInfo, getResourceList, get, set)
+- [x] `lastDestinationDiagnostics` プロパティ実装
 
-**工数**: 2-3日  
-**状態**: 📋 計画
+**工数**: 2-3日
+**状態**: ✅ 完了（2026-01-30）
+**完了日**: 2026-01-30 03:05（調査確認）
+**実装場所**: Sources/MIDI2Kit/HighLevelAPI/MIDI2Client.swift (745行)
 
 ---
 
 ### 2-2. MIDI2ClientConfiguration
 
-- [ ] `discoveryInterval: Duration` プロパティ
-- [ ] `deviceTimeout: Duration` プロパティ
-- [ ] `peTimeout: Duration` プロパティ
-- [ ] `destinationStrategy: DestinationStrategy` プロパティ
-- [ ] プリセット定義（`.default`, `.explorer`）
+- [x] `discoveryInterval: Duration` プロパティ
+- [x] `deviceTimeout: Duration` プロパティ
+- [x] `peTimeout: Duration` プロパティ
+- [x] `destinationStrategy: DestinationStrategy` プロパティ
+- [x] プリセット定義（`.default`, `.explorer`, `.minimal`）
 
-**工数**: 0.5日  
-**状態**: 📋 計画
+**工数**: 0.5日
+**状態**: ✅ 完了（2026-01-30）
+**完了日**: 2026-01-30 03:05（調査確認）
+**実装場所**: Sources/MIDI2Kit/HighLevelAPI/MIDI2ClientConfiguration.swift
 
 ---
 
 ### 2-3. DestinationStrategy.preferModule（安全弁付き）
 
 #### 基本ケース
-- [ ] `automatic` ケース実装
-- [ ] `preferModule` ケース実装（KORG対応）
-- [ ] `preferNameMatch` ケース実装
-- [ ] `custom` ケース実装
+- [x] `automatic` ケース実装
+- [x] `preferModule` ケース実装（KORG対応）
+- [x] `preferNameMatch` ケース実装
+- [x] `custom` ケース実装
 
 #### 安全弁（fallback）
-- [ ] タイムアウト時に次候補へ**1回だけ**リトライ
-- [ ] 成功ポートのMUID寿命中キャッシュ
+- [ ] タイムアウト時に次候補へ**1回だけ**リトライ（⚠️ 実装はあるがリトライ回数制御要確認）
+- [x] 成功ポートのMUID寿命中キャッシュ
 
 #### Diagnostics
-- [ ] `DestinationDiagnostics` 構造体実装
-  - [ ] `candidates: [MIDIDestinationInfo]` - 候補一覧
-  - [ ] `triedOrder: [MIDIDestinationID]` - 試行順
-  - [ ] `lastAttempted: MIDIDestinationID?` - 最後に試したdest
-  - [ ] `resolvedDestination: MIDIDestinationID?` - 成功時のdest
-  - [ ] `failureReason: String?` - 失敗理由
-- [ ] 失敗時のログ出力（候補一覧/試行順/最後のdest）
+- [x] `DestinationDiagnostics` 構造体実装
+  - [x] `candidates: [MIDIDestinationInfo]` - 候補一覧
+  - [x] `triedOrder: [MIDIDestinationID]` - 試行順
+  - [x] `lastAttempted: MIDIDestinationID?` - 最後に試したdest
+  - [x] `resolvedDestination: MIDIDestinationID?` - 成功時のdest
+  - [x] `failureReason: String?` - 失敗理由
+- [x] 失敗時のログ出力（候補一覧/試行順/最後のdest）
 
-**工数**: 1日  
-**状態**: 📋 計画
+**工数**: 1日
+**状態**: ⚠️ 部分実装（2026-01-30）
+**進捗**: 90%完了
+**残タスク**: リトライ回数制御の仕様確認と修正
+**実装場所**: Sources/MIDI2Kit/HighLevelAPI/DestinationStrategy.swift
 
 ---
 
 ### 2-4. MIDI2Device Actor実装
 
-- [ ] `muid`, `identity`, `displayName` プロパティ
-- [ ] `supportsPropertyExchange` プロパティ
-- [ ] `deviceInfo` キャッシュ付きプロパティ
+- [x] `muid`, `identity`, `displayName` プロパティ
+- [x] `supportsPropertyExchange` プロパティ
+- [ ] `deviceInfo` キャッシュ付きプロパティ（⚠️ MIDI2Client側でキャッシュ済み）
 - [ ] `resourceList` キャッシュ付きプロパティ
 - [ ] `getProperty<T>(_:as:)` 型安全API
 - [ ] `invalidateCache()` メソッド
 
-**工数**: 1-2日  
-**状態**: 📋 計画
+**工数**: 1-2日
+**状態**: ⚠️ 部分実装（2026-01-30）
+**進捗**: 40%完了
+**備考**: MIDI2Deviceは構造体として実装（Actorではない）、キャッシュはMIDI2Client側に移譲
+**残タスク**: deviceInfo/resourceList プロパティAPI、getProperty<T> 型安全API、invalidateCache()
+**実装場所**: Sources/MIDI2Kit/HighLevelAPI/MIDI2Device.swift
 
 ---
 
 ### 2-5. MIDI2Error 3ケース実装
 
-- [ ] `.deviceNotResponding(device:timeout:)` ケース
-- [ ] `.propertyNotSupported(resource:)` ケース
-- [ ] `.communicationFailed(underlying:)` ケース
-- [ ] `LocalizedError` 準拠
-- [ ] `recoverySuggestion` 実装
+- [x] `.deviceNotResponding(muid:resource:timeout:)` ケース
+- [x] `.propertyNotSupported(resource:)` ケース
+- [x] `.communicationFailed(underlying:)` ケース
+- [x] `LocalizedError` 準拠
+- [x] `recoverySuggestion` 実装
 
-**工数**: 0.5日  
-**状態**: 📋 計画
+**追加実装済み**（TODO.mdにない追加ケース）:
+- [x] `.deviceNotFound(muid:)`
+- [x] `.clientNotRunning`
+- [x] `.cancelled`
+- [x] `.transportError(Error)`
+- [x] `.invalidConfiguration(String)`
+
+**工数**: 0.5日
+**状態**: ✅ 完了（2026-01-30）
+**完了日**: 2026-01-30 03:05（調査確認）
+**実装場所**: Sources/MIDI2Kit/HighLevelAPI/MIDI2Error.swift
 
 ---
 
@@ -176,28 +212,35 @@
 **方針**: 既存APIは即座に削除せず、`@available(*, deprecated)` でマーク
 
 #### CIManager
-- [ ] `start()` にDeprecatedマーク
-- [ ] `stop()` にDeprecatedマーク
-- [ ] `startDiscovery()` にDeprecatedマーク
-- [ ] `stopDiscovery()` にDeprecatedマーク
-- [ ] `events` プロパティにDeprecatedマーク
-- [ ] `destination(for:)` にDeprecatedマーク
-- [ ] `makeDestinationResolver()` にDeprecatedマーク
+- [x] `start()` にDeprecatedマーク
+- [x] `stop()` にDeprecatedマーク
+- [x] `startDiscovery()` にDeprecatedマーク
+- [x] `stopDiscovery()` にDeprecatedマーク
+- [x] `events` プロパティにDeprecatedマーク
+- [x] `destination(for:)` にDeprecatedマーク
+- [x] `makeDestinationResolver()` にDeprecatedマーク
 
 #### PEManager
-- [ ] `startReceiving()` にDeprecatedマーク
-- [ ] `stopReceiving()` にDeprecatedマーク
-- [ ] `destinationResolver` プロパティにDeprecatedマーク
-- [ ] `get(_:from:PEDeviceHandle)` にDeprecatedマーク
-- [ ] `set(_:data:to:PEDeviceHandle)` にDeprecatedマーク
-- [ ] `handleReceivedExternal(_:)` をinternalに変更
+- [x] `startReceiving()` にDeprecatedマーク
+- [x] `stopReceiving()` にDeprecatedマーク
+- [x] `destinationResolver` プロパティにDeprecatedマーク
+- [x] `get(_:from:PEDeviceHandle)` にDeprecatedマーク（Legacy API Line 750-759）
+- [x] `set(_:data:to:PEDeviceHandle)` にDeprecatedマーク（Legacy API Line 789-799）
+- [x] `handleReceivedExternal(_:)` - Phase 1-2で公開API化、internal化せず維持（MIDI2Client内で使用）
 
 #### ドキュメント
 - [ ] 移行ガイド作成（Before/After例）
 - [ ] CHANGELOGにDeprecation記載
 
-**工数**: 0.5日  
-**状態**: 📋 計画
+**工数**: 0.5日
+**状態**: ⚠️ 部分実装（2026-01-30）
+**完了日**: 2026-01-30 03:09（Deprecatedマーク追加）
+**進捗**: 90%完了（12項目Deprecated、ドキュメント残）
+**実装内容**:
+  - CIManager: 7項目にDeprecatedマーク追加
+  - PEManager: 5項目Deprecated（3項目追加 + 2項目既存）
+  - 合計12項目に適切な移行メッセージ付きDeprecatedマーク
+**残タスク**: 移行ガイドとCHANGELOG（優先度低）
 
 ---
 

@@ -123,6 +123,7 @@ public actor CIManager {
     private var eventContinuation: AsyncStream<CIManagerEvent>.Continuation?
     
     /// Event stream
+    @available(*, deprecated, message: "Use MIDI2Client.makeEventStream() instead")
     public nonisolated let events: AsyncStream<CIManagerEvent>
     
     /// Running state
@@ -182,6 +183,7 @@ public actor CIManager {
     // MARK: - Lifecycle
     
     /// Start the CI manager
+    @available(*, deprecated, message: "Use MIDI2Client.start() instead")
     public func start() async throws {
         guard !isRunning else { return }
         isRunning = true
@@ -209,6 +211,7 @@ public actor CIManager {
     }
     
     /// Stop the CI manager
+    @available(*, deprecated, message: "Use MIDI2Client.stop() instead")
     public func stop() async {
         guard isRunning else { return }
         isRunning = false
@@ -227,6 +230,7 @@ public actor CIManager {
     // MARK: - Discovery
     
     /// Start periodic discovery broadcasts
+    @available(*, deprecated, message: "Use MIDI2Client (discovery starts automatically)")
     public func startDiscovery() {
         guard discoveryTask == nil else { return }
         
@@ -248,6 +252,7 @@ public actor CIManager {
     }
     
     /// Stop periodic discovery
+    @available(*, deprecated, message: "Use MIDI2Client (discovery stops automatically)")
     public func stopDiscovery() {
         discoveryTask?.cancel()
         discoveryTask = nil
@@ -305,6 +310,7 @@ public actor CIManager {
     }
     
     /// Get destination for a device
+    @available(*, deprecated, message: "Use MIDI2Client (destination resolved automatically)")
     public func destination(for muid: MUID) -> MIDIDestinationID? {
         devices[muid]?.destination
     }
@@ -323,6 +329,7 @@ public actor CIManager {
     /// // Now you can use MUID-only API:
     /// let response = try await peManager.get("DeviceInfo", from: deviceMUID)
     /// ```
+    @available(*, deprecated, message: "Use MIDI2Client (destination resolver integrated)")
     public nonisolated func makeDestinationResolver() -> @Sendable (MUID) async -> MIDIDestinationID? {
         { [weak self] muid in
             await self?.resolveDestinationForPE(muid: muid)

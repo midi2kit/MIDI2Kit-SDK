@@ -261,6 +261,7 @@ public actor PEManager {
     ///     await ciManager?.destination(for: muid)
     /// }
     /// ```
+    @available(*, deprecated, message: "Use MIDI2Client (destination resolver integrated)")
     public var destinationResolver: (@Sendable (MUID) async -> MIDIDestinationID?)?
     
     // MARK: - Send Strategy
@@ -368,6 +369,7 @@ public actor PEManager {
     // MARK: - Lifecycle
     
     /// Start receiving MIDI data
+    @available(*, deprecated, message: "Use MIDI2Client.start() instead")
     public func startReceiving() async {
         guard receiveTask == nil else { return }
         
@@ -402,6 +404,7 @@ public actor PEManager {
     }
     
     /// Stop receiving and cancel all pending requests
+    @available(*, deprecated, message: "Use MIDI2Client.stop() instead")
     public func stopReceiving() async {
         // Cancel any pending send tasks first.
         // This prevents a send from firing after stopReceiving()/RequestID reuse.
