@@ -976,12 +976,8 @@ public actor PEManager {
         if let str = String(data: response.decodedBody.prefix(100), encoding: .utf8) {
             logger.info("DeviceInfo decoded string: \(str)", category: Self.logCategory)
         }
-        
-        do {
-            return try JSONDecoder().decode(PEDeviceInfo.self, from: response.decodedBody)
-        } catch {
-            throw PEError.invalidResponse("Failed to decode DeviceInfo: \(error)")
-        }
+
+        return try decodeDeviceInfo(from: response)
     }
     
     /// Get DeviceInfo (legacy API)
@@ -1013,15 +1009,11 @@ public actor PEManager {
                     throw PEError.deviceError(status: response.status, message: response.header?.message)
                 }
                 
-                do {
-                    let result = try JSONDecoder().decode([PEResourceEntry].self, from: response.decodedBody)
-                    if attempt > 1 {
-                        logger.info("ResourceList succeeded on attempt \(attempt)", category: Self.logCategory)
-                    }
-                    return result
-                } catch {
-                    throw PEError.invalidResponse("Failed to decode ResourceList: \(error)")
+                let result = try decodeResourceList(from: response)
+                if attempt > 1 {
+                    logger.info("ResourceList succeeded on attempt \(attempt)", category: Self.logCategory)
                 }
+                return result
             } catch let error as PEError {
                 lastError = error
                 
@@ -1198,12 +1190,8 @@ public actor PEManager {
         guard response.isSuccess else {
             throw PEError.deviceError(status: response.status, message: response.header?.message)
         }
-        
-        do {
-            return try JSONDecoder().decode(T.self, from: response.decodedBody)
-        } catch {
-            throw PEError.invalidResponse("Failed to decode \(resource): \(error)")
-        }
+
+        return try self.decodeResponse(T.self, from: response, resource: resource).value
     }
     
     /// Encode a value as JSON
