@@ -116,7 +116,23 @@ struct RealDeviceTest {
                 return
             }
 
+            // 0x11 デバイスを優先的にテスト
+            var targetDevices: [MIDI2Device] = []
             for device in devices {
+                let identity = await device.identity
+                // 0x11 または 0x42 (KORG) を優先
+                if case .standard(let id) = identity.manufacturerID, (id == 0x11 || id == 0x42) {
+                    targetDevices.insert(device, at: 0)  // 先頭に追加
+                }
+            }
+            // ターゲットがなければ最初のデバイスを使用
+            if targetDevices.isEmpty, let first = devices.first {
+                targetDevices.append(first)
+            }
+
+            print("\nターゲットデバイス: \(targetDevices.count) 台")
+
+            for device in targetDevices {
                 let muid = device.id  // nonisolated
                 print("\n--- デバイス: \(device.displayName) ---")
                 print("  MUID: \(muid)")

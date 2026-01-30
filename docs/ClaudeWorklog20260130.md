@@ -1767,3 +1767,86 @@ Phase 7 計画:
 次のTODO:
   - なし
 ---
+
+---
+2026-01-30 17:34
+作業項目: KORG Module Pro MIDI-CI 調査結果まとめ
+
+## 調査結果サマリ
+
+### 検出状況
+- Discovery Inquiry (0x70): 大量に受信 ✅
+- Discovery Reply (0x71): **一件も受信なし** ❌
+- KORG Manufacturer ID (0x42): **検出なし** ❌
+
+### 観測された Manufacturer ID
+| ID | CI Ver | 備考 |
+|----|--------|------|
+| 0x000000 | 1 | macOS/iOS 内部 MIDI-CI クライアント（多数） |
+| 0x11 | 2 | 不明デバイス（MUID 0x5404629）|
+| 0x42 | - | KORG - 未検出 |
+
+### 0x11 デバイスの詳細
+- MUID: 0x5404629
+- CI Version: 2（他は version 1）
+- CategorySupport: Profile, PE, Process
+- PE リクエストへの応答: **なし（タイムアウト）**
+- Discovery Reply: **送信しない**
+
+### 問題点
+1. **KORG Module Pro が MIDI-CI Discovery Reply を返さない**
+   - Discovery Inquiry は受信しているはず
+   - しかし Reply (0x71) が一件も来ない
+
+2. **0x11 の正体が不明**
+   - MIDI 標準では 0x11 = Simmons（電子ドラム）
+   - KORG の正式 ID は 0x42
+   - iOS システムの MIDI-CI 実装の可能性
+
+3. **PE リクエストに応答するデバイスがない**
+   - 検出された全デバイスが PE タイムアウト
+   - Discovery Inquiry で PE 対応を宣言しているが実際には応答しない
+
+### 環境確認
+- iPhone: USB および Bluetooth で Mac に接続
+- Audio MIDI Setup: iOS, iPhone が表示
+- KORG Module Pro: iPhone で起動中（ユーザー確認済み）
+
+### 考えられる原因
+1. KORG Module Pro が MIDI-CI Discovery に非対応
+2. BLE MIDI 専用（USB では動作しない）
+3. 特定の接続シーケンスが必要
+4. iOS の MIDI-CI 実装が 0x11 を使用し、アプリの ID を隠蔽
+
+### SimpleMidiController との比較
+- SimpleMidiController は KORG Module Pro と動作実績あり
+- 使用している Manufacturer ID: 0x42
+- DeviceInfo の productName で "Module Pro" を取得
+
+### 次のステップ候補
+1. SimpleMidiController を Mac で実行して動作確認
+2. BLE MIDI 接続のみでテスト
+3. KORG KROSS2 (USB 接続) でテスト
+4. KORG Module Pro の MIDI 設定を確認
+
+決定事項:
+  - 本日の調査は終了
+  - KORG Module Pro の MIDI-CI 動作は要継続調査
+次のTODO:
+  - SimpleMidiController での動作確認
+  - BLE MIDI 専用テスト環境の構築
+---
+
+---
+2026-01-30 17:35
+作業項目: セッション継続 - コミット & プッシュ完了
+追加機能の説明:
+  - なし（前回セッションの継続）
+実施内容:
+  - heredoc 構文エラーで失敗した commit を再実行
+  - worklog と RealDeviceTest の変更をコミット
+決定事項:
+  - 調査結果のコミット完了
+次のTODO:
+  - なし（調査セッション終了）
+---
