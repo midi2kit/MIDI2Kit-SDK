@@ -81,9 +81,10 @@ struct MUIDTests {
     func fromByteArrayWithOffset() {
         let bytes: [UInt8] = [0xAA, 0xBB, 0x12, 0x34, 0x56, 0x78, 0xCC]
         let muid = MUID(from: bytes, offset: 2)
-        
+
         #expect(muid != nil)
-        #expect(muid?.value == (0x12 | (0x34 << 7) | (0x56 << 14) | (0x78 << 21)))
+        let expected = UInt32(0x12) | (UInt32(0x34) << 7) | (UInt32(0x56) << 14) | (UInt32(0x78) << 21)
+        #expect(muid?.value == expected)
     }
     
     @Test("MUID insufficient bytes returns nil")

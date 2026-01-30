@@ -64,7 +64,8 @@ struct PEManagerTests {
         defer { Task { await transport.shutdown() } }
         let manager = PEManager(
             transport: transport,
-            sourceMUID: sourceMUID
+            sourceMUID: sourceMUID,
+            sendStrategy: .single
         )
         
         await manager.startReceiving()
@@ -127,7 +128,8 @@ struct PEManagerTests {
         defer { Task { await transport.shutdown() } }
         let manager = PEManager(
             transport: transport,
-            sourceMUID: sourceMUID
+            sourceMUID: sourceMUID,
+            sendStrategy: .single
         )
         
         await manager.startReceiving()
@@ -159,7 +161,8 @@ struct PEManagerTests {
         defer { Task { await transport.shutdown() } }
         let manager = PEManager(
             transport: transport,
-            sourceMUID: sourceMUID
+            sourceMUID: sourceMUID,
+            sendStrategy: .single
         )
         
         await manager.startReceiving()
@@ -258,7 +261,8 @@ struct PEManagerTests {
         defer { Task { await transport.shutdown() } }
         let manager = PEManager(
             transport: transport,
-            sourceMUID: sourceMUID
+            sourceMUID: sourceMUID,
+            sendStrategy: .single
         )
         
         await manager.startReceiving()
@@ -386,7 +390,8 @@ struct PEManagerTests {
         defer { Task { await transport.shutdown() } }
         let manager = PEManager(
             transport: transport,
-            sourceMUID: sourceMUID
+            sourceMUID: sourceMUID,
+            sendStrategy: .single
         )
         
         // First cycle: start requests and stop
