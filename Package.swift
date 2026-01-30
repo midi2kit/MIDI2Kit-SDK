@@ -35,6 +35,11 @@ let package = Package(
             name: "MIDI2Transport",
             targets: ["MIDI2Transport"]
         ),
+        // Example executable for real device testing
+        .executable(
+            name: "RealDeviceTest",
+            targets: ["RealDeviceTest"]
+        ),
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-docc-plugin", from: "1.0.0"),
@@ -95,6 +100,17 @@ let package = Package(
             ]
         ),
         
+        // MARK: - Examples
+        .executableTarget(
+            name: "RealDeviceTest",
+            dependencies: ["MIDI2Kit"],
+            path: "Examples/RealDeviceTest",
+            swiftSettings: [
+                .swiftLanguageMode(.v6),
+                .enableExperimentalFeature("StrictConcurrency")
+            ]
+        ),
+
         // MARK: - Tests
         .testTarget(
             name: "MIDI2KitTests",
