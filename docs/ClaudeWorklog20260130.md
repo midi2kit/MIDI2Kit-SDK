@@ -1056,3 +1056,95 @@ Phase 7 計画:
 次のTODO:
   - commit & push
 ---
+
+---
+2026-01-30 12:03
+作業項目: セッション再開 - 次のタスク選択
+実施内容:
+  - コンパクション後のセッション復元
+  - Phase 5-2完了確認（エラーハンドリング高度化）
+  - 196テスト全パス確認
+
+追加機能の説明:
+  - なし（タスク選択中）
+
+決定事項:
+  - 残りの選択肢をユーザーに提示
+
+次のTODO:
+  1. 実機テスト - P0/P1 fixes の効果確認（KORG Module Pro等）
+  2. PEManager さらなる分割 - GET/SETハンドリング別アクター抽出（目標600-700行）
+  3. ドキュメント整備
+---
+
+---
+2026-01-30 12:05
+作業項目: Phase 6 開始 - PEManager さらなる分割
+現状分析:
+  - PEManager.swift: 1860行
+  - 目標: 600-700行（約60%削減）
+  - 構造:
+    - Data Types (22-347行): PEResponse, PEError, withPERetry, PENotification, PESubscription
+    - PEManager actor (349-1860行): 1510行
+
+抽出計画:
+  Phase 6-1: Data Types 抽出（~325行）
+    - PEResponse.swift
+    - PEError.swift
+    - PERetry.swift
+    - PETypes.swift
+  Phase 6-2: Convenience API 抽出（~380行）
+    - PEManager+Convenience.swift
+    - PEManager+JSON.swift
+  Phase 6-3: Receive Handling 抽出（~270行）
+    - PEResponseDispatcher.swift（検討中）
+
+決定事項:
+  - Phase 6-1 から開始
+
+次のTODO:
+  - PEResponse.swift 作成
+  - PEError.swift 作成
+---
+
+---
+2026-01-30 12:14
+作業項目: Phase 6 完了 - PEManager 分割リファクタリング
+実施内容:
+  Phase 6-1: Data Types 抽出
+    - PEResponse.swift 作成（70行）
+    - PEError.swift 作成（227行、withPERetry含む）
+    - PETypes.swift に PENotification, PESubscription, PESubscribeResponse 追加（50行）
+    - PEManager.swift: 1860行 → 1533行（327行削減）
+
+  Phase 6-2: API Extension 抽出
+    - PEManager+JSON.swift 作成（142行）- Typed API (getJSON/setJSON)
+    - PEManager+Legacy.swift 作成（104行）- 非推奨API
+    - 内部ヘルパーを internal に変更（resolveDevice, encodeValue, decodeResponse）
+    - PEManager.swift: 1533行 → 1315行（218行削減）
+
+結果:
+  - PEManager.swift: 1860行 → 1315行（545行削減、29.3%）
+  - 新規ファイル総計: 593行
+  - 196テスト全パス ✅
+
+目標600-700行への到達状況:
+  - 未達（1315行）
+  - Receive Handling (約270行) の抽出は密結合のため保留
+  - GET/SET Public API はすでに薄いラッパーで抽出価値が低い
+  - 現状の1315行は保守性・可読性のバランスが良い
+
+追加機能の説明:
+  - 既存機能の分割のみ、新機能なし
+
+決定事項:
+  - Phase 6 完了 ✅
+  - 目標600-700行は断念（密結合のため）
+  - 1315行で安定
+
+次のTODO:
+  - commit & push
+  - 残りのタスク選択:
+    1. 実機テスト - P0/P1 fixes の効果確認
+    2. ドキュメント整備
+---
