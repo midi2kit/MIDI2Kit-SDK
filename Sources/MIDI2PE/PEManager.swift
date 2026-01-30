@@ -156,6 +156,148 @@ extension PEError: LocalizedError {
     }
 }
 
+// MARK: - PEError Classification
+
+extension PEError {
+    /// Whether this error is potentially recoverable by retrying
+    ///
+    /// Returns `true` for:
+    /// - Timeouts (network/device may have been temporarily unavailable)
+    /// - Transient NAKs (device busy, too many requests)
+    /// - Transport errors (temporary network issues)
+    ///
+    /// Returns `false` for:
+    /// - Cancelled requests (intentional)
+    /// - Request ID exhaustion (need to wait for completions)
+    /// - Permanent NAKs (resource not found, permission denied)
+    /// - Validation errors (request itself is invalid)
+    /// - Device not found (need discovery first)
+    public var isRetryable: Bool {
+        switch self {
+        case .timeout:
+            return true
+        case .nak(let details):
+            return details.isTransient
+        case .transportError:
+            return true
+        case .cancelled, .requestIDExhausted, .validationFailed, .deviceNotFound, .noDestination:
+            return false
+        case .deviceError(let status, _):
+            // 5xx errors are typically server-side and may be transient
+            // 4xx errors are client errors and won't be fixed by retry
+            return status >= 500
+        case .invalidResponse:
+            // Parse errors might succeed on retry if data was corrupted
+            return true
+        }
+    }
+
+    /// Whether this is a client-side error (invalid request, validation failure)
+    public var isClientError: Bool {
+        switch self {
+        case .validationFailed, .noDestination, .deviceNotFound:
+            return true
+        case .deviceError(let status, _):
+            return status >= 400 && status < 500
+        case .nak(let details):
+            // Permission denied indicates the request itself is not allowed
+            return details.detailCode == .permissionDenied
+        default:
+            return false
+        }
+    }
+
+    /// Whether this is a device-side error (device rejected the request)
+    public var isDeviceError: Bool {
+        switch self {
+        case .deviceError, .nak:
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// Whether this is a transport/communication error
+    public var isTransportError: Bool {
+        switch self {
+        case .timeout, .transportError:
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// Suggested delay before retry (if retryable)
+    ///
+    /// Returns appropriate backoff based on error type:
+    /// - NAK busy/tooManyRequests: 500ms (device asked us to slow down)
+    /// - Timeout: 100ms (quick retry, issue may have been transient)
+    /// - Transport error: 200ms (allow connection to recover)
+    /// - Other retryable: 100ms
+    public var suggestedRetryDelay: Duration? {
+        guard isRetryable else { return nil }
+
+        switch self {
+        case .nak(let details) where details.detailCode == .busy:
+            return .milliseconds(500)
+        case .nak(let details) where details.detailCode == .tooManyRequests:
+            return .milliseconds(1000)
+        case .timeout:
+            return .milliseconds(100)
+        case .transportError:
+            return .milliseconds(200)
+        default:
+            return .milliseconds(100)
+        }
+    }
+}
+
+// MARK: - Retry Helper
+
+/// Execute an async operation with automatic retry on retryable errors
+///
+/// ## Example
+/// ```swift
+/// let response = try await withPERetry(maxAttempts: 3) {
+///     try await peManager.get("DeviceInfo", from: device)
+/// }
+/// ```
+///
+/// - Parameters:
+///   - maxAttempts: Maximum number of attempts (default: 3)
+///   - operation: The async throwing operation to execute
+/// - Returns: The result of a successful operation
+/// - Throws: The last error if all attempts fail
+public func withPERetry<T>(
+    maxAttempts: Int = 3,
+    operation: () async throws -> T
+) async throws -> T {
+    var lastError: Error?
+
+    for attempt in 1...maxAttempts {
+        do {
+            return try await operation()
+        } catch let error as PEError {
+            lastError = error
+
+            // Don't retry if error is not retryable or we're out of attempts
+            guard error.isRetryable, attempt < maxAttempts else {
+                throw error
+            }
+
+            // Wait before retry using suggested delay
+            if let delay = error.suggestedRetryDelay {
+                try? await Task.sleep(for: delay)
+            }
+        } catch {
+            // Non-PEError - don't retry
+            throw error
+        }
+    }
+
+    throw lastError ?? PEError.cancelled
+}
+
 // MARK: - PE Notification
 
 /// Property Exchange subscription notification

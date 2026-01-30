@@ -1225,7 +1225,86 @@ struct PEManagerSubscribeNotifyTests {
         // Verify subscription is removed
         subscriptions = await manager.subscriptions
         #expect(subscriptions.count == 0)
-        
+
         await manager.stopReceiving()
+    }
+}
+
+// MARK: - PEError Classification Tests
+
+@Suite("PEError Classification Tests")
+struct PEErrorClassificationTests {
+
+    @Test("Timeout error is retryable")
+    func timeoutIsRetryable() {
+        let error = PEError.timeout(resource: "DeviceInfo")
+        #expect(error.isRetryable == true)
+        #expect(error.isTransportError == true)
+        #expect(error.isClientError == false)
+        #expect(error.isDeviceError == false)
+        #expect(error.suggestedRetryDelay == .milliseconds(100))
+    }
+
+    @Test("Cancelled error is not retryable")
+    func cancelledIsNotRetryable() {
+        let error = PEError.cancelled
+        #expect(error.isRetryable == false)
+        #expect(error.suggestedRetryDelay == nil)
+    }
+
+    @Test("NAK with busy detail is retryable")
+    func nakBusyIsRetryable() {
+        let details = PENAKDetails(
+            originalTransaction: 0x34,
+            statusCode: 0x01,
+            statusData: 0x01  // busy
+        )
+        let error = PEError.nak(details)
+        #expect(error.isRetryable == true)
+        #expect(error.isDeviceError == true)
+        #expect(error.suggestedRetryDelay == .milliseconds(500))
+    }
+
+    @Test("NAK with notFound detail is not retryable")
+    func nakNotFoundIsNotRetryable() {
+        let details = PENAKDetails(
+            originalTransaction: 0x34,
+            statusCode: 0x01,
+            statusData: 0x02  // notFound
+        )
+        let error = PEError.nak(details)
+        #expect(error.isRetryable == false)
+        #expect(details.isPermanent == true)
+    }
+
+    @Test("Validation error is client error")
+    func validationIsClientError() {
+        let error = PEError.validationFailed(.emptyResource)
+        #expect(error.isClientError == true)
+        #expect(error.isRetryable == false)
+    }
+
+    @Test("Device error 4xx is client error")
+    func deviceError4xxIsClientError() {
+        let error = PEError.deviceError(status: 400, message: "Bad Request")
+        #expect(error.isClientError == true)
+        #expect(error.isDeviceError == true)
+        #expect(error.isRetryable == false)
+    }
+
+    @Test("Device error 5xx is retryable")
+    func deviceError5xxIsRetryable() {
+        let error = PEError.deviceError(status: 500, message: "Internal Error")
+        #expect(error.isRetryable == true)
+        #expect(error.isDeviceError == true)
+    }
+
+    @Test("Transport error is retryable")
+    func transportErrorIsRetryable() {
+        struct TestError: Error {}
+        let error = PEError.transportError(TestError())
+        #expect(error.isRetryable == true)
+        #expect(error.isTransportError == true)
+        #expect(error.suggestedRetryDelay == .milliseconds(200))
     }
 }

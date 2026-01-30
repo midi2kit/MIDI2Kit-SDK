@@ -960,3 +960,99 @@ Phase 7 計画:
   - commit & push
   - 目標（600-700行）未達だが、さらなる削減は別フェーズで検討
 ---
+
+---
+2026-01-30 11:51
+作業項目: 次のタスク検討
+完了済み:
+  - P0 (Critical): peSendStrategy配線、multiChunkTimeoutMultiplier適用、print→logger統一 ✅
+  - P1 (Important): RobustJSONDecoder安全化、PEDecodingDiagnostics公開 ✅
+  - P2 (CI): テスト失敗の修正、CI設定改善 ✅
+  - Phase 5-1: PESubscriptionHandler抽出（1718行まで削減） ✅
+
+次のステップ候補:
+  1. 実機テスト - P0/P1 fixes の効果確認（KORG Module Pro等）
+  2. Phase 5-2: エラーハンドリング高度化（小規模・効果大）
+  3. PEManager さらなる分割（GET/SETハンドリング等）
+  4. ドキュメント整備
+
+決定事項:
+  - ユーザーに次のタスクを確認
+
+次のTODO:
+  - ユーザー選択待ち
+---
+
+---
+2026-01-30 11:53
+作業項目: Phase 5-2 開始 - エラーハンドリング高度化
+現状分析:
+  - PEError: 10種類のエラーケース
+  - PENAKDetails: isTransient/isPermanent フラグあり
+  - PERequestError: バリデーションエラー5種類
+
+改善計画:
+  1. PEError に isRetryable プロパティ追加
+     - timeout → リトライ可能
+     - nak(transient) → リトライ可能
+     - transportError → リトライ可能
+     - cancelled/requestIDExhausted → リトライ不可
+
+  2. PEError に詳細コンテキスト追加
+     - timeout に MUID 追加
+     - deviceError に resource 追加
+
+  3. エラー分類ヘルパー追加
+     - isClientError: バリデーション、不正リクエスト
+     - isDeviceError: デバイス拒否、NAK
+     - isTransportError: 通信エラー、タイムアウト
+
+  4. リトライユーティリティ（オプション）
+     - withRetry helper function
+---
+
+---
+2026-01-30 12:00
+作業項目: Phase 5-2 完了 - エラーハンドリング高度化
+実施内容:
+  1. PEError に分類プロパティ追加
+     - isRetryable: リトライ可能かどうか
+     - isClientError: クライアント側エラー
+     - isDeviceError: デバイス側エラー
+     - isTransportError: 通信エラー
+     - suggestedRetryDelay: 推奨リトライ遅延
+
+  2. withPERetry ヘルパー関数追加
+     - maxAttempts でリトライ回数指定
+     - isRetryable を使って自動リトライ
+     - suggestedRetryDelay を使って適切な遅延
+
+  3. テスト追加
+     - PEError Classification Tests（8テスト）
+     - 各エラー種類の分類確認
+
+結果:
+  - 196テスト全てパス ✅（188 + 8 新規）
+  - エラー分類と自動リトライが可能に
+
+使用例:
+  ```swift
+  // 自動リトライ
+  let response = try await withPERetry(maxAttempts: 3) {
+      try await peManager.get("DeviceInfo", from: device)
+  }
+
+  // 手動判定
+  do {
+      try await peManager.get(...)
+  } catch let error as PEError where error.isRetryable {
+      // リトライ可能なエラー
+  }
+  ```
+
+決定事項:
+  - Phase 5-2 完了 ✅
+
+次のTODO:
+  - commit & push
+---
