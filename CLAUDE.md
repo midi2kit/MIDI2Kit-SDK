@@ -109,18 +109,22 @@ MIDI2Core (Foundation - no dependencies)
 **Purpose**: Property Exchange (GET/SET device properties, subscriptions)
 
 **Key Actors**:
-- `PEManager` (actor): High-level PE API
-- `PESubscriptionHandler` (actor): Subscribe/Unsubscribe/Notify handling (Phase 5-1)
+- `PEManager` (actor): High-level PE API (1315 lines after Phase 6 refactoring)
+- `PESubscriptionHandler` (actor): Subscribe/Unsubscribe/Notify handling
 - `PETransactionManager` (actor): Request lifecycle management
 - `PERequestIDManager` (actor): Request ID pool (0-127)
 - `PEChunkAssembler` (actor): Multipart message reassembly
 - `PESubscriptionManager` (actor): Auto-reconnecting subscriptions
 
-**Core Types**:
+**Core Types** (split into dedicated files in Phase 6):
+- `PEResponse` (PEResponse.swift): HTTP-style status + header + body
+- `PEError` (PEError.swift): Rich error types with classification
 - `PEDeviceHandle`: Bundles MUID + destination (prevents routing mismatches)
 - `PERequest`: GET/SET/SUBSCRIBE parameters
-- `PEResponse`: HTTP-style status + header + body
-- `PEError`: Rich error types (timeout, NAK, deviceError, etc.)
+
+**Extension Files**:
+- `PEManager+JSON.swift`: Typed API (getJSON/setJSON)
+- `PEManager+Legacy.swift`: Deprecated MUID+destination API
 
 **Key Features**:
 - Request ID allocation (max 128 concurrent)
@@ -128,6 +132,8 @@ MIDI2Core (Foundation - no dependencies)
 - Per-device inflight limiting
 - Batch operations
 - Subscription management
+- Error classification with `isRetryable`, `isClientError`, `isDeviceError`
+- Automatic retry helper: `withPERetry(maxAttempts:operation:)`
 
 **Location**: `Sources/MIDI2PE/`
 
@@ -264,6 +270,19 @@ Rich error types distinguish timeout, NAK, device errors, validation errors:
 - `PEError.deviceError`: Device-reported error
 - `PEError.invalidResponse`: Malformed response
 
+**Error Classification** (Phase 5-2):
+```swift
+// Check if error is retryable
+if error.isRetryable {
+    // timeout, transient NAK, transport error
+}
+
+// Automatic retry helper
+let response = try await withPERetry(maxAttempts: 3) {
+    try await peManager.get("DeviceInfo", from: device)
+}
+```
+
 ### Batch Operations
 ```swift
 let responses = await peManager.batchGet(
@@ -280,7 +299,7 @@ let responses = await peManager.batchGet(
 ### Test Structure
 - Tests are in `Tests/MIDI2KitTests/`
 - Uses `MockMIDITransport` for hardware-independent testing
-- 188 tests (as of latest run)
+- 196 tests (as of 2026-01-30)
 
 ### CI Configuration
 - GitHub Actions: `.github/workflows/ci.yml`
@@ -289,36 +308,49 @@ let responses = await peManager.batchGet(
 
 ---
 
-## Recent Critical Fixes (2026-01-30)
+## Recent Fixes and Refactoring (2026-01-30)
 
 ### Phase 0 (P0 - Critical)
-1. **peSendStrategy wiring** (Sources/MIDI2PE/PEManager.swift:337, Sources/MIDI2Kit/HighLevelAPI/MIDI2Client.swift:177)
+1. **peSendStrategy wiring**
    - Configuration now properly passed to PEManager
    - Prevents broadcast-induced timeouts
 
-2. **multiChunkTimeoutMultiplier application** (Sources/MIDI2PE/PEManager.swift:738,1001,1051)
+2. **multiChunkTimeoutMultiplier application**
    - Timeout now actually applied to PE requests
    - Fixes premature timeouts on multi-chunk responses
 
-3. **print() → logger unification** (Sources/MIDI2PE/PEChunkAssembler.swift)
+3. **print() → logger unification**
    - All debug output now goes through MIDI2Logger
    - Eliminates console noise in production
 
 ### Phase 1 (P1 - Important)
-4. **RobustJSONDecoder safety** (Sources/MIDI2Core/JSON/RobustJSONDecoder.swift:204,278)
+4. **RobustJSONDecoder safety**
    - No longer corrupts valid pretty JSON
    - Protects URLs like "https://" from comment removal
 
-5. **PEDecodingDiagnostics exposure** (Sources/MIDI2PE/PEManager.swift:293)
+5. **PEDecodingDiagnostics exposure**
    - `lastDecodingDiagnostics` property now accessible
    - Enables detailed JSON decode error analysis
 
-### Phase 5-1 (Refactoring - In Progress)
+### Phase 5-1 (Refactoring - Complete)
 6. **PESubscriptionHandler extraction** (Sources/MIDI2PE/PESubscriptionHandler.swift)
-   - Subscribe/Notify handling extracted to dedicated actor
-   - Reduces PEManager complexity (2012 → 1943 lines, ongoing)
+   - Subscribe/Unsubscribe/Notify handling extracted to dedicated actor
    - Uses callback pattern for actor-to-actor coordination
-   - Phase 8 remaining: complete subscribe/unsubscribe migration
+   - PEManager reduced from 2012 to 1718 lines
+
+### Phase 5-2 (Error Handling - Complete)
+7. **PEError classification** (Sources/MIDI2PE/PEError.swift)
+   - Added `isRetryable`, `isClientError`, `isDeviceError`, `isTransportError`
+   - Added `suggestedRetryDelay` for intelligent backoff
+   - Added `withPERetry(maxAttempts:operation:)` helper
+
+### Phase 6 (File Organization - Complete)
+8. **PEManager file split**
+   - `PEResponse.swift` (70 lines): Response type
+   - `PEError.swift` (227 lines): Error types + retry helper
+   - `PEManager+JSON.swift` (142 lines): Typed API
+   - `PEManager+Legacy.swift` (104 lines): Deprecated API
+   - PEManager.swift: 1718 → 1315 lines (29.3% total reduction from original)
 
 ---
 
