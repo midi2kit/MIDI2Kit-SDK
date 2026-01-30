@@ -110,6 +110,7 @@ MIDI2Core (Foundation - no dependencies)
 
 **Key Actors**:
 - `PEManager` (actor): High-level PE API
+- `PESubscriptionHandler` (actor): Subscribe/Unsubscribe/Notify handling (Phase 5-1)
 - `PETransactionManager` (actor): Request lifecycle management
 - `PERequestIDManager` (actor): Request ID pool (0-127)
 - `PEChunkAssembler` (actor): Multipart message reassembly
@@ -311,6 +312,13 @@ let responses = await peManager.batchGet(
 5. **PEDecodingDiagnostics exposure** (Sources/MIDI2PE/PEManager.swift:293)
    - `lastDecodingDiagnostics` property now accessible
    - Enables detailed JSON decode error analysis
+
+### Phase 5-1 (Refactoring - In Progress)
+6. **PESubscriptionHandler extraction** (Sources/MIDI2PE/PESubscriptionHandler.swift)
+   - Subscribe/Notify handling extracted to dedicated actor
+   - Reduces PEManager complexity (2012 → 1943 lines, ongoing)
+   - Uses callback pattern for actor-to-actor coordination
+   - Phase 8 remaining: complete subscribe/unsubscribe migration
 
 ---
 
