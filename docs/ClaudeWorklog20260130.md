@@ -711,3 +711,52 @@ Phase 4 計画:
   - commit & push
   - Phase 5-1 Phase 5: Subscribe Reply Handling
 ---
+
+---
+2026-01-30 11:08
+作業項目: Phase 5-1 Phase 5 開始 - Subscribe Reply Handling
+対象:
+  - PEManager.handleSubscribeReply() - 1745行目
+  - PESubscriptionHandler.handleSubscribeReply()
+  - PESubscriptionHandler.handleTimeout()
+
+現状分析:
+  - handleSubscribeReply は timeoutTask キャンセル、sendTask クリア
+  - transactionManager.cancel() 呼び出し
+  - continuation.resume() で応答返却
+  - コールバック経由で PEManager のタスク管理を呼び出す必要あり
+
+Phase 5 計画:
+  1. handleSubscribeReply() 実装
+  2. handleTimeout() 実装
+  3. 動作確認
+---
+
+---
+2026-01-30 11:11
+作業項目: Phase 5-1 Phase 5 完了 - Subscribe Reply Handling
+実施内容:
+  1. handleSubscribeReply() 実装
+     - cancelTimeout/cancelSend コールバック呼び出し
+     - transactionManager.cancel()
+     - pendingSubscribeContinuations から continuation 取得
+     - PESubscribeResponse 構築
+     - continuation.resume()
+     - Sources/MIDI2PE/PESubscriptionHandler.swift:198-226
+
+  2. handleTimeout() 実装
+     - cancelSend コールバック呼び出し
+     - transactionManager.cancel()
+     - continuation.resume(throwing: PEError.timeout)
+     - Sources/MIDI2PE/PESubscriptionHandler.swift:300-314
+
+  3. テスト確認
+     - swift test: 188テスト全てパス ✅
+
+決定事項:
+  - Phase 5-1 Phase 5 完了 ✅
+
+次のTODO:
+  - commit & push
+  - Phase 5-1 Phase 6-7: Cleanup & Testing
+---

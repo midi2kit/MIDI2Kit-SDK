@@ -196,7 +196,33 @@ internal actor PESubscriptionHandler {
     /// Handle a Subscribe reply message
     /// - Parameter reply: Parsed Subscribe reply
     func handleSubscribeReply(_ reply: CIMessageParser.FullSubscribeReply) async {
-        // TODO: Phase 5 - Implement Subscribe reply processing
+        let requestID = reply.requestID
+
+        // Cancel timeout and send tasks via callbacks
+        cancelTimeout(requestID)
+        cancelSend(requestID)
+
+        // Release transaction
+        await transactionManager.cancel(requestID: requestID)
+
+        // Get pending continuation
+        guard let continuation = pendingSubscribeContinuations.removeValue(forKey: requestID) else {
+            logger.warning("No continuation for subscribe [\(requestID)]", category: "PESubscriptionHandler")
+            return
+        }
+
+        // Build response
+        let response = PESubscribeResponse(
+            status: reply.status ?? 200,
+            subscribeId: reply.subscribeId
+        )
+
+        logger.debug(
+            "Subscribe reply [\(requestID)] status=\(response.status) id=\(response.subscribeId ?? "nil")",
+            category: "PESubscriptionHandler"
+        )
+
+        continuation.resume(returning: response)
     }
 
     /// Handle a Notify message (single-chunk)
@@ -272,7 +298,20 @@ internal actor PESubscriptionHandler {
     /// Handle a Subscribe timeout
     /// - Parameter requestID: Request ID that timed out
     func handleTimeout(requestID: UInt8) async {
-        // TODO: Phase 5 - Implement timeout handling
+        // Cancel send task
+        cancelSend(requestID)
+
+        // Release transaction
+        await transactionManager.cancel(requestID: requestID)
+
+        // Get pending continuation and resume with timeout error
+        guard let continuation = pendingSubscribeContinuations.removeValue(forKey: requestID) else {
+            logger.debug("Timeout for unknown subscribe [\(requestID)]", category: "PESubscriptionHandler")
+            return
+        }
+
+        logger.warning("Subscribe timeout [\(requestID)]", category: "PESubscriptionHandler")
+        continuation.resume(throwing: PEError.timeout(resource: "subscribe"))
     }
 
     /// Cancel all pending Subscribe requests and clean up state
