@@ -11,9 +11,18 @@ import MIDI2Core
 // MARK: - PEManager Robust Decoding Extension
 
 extension PEManager {
-    
+
     /// The shared RobustJSONDecoder instance
     private static let robustDecoder = RobustJSONDecoder()
+
+    /// Save decoding diagnostics (internal helper)
+    ///
+    /// Stores diagnostics in `_lastDecodingDiagnostics` for user access via `lastDecodingDiagnostics`.
+    ///
+    /// - Parameter diagnostics: Diagnostics to save, or nil to clear
+    internal func saveDiagnostics(_ diagnostics: PEDecodingDiagnostics?) {
+        self._lastDecodingDiagnostics = diagnostics
+    }
     
     /// Decode PE response body with robust JSON handling
     ///
@@ -48,8 +57,12 @@ extension PEManager {
                     wasPreprocessed: true,
                     preprocessedData: decoder.preprocess(data).0
                 )
+                // Save diagnostics for user access
+                self.saveDiagnostics(diagnostics)
                 return (value, diagnostics)
             }
+            // Clear diagnostics on clean success
+            self.saveDiagnostics(nil)
             return (value, nil)
             
         case .failure(let error, _, let attemptedFix):
@@ -63,7 +76,10 @@ extension PEManager {
                 wasPreprocessed: attemptedFix != nil,
                 preprocessedData: attemptedFix
             )
-            
+
+            // Save diagnostics before throwing (accessible via lastDecodingDiagnostics)
+            self.saveDiagnostics(diagnostics)
+
             throw PEError.invalidResponse(
                 "Failed to decode \(resource): \(error.localizedDescription). " +
                 "Raw data: \(data.hexDumpPreview)"

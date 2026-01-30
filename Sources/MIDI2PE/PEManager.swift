@@ -289,6 +289,33 @@ public actor PEManager {
     /// Single source of truth for request completion.
     /// When a response arrives or timeout fires, the continuation is resumed and removed.
     private var pendingContinuations: [UInt8: CheckedContinuation<PEResponse, Error>] = [:]
+
+    /// Last decoding diagnostics (for debugging failed PE responses)
+    ///
+    /// Contains detailed information about the most recent decoding attempt,
+    /// including raw data, preprocessing results, and error details.
+    /// Useful for debugging parsing issues with embedded MIDI devices.
+    ///
+    /// ## Usage
+    /// ```swift
+    /// do {
+    ///     let deviceInfo = try await peManager.getDeviceInfo(from: device)
+    /// } catch let error as PEError {
+    ///     if let diag = await peManager.lastDecodingDiagnostics {
+    ///         print("Decoding failed: \(diag)")
+    ///     }
+    /// }
+    /// ```
+    ///
+    /// Note: This property uses nonisolated(unsafe) storage for diagnostics to allow
+    /// synchronous access from throwing decode methods. Since PEDecodingDiagnostics
+    /// is Sendable and writes only occur from decode paths, this is safe for diagnostic purposes.
+    nonisolated(unsafe) internal var _lastDecodingDiagnostics: PEDecodingDiagnostics?
+
+    /// Public accessor for last decoding diagnostics
+    public var lastDecodingDiagnostics: PEDecodingDiagnostics? {
+        _lastDecodingDiagnostics
+    }
     
     /// Timeout tasks for pending requests (keyed by Request ID)
     ///

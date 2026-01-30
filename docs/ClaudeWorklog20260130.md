@@ -272,3 +272,60 @@ Phase 1 開始: P1-4 RobustJSONDecoder 安全化
   - commit & push
   - P1-5: PEDecodingDiagnostics の外部公開
 ---
+
+---
+2026-01-30 10:16
+作業項目: Phase 1-5 開始 - PEDecodingDiagnostics の外部公開
+対象ファイル:
+  - Sources/MIDI2Core/JSON/PEDecodingDiagnostics.swift
+  - Sources/MIDI2PE/PEManager+RobustDecoding.swift
+  - Sources/MIDI2PE/PEManager.swift
+
+問題内容:
+  1. PEDecodingDiagnostics のUsageに `lastDecodingDiagnostics` プロパティがあるが実装されていない
+  2. decodeResponse() 内で diagnostics を生成しているが throw 時に捨てている
+  3. ユーザーがデコードエラーの詳細情報にアクセスできない
+
+修正方針:
+  1. PEManager に lastDecodingDiagnostics プロパティ追加
+  2. デコード時に diagnostics を保存
+  3. エラーに diagnostics を付帯させるか、lastDecodingDiagnostics で取得可能にする
+---
+
+---
+2026-01-30 10:19
+作業項目: Phase 1-5 完了 - PEDecodingDiagnostics の外部公開
+実施内容:
+  1. PEManager に lastDecodingDiagnostics プロパティ追加
+     - nonisolated(unsafe) internal storage for synchronous access
+     - public computed property for external access
+     - Sources/MIDI2PE/PEManager.swift:293
+
+  2. decodeResponse() で diagnostics を保存するよう修正
+     - 成功時（preprocessed あり）: diagnostics を保存
+     - 成功時（preprocessed なし）: diagnostics をクリア
+     - 失敗時: diagnostics を保存してから throw
+     - Sources/MIDI2PE/PEManager+RobustDecoding.swift:18,59,72
+
+  3. saveDiagnostics() ヘルパーメソッド追加
+     - 同期的に diagnostics を保存（throwing context から呼べる）
+     - Sources/MIDI2PE/PEManager+RobustDecoding.swift:18
+
+  4. ビルド確認
+     - swift build: 成功（警告は既存の deprecated API のみ）
+
+効果:
+  - ユーザーが await peManager.lastDecodingDiagnostics で診断情報にアクセス可能に
+  - デコードエラー時の詳細情報（raw data, preprocessed data, parse error等）が取得できる
+  - Usage例が実装と一致するようになった
+  - デバッグが大幅に容易になった
+
+決定事項:
+  - P1-5 完了 ✅
+  - Phase 1 (P1タスク) 全完了 ✅
+
+次のTODO:
+  - commit & push
+  - Phase 0 & Phase 1 完了サマリ
+  - 次のステップ検討（P2タスク or Phase 5-1復帰）
+---
