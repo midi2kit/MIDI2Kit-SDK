@@ -337,14 +337,6 @@ public actor PEManager {
     
     // MARK: - Subscribe State
 
-    /// Continuations waiting for Subscribe/Unsubscribe responses
-    /// Note: Being migrated to subscriptionHandler (Phase 5-1)
-    private var pendingSubscribeContinuations: [UInt8: CheckedContinuation<PESubscribeResponse, Error>] = [:]
-
-    /// Active subscriptions by subscribeId
-    /// Note: Being migrated to subscriptionHandler (Phase 5-1)
-    private var activeSubscriptions: [String: PESubscription] = [:]
-
     /// Subscription handler for managing Subscribe/Unsubscribe/Notify operations
     /// Introduced in Phase 5-1 for better modularity
     private var subscriptionHandler: PESubscriptionHandler?
@@ -547,16 +539,6 @@ public actor PEManager {
         
         // Cancel all subscription-related state (Phase 5-1)
         await subscriptionHandler?.cancelAll()
-
-        // Legacy cleanup (will be removed after Phase 5-1 migration complete)
-        // Resume all pending Subscribe continuations with cancellation
-        for continuation in pendingSubscribeContinuations.values {
-            continuation.resume(throwing: PEError.cancelled)
-        }
-        pendingSubscribeContinuations.removeAll()
-
-        // Clear subscriptions
-        activeSubscriptions.removeAll()
 
         // Release all Request IDs
         await transactionManager.cancelAll()
@@ -919,61 +901,22 @@ public actor PEManager {
     }
     
     // MARK: - Subscribe
-    
+
     /// Subscribe to notifications for a resource
+    ///
+    /// Note: Must be called after `startReceiving()` or `resetForExternalDispatch()`.
     public func subscribe(
         to resource: String,
         on device: PEDeviceHandle,
         timeout: Duration = defaultTimeout
     ) async throws -> PESubscribeResponse {
-        logger.debug("SUBSCRIBE \(resource) on \(device.debugDescription)", category: Self.logCategory)
-        
-        guard let requestID = await transactionManager.begin(
-            resource: resource,
-            destinationMUID: device.muid,
-            timeout: timeout.asTimeInterval
-        ) else {
-            throw PEError.requestIDExhausted
+        guard let handler = subscriptionHandler else {
+            logger.warning("subscribe called before startReceiving", category: Self.logCategory)
+            throw PEError.invalidResponse("PEManager not initialized - call startReceiving first")
         }
-        
-        let headerData = CIMessageBuilder.subscribeStartHeader(resource: resource)
-        let message = CIMessageBuilder.peSubscribeInquiry(
-            sourceMUID: sourceMUID,
-            destinationMUID: device.muid,
-            requestID: requestID,
-            headerData: headerData
-        )
-        
-        let response = try await withTaskCancellationHandler {
-            try await performSubscribeRequest(
-                requestID: requestID,
-                resource: resource,
-                message: message,
-                destination: device.destination,
-                timeout: timeout
-            )
-        } onCancel: {
-            Task { [weak self] in
-                await self?.cancelSubscribeRequest(requestID: requestID)
-            }
-        }
-        
-        // Track successful subscription
-        if response.isSuccess, let subscribeId = response.subscribeId {
-            let subscription = PESubscription(
-                subscribeId: subscribeId,
-                resource: resource,
-                device: device
-            )
-            activeSubscriptions[subscribeId] = subscription
-            // Also add to subscriptionHandler for future delegation (Phase 5-1)
-            await subscriptionHandler?.addActiveSubscription(subscribeId, subscription)
-            logger.info("Subscribed to \(resource): \(subscribeId)", category: Self.logCategory)
-        }
-        
-        return response
+        return try await handler.subscribe(to: resource, on: device, timeout: timeout)
     }
-    
+
     /// Subscribe to notifications (legacy API)
     @available(*, deprecated, message: "Use subscribe(to:on:) with PEDeviceHandle instead")
     public func subscribe(
@@ -985,73 +928,19 @@ public actor PEManager {
         let handle = PEDeviceHandle(muid: device, destination: destination)
         return try await subscribe(to: resource, on: handle, timeout: timeout)
     }
-    
-    /// Cancel a pending subscribe request
-    private func cancelSubscribeRequest(requestID: UInt8) async {
-        cancelSendTask(requestID: requestID)
-        timeoutTasks[requestID]?.cancel()
-        timeoutTasks.removeValue(forKey: requestID)
-        
-        await transactionManager.cancel(requestID: requestID)
-        
-        if let continuation = pendingSubscribeContinuations.removeValue(forKey: requestID) {
-            continuation.resume(throwing: PEError.cancelled)
-        }
-    }
-    
+
     /// Unsubscribe from a resource
+    ///
+    /// Note: Must be called after `startReceiving()` or `resetForExternalDispatch()`.
     public func unsubscribe(
         subscribeId: String,
         timeout: Duration = defaultTimeout
     ) async throws -> PESubscribeResponse {
-        guard let subscription = activeSubscriptions[subscribeId] else {
-            throw PEError.invalidResponse("Unknown subscribeId: \(subscribeId)")
+        guard let handler = subscriptionHandler else {
+            logger.warning("unsubscribe called before startReceiving", category: Self.logCategory)
+            throw PEError.invalidResponse("PEManager not initialized - call startReceiving first")
         }
-        
-        logger.debug("UNSUBSCRIBE \(subscription.resource) [\(subscribeId)]", category: Self.logCategory)
-        
-        guard let requestID = await transactionManager.begin(
-            resource: subscription.resource,
-            destinationMUID: subscription.device.muid,
-            timeout: timeout.asTimeInterval
-        ) else {
-            throw PEError.requestIDExhausted
-        }
-        
-        let headerData = CIMessageBuilder.subscribeEndHeader(
-            resource: subscription.resource,
-            subscribeId: subscribeId
-        )
-        let message = CIMessageBuilder.peSubscribeInquiry(
-            sourceMUID: sourceMUID,
-            destinationMUID: subscription.device.muid,
-            requestID: requestID,
-            headerData: headerData
-        )
-        
-        let response = try await withTaskCancellationHandler {
-            try await performSubscribeRequest(
-                requestID: requestID,
-                resource: subscription.resource,
-                message: message,
-                destination: subscription.device.destination,
-                timeout: timeout
-            )
-        } onCancel: {
-            Task { [weak self] in
-                await self?.cancelSubscribeRequest(requestID: requestID)
-            }
-        }
-        
-        // Remove subscription on success
-        if response.isSuccess {
-            activeSubscriptions.removeValue(forKey: subscribeId)
-            // Also remove from subscriptionHandler (Phase 5-1)
-            _ = await subscriptionHandler?.removeActiveSubscription(subscribeId)
-            logger.info("Unsubscribed: \(subscribeId)", category: Self.logCategory)
-        }
-        
-        return response
+        return try await handler.unsubscribe(subscribeId: subscribeId, timeout: timeout)
     }
     
     /// Get stream of notifications from all subscriptions
@@ -1074,7 +963,9 @@ public actor PEManager {
     
     /// Get list of active subscriptions
     public var subscriptions: [PESubscription] {
-        Array(activeSubscriptions.values)
+        get async {
+            await subscriptionHandler?.subscriptions ?? []
+        }
     }
     
     // MARK: - Convenience Methods
@@ -1356,31 +1247,6 @@ public actor PEManager {
     }
 
     
-    /// Perform a Subscribe/Unsubscribe request with timeout
-    private func performSubscribeRequest(
-        requestID: UInt8,
-        resource: String,
-        message: [UInt8],
-        destination: MIDIDestinationID,
-        timeout: Duration
-    ) async throws -> PESubscribeResponse {
-        let timeoutTask = Task { [weak self] in
-            do {
-                try await Task.sleep(for: timeout)
-                await self?.handleSubscribeTimeout(requestID: requestID, resource: resource)
-            } catch {
-                // Cancelled
-            }
-        }
-        timeoutTasks[requestID] = timeoutTask
-
-        return try await withCheckedThrowingContinuation { continuation in
-            pendingSubscribeContinuations[requestID] = continuation
-            scheduleSendForSubscribe(requestID: requestID, message: message, destination: destination)
-        }
-    }
-
-    
     // MARK: - Private: Send Task Tracking
 
     private func scheduleSendForRequest(
@@ -1481,26 +1347,6 @@ public actor PEManager {
         }
     }
 
-    private func scheduleSendForSubscribe(
-        requestID: UInt8,
-        message: [UInt8],
-        destination: MIDIDestinationID
-    ) {
-        cancelSendTask(requestID: requestID)
-
-        let transport = self.transport
-        sendTasks[requestID] = Task { [weak self] in
-            if Task.isCancelled { return }
-            do {
-                try await transport.send(message, to: destination)
-            } catch {
-                guard let self else { return }
-                await self.handleSubscribeSendError(requestID: requestID, error: error)
-            }
-            await self?.clearSendTask(requestID: requestID)
-        }
-    }
-
     private func cancelSendTask(requestID: UInt8) {
         if let task = sendTasks.removeValue(forKey: requestID) {
             task.cancel()
@@ -1530,24 +1376,7 @@ public actor PEManager {
         
         continuation.resume(throwing: PEError.timeout(resource: resource))
     }
-    
-    private func handleSubscribeTimeout(requestID: UInt8, resource: String) {
-        clearSendTask(requestID: requestID)
-        timeoutTasks.removeValue(forKey: requestID)
-        
-        guard let continuation = pendingSubscribeContinuations.removeValue(forKey: requestID) else {
-            return
-        }
-        
-        logger.notice("Subscribe timeout [\(requestID)] \(resource)", category: Self.logCategory)
-        
-        Task {
-            await transactionManager.cancel(requestID: requestID)
-        }
-        
-        continuation.resume(throwing: PEError.timeout(resource: resource))
-    }
-    
+
     // MARK: - Private: Send Error Handling
     
     private func handleSendError(requestID: UInt8, error: Error) async {
@@ -1559,18 +1388,6 @@ public actor PEManager {
         await transactionManager.cancel(requestID: requestID)
         
         if let continuation = pendingContinuations.removeValue(forKey: requestID) {
-            continuation.resume(throwing: PEError.transportError(error))
-        }
-    }
-    
-    private func handleSubscribeSendError(requestID: UInt8, error: Error) async {
-        clearSendTask(requestID: requestID)
-        timeoutTasks[requestID]?.cancel()
-        timeoutTasks.removeValue(forKey: requestID)
-        
-        await transactionManager.cancel(requestID: requestID)
-        
-        if let continuation = pendingSubscribeContinuations.removeValue(forKey: requestID) {
             continuation.resume(throwing: PEError.transportError(error))
         }
     }
@@ -1619,7 +1436,8 @@ public actor PEManager {
         // Try Subscribe Reply
         if let subscribeReply = CIMessageParser.parseFullSubscribeReply(data) {
             if subscribeReply.destinationMUID == sourceMUID {
-                handleSubscribeReply(subscribeReply)
+                // Delegate to subscriptionHandler (Phase 5-1)
+                await subscriptionHandler?.handleSubscribeReply(subscribeReply)
             }
             return
         }
@@ -1807,51 +1625,22 @@ public actor PEManager {
         }
     }
     
-    private func handleSubscribeReply(_ reply: CIMessageParser.FullSubscribeReply) {
-        let requestID = reply.requestID
-        
-        timeoutTasks[requestID]?.cancel()
-        timeoutTasks.removeValue(forKey: requestID)
-
-        clearSendTask(requestID: requestID)
-        
-        Task {
-            await transactionManager.cancel(requestID: requestID)
-        }
-        
-        guard let continuation = pendingSubscribeContinuations.removeValue(forKey: requestID) else {
-            logger.warning("No continuation for subscribe [\(requestID)]", category: Self.logCategory)
-            return
-        }
-        
-        let response = PESubscribeResponse(
-            status: reply.status ?? 200,
-            subscribeId: reply.subscribeId
-        )
-        
-        logger.debug(
-            "Subscribe reply [\(requestID)] status=\(response.status) id=\(response.subscribeId ?? "nil")",
-            category: Self.logCategory
-        )
-        
-        continuation.resume(returning: response)
-    }
-    
     private func handleNAK(_ nak: CIMessageParser.FullNAK) {
         let details = PENAKDetails(from: nak)
-        
+
         logger.warning(
             "Received NAK: \(details)",
             category: Self.logCategory
         )
-        
+
         // NAK doesn't include requestID, so we can't directly map it to a pending request.
         // For PE operations, the device typically returns a PE Reply with error status instead of NAK.
         // NAK is used for protocol-level rejections (unsupported message type, version mismatch, etc.)
         //
-        // If there's only one pending request, we can reasonably assume it's for that request.
-        // Otherwise, we log the NAK for debugging purposes.
-        
+        // If there's only one pending GET/SET request, we can reasonably assume it's for that request.
+        // Subscribe requests are handled by subscriptionHandler and will timeout if NAK'd.
+        // Otherwise, we log the NAK for debugging purposes and let the request timeout.
+
         if pendingContinuations.count == 1,
            let (requestID, continuation) = pendingContinuations.first {
             // Single pending request - assume NAK is for this request
@@ -1859,38 +1648,20 @@ public actor PEManager {
             timeoutTasks.removeValue(forKey: requestID)
             clearSendTask(requestID: requestID)
             pendingContinuations.removeValue(forKey: requestID)
-            
+
             Task {
                 await transactionManager.cancel(requestID: requestID)
             }
-            
+
             continuation.resume(throwing: PEError.nak(details))
-            
+
             logger.notice(
                 "NAK matched to request [\(requestID)]",
                 category: Self.logCategory
             )
-        } else if pendingSubscribeContinuations.count == 1,
-                  let (requestID, continuation) = pendingSubscribeContinuations.first {
-            // Single pending subscribe request
-            timeoutTasks[requestID]?.cancel()
-            timeoutTasks.removeValue(forKey: requestID)
-            clearSendTask(requestID: requestID)
-            pendingSubscribeContinuations.removeValue(forKey: requestID)
-            
-            Task {
-                await transactionManager.cancel(requestID: requestID)
-            }
-            
-            continuation.resume(throwing: PEError.nak(details))
-            
-            logger.notice(
-                "NAK matched to subscribe request [\(requestID)]",
-                category: Self.logCategory
-            )
         }
-        // If multiple requests are pending, we can't determine which one the NAK is for.
-        // The request will eventually timeout.
+        // If multiple requests are pending or it's a subscribe request,
+        // we can't determine which one the NAK is for. The request will eventually timeout.
     }
     
     // MARK: - Private: Notify Header Parsing
@@ -1926,15 +1697,19 @@ public actor PEManager {
             lines.append("Source MUID: \(sourceMUID)")
             lines.append("Receiving: \(receiveTask != nil)")
             lines.append("Pending requests: \(pendingContinuations.count)")
-            lines.append("Pending subscribe requests: \(pendingSubscribeContinuations.count)")
-            lines.append("Active subscriptions: \(activeSubscriptions.count)")
-            
-            if !activeSubscriptions.isEmpty {
-                for (id, sub) in activeSubscriptions {
-                    lines.append("  - \(sub.resource) [\(id)]")
+
+            // Subscription info from subscriptionHandler
+            let pendingSubCount = await subscriptionHandler?.pendingSubscribeCount ?? 0
+            let subs = await subscriptionHandler?.subscriptions ?? []
+            lines.append("Pending subscribe requests: \(pendingSubCount)")
+            lines.append("Active subscriptions: \(subs.count)")
+
+            if !subs.isEmpty {
+                for sub in subs {
+                    lines.append("  - \(sub.resource) [\(sub.subscribeId)]")
                 }
             }
-            
+
             lines.append("")
             lines.append(await transactionManager.diagnostics)
             return lines.joined(separator: "\n")

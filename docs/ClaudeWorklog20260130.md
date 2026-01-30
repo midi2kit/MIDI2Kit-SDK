@@ -891,3 +891,72 @@ Phase 7 計画:
   - commit & push
   - Phase 5-1 Phase 8 検討（subscribe/unsubscribe 完全移行）
 ---
+
+---
+2026-01-30 11:36
+作業項目: Phase 5-1 Phase 8 開始 - subscribe/unsubscribe 完全移行
+目標:
+  - PEManager.swift: 1943行 → 600-700行（約60%削減）
+
+移行対象:
+  1. pendingSubscribeContinuations 管理 → subscriptionHandler
+  2. activeSubscriptions 管理 → subscriptionHandler
+  3. performSubscribeRequest() → subscriptionHandler 経由
+  4. handleSubscribeReply() → subscriptionHandler 経由
+  5. handleSubscribeTimeout() → subscriptionHandler 経由
+  6. cancelSubscribeRequest() → subscriptionHandler 経由
+
+計画:
+  1. PESubscriptionHandler に performSubscribe() 実装
+  2. PEManager.subscribe() を subscriptionHandler 経由に変更
+  3. handleSubscribeReply 処理を subscriptionHandler に委譲
+  4. レガシーコードを段階的に削除
+---
+
+---
+2026-01-30 11:48
+作業項目: Phase 5-1 Phase 8 完了 - subscribe/unsubscribe 完全移行
+実施内容:
+  1. PESubscriptionHandler に subscribe()/unsubscribe() 実装
+     - performSubscribeRequest() - timeout/send/continuation 管理
+     - cancelSubscribeRequest() - キャンセル処理
+     - pendingRequestResources - タイムアウト時のリソース名保持
+
+  2. PEManager を subscriptionHandler 経由に変更
+     - subscribe() → subscriptionHandler.subscribe()
+     - unsubscribe() → subscriptionHandler.unsubscribe()
+     - handleSubscribeReply → subscriptionHandler.handleSubscribeReply()
+     - subscriptions プロパティ → subscriptionHandler.subscriptions
+     - diagnostics → subscriptionHandler から情報取得
+
+  3. レガシーコード削除
+     - pendingSubscribeContinuations プロパティ
+     - activeSubscriptions プロパティ
+     - performSubscribeRequest() メソッド
+     - scheduleSendForSubscribe() メソッド
+     - handleSubscribeTimeout() メソッド
+     - handleSubscribeSendError() メソッド
+     - stopReceiving のレガシークリーンアップ
+     - handleNAK の subscribe ケース簡略化
+
+  4. 診断機能更新
+     - pendingSubscribeCount プロパティ追加
+     - diagnostics で subscriptionHandler から情報取得
+
+  5. テスト修正対応
+     - タイムアウト時のリソース名を正しく保持
+     - 診断出力に "Pending subscribe requests" 復活
+
+結果:
+  - PEManager.swift: 2012行 → 1718行（294行削減、14.6%）
+  - PESubscriptionHandler.swift: 394行 → 575行（完全実装）
+  - 188テスト全てパス ✅
+
+決定事項:
+  - Phase 5-1 完了 ✅
+  - Subscribe/Unsubscribe 処理が完全に PESubscriptionHandler に移行
+
+次のTODO:
+  - commit & push
+  - 目標（600-700行）未達だが、さらなる削減は別フェーズで検討
+---
