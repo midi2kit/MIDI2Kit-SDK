@@ -430,9 +430,6 @@ public final class CoreMIDITransport: MIDITransport, @unchecked Sendable {
     // MARK: - Private Helpers
     
     private func handlePacketList(_ packetList: UnsafePointer<MIDIPacketList>, from sourceRef: MIDIEndpointRef?) {
-        var packet = packetList.pointee.packet
-        let numPackets = packetList.pointee.numPackets
-        
         // Convert sourceRef to MIDISourceID
         let sourceID: MIDISourceID?
         if let ref = sourceRef, ref != 0 {
@@ -440,21 +437,19 @@ public final class CoreMIDITransport: MIDITransport, @unchecked Sendable {
         } else {
             sourceID = nil
         }
-        
-        // Collect all packet data first to preserve order
+
+        // Use unsafeSequence for safe iteration (macOS 11+)
+        // This avoids manual pointer arithmetic which can cause Bus errors
         var allPacketData: [[UInt8]] = []
-        allPacketData.reserveCapacity(Int(numPackets))
-        
-        for _ in 0..<numPackets {
-            let length = Int(packet.length)
-            // Use withUnsafeBytes instead of Mirror for performance
-            let data: [UInt8] = withUnsafeBytes(of: packet.data) { ptr in
+        for packet in packetList.unsafeSequence() {
+            let length = Int(packet.pointee.length)
+            guard length > 0 else { continue }
+            let data: [UInt8] = withUnsafeBytes(of: packet.pointee.data) { ptr in
                 Array(ptr.prefix(length))
             }
             allPacketData.append(data)
-            packet = MIDIPacketNext(&packet).pointee
         }
-        
+
         // Process all packets in a single Task to guarantee order
         Task { [weak self, allPacketData, sourceID] in
             for data in allPacketData {

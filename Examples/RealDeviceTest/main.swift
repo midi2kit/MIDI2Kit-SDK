@@ -3,6 +3,8 @@
 
 import Foundation
 import MIDI2Kit
+import MIDI2Transport
+import CoreMIDI
 
 @main
 struct RealDeviceTest {
@@ -35,16 +37,63 @@ struct RealDeviceTest {
         print("- maxRetries: \(config.maxRetries)")
         print("")
 
+        // CoreMIDI エンドポイント一覧を表示
+        print("[CoreMIDI エンドポイント一覧]")
+        print("Sources (入力):")
+        let sourceCount = MIDIGetNumberOfSources()
+        if sourceCount == 0 {
+            print("  (なし)")
+        } else {
+            for i in 0..<sourceCount {
+                let endpoint = MIDIGetSource(i)
+                let name = getEndpointName(endpoint)
+                print("  [\(i)] \(name)")
+            }
+        }
+        print("Destinations (出力):")
+        let destCount = MIDIGetNumberOfDestinations()
+        if destCount == 0 {
+            print("  (なし)")
+        } else {
+            for i in 0..<destCount {
+                let endpoint = MIDIGetDestination(i)
+                let name = getEndpointName(endpoint)
+                print("  [\(i)] \(name)")
+            }
+        }
+        print("")
+
         do {
             print("[クライアント初期化中...]")
             let client = try MIDI2Client(name: "RealDeviceTest", configuration: config)
             print("OK: MIDI2Client 初期化完了\n")
 
+            // Raw MIDI 受信をモニタリング
+            print("[Raw MIDI モニタリング開始...]")
+            let monitorTask = Task {
+                let transport = try! CoreMIDITransport(clientName: "Monitor")
+                try! await transport.connectToAllSources()
+                for await received in transport.received {
+                    let hex = received.data.map { String(format: "%02X", $0) }.joined(separator: " ")
+                    print("  📥 [\(received.sourceID?.value ?? 0)] \(hex)")
+                }
+            }
+
             print("[デバイス検出開始...]")
             try await client.start()
 
+            // 手動で Discovery Inquiry を送信して確認
+            print("[Discovery Inquiry 送信中...]")
+
             print("[デバイス検出中...] (10秒待機)")
-            try await Task.sleep(for: .seconds(10))
+            for i in 1...10 {
+                try await Task.sleep(for: .seconds(1))
+                let count = await client.discoveredDevices.count
+                print("  \(i)秒経過... 検出デバイス数: \(count)")
+                if count > 0 { break }
+            }
+
+            monitorTask.cancel()
 
             let devices = await client.discoveredDevices
             print("検出デバイス数: \(devices.count)")
@@ -137,4 +186,13 @@ extension TimeInterval {
     func formatted() -> String {
         String(format: "%.2f", self)
     }
+}
+
+func getEndpointName(_ endpoint: MIDIEndpointRef) -> String {
+    var name: Unmanaged<CFString>?
+    let status = MIDIObjectGetStringProperty(endpoint, kMIDIPropertyDisplayName, &name)
+    if status == noErr, let cfName = name?.takeRetainedValue() {
+        return cfName as String
+    }
+    return "Unknown (\(endpoint))"
 }

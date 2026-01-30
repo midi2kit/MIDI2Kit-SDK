@@ -396,10 +396,10 @@ public actor CIManager {
         
         switch parsed.messageType {
         case .discoveryInquiry:
-            if configuration.respondToDiscovery {
-                Task { await handleDiscoveryInquiry(parsed) }
-            }
-            
+            // Always register the device from Discovery Inquiry (they may not respond to our inquiry)
+            // Only send reply if respondToDiscovery is true
+            Task { await handleDiscoveryInquiry(parsed, sourceID: received.sourceID, sendReply: configuration.respondToDiscovery) }
+
         case .discoveryReply:
             handleDiscoveryReply(parsed, sourceID: received.sourceID)
             
@@ -411,8 +411,31 @@ public actor CIManager {
         }
     }
     
-    private func handleDiscoveryInquiry(_ parsed: CIMessageParser.ParsedMessage) async {
-        // Build reply
+    private func handleDiscoveryInquiry(_ parsed: CIMessageParser.ParsedMessage, sourceID: MIDISourceID?, sendReply: Bool) async {
+        // Register the inquiring device (they may not respond to our inquiry)
+        // Discovery Inquiry uses the same payload format as Discovery Reply
+        if let payload = CIMessageParser.parseDiscoveryReply(parsed.payload) {
+            let device = DiscoveredDevice(
+                muid: parsed.sourceMUID,
+                identity: payload.identity,
+                categorySupport: payload.categorySupport,
+                maxSysExSize: payload.maxSysExSize,
+                initiatorOutputPath: payload.initiatorOutputPath,
+                functionBlock: payload.functionBlock
+            )
+
+            let destination = await self.findDestination(for: sourceID)
+            await self.registerDevice(
+                device,
+                sourceMUID: parsed.sourceMUID,
+                sourceID: sourceID,
+                destination: destination
+            )
+        }
+
+        // Send reply if configured
+        guard sendReply else { return }
+
         let reply = CIMessageBuilder.discoveryReply(
             sourceMUID: muid,
             destinationMUID: parsed.sourceMUID,
@@ -422,8 +445,7 @@ public actor CIManager {
             initiatorOutputPath: 0,
             functionBlock: 0
         )
-        
-        // Send to all destinations
+
         let destinations = await transport.destinations
         for dest in destinations {
             try? await transport.send(reply, to: dest.destinationID)
