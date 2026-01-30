@@ -760,3 +760,53 @@ Phase 5 計画:
   - commit & push
   - Phase 5-1 Phase 6-7: Cleanup & Testing
 ---
+
+---
+2026-01-30 11:13
+作業項目: Phase 5-1 Phase 6 開始 - Cleanup & Integration
+現状:
+  - PEManager.swift: 1933行
+  - PESubscriptionHandler.swift: 394行
+
+Phase 6 計画:
+  1. PEManager でコールバックを実装
+     - scheduleTimeout → timeoutTasks に Task 追加
+     - cancelTimeout → timeoutTasks キャンセル
+     - scheduleSend → sendTasks に Task 追加
+     - cancelSend → sendTasks キャンセル
+  2. 動作確認
+  3. Phase 7 で PEManager の重複コード削除
+
+修正方針:
+  - まずコールバック実装
+  - 段階的に統合
+---
+
+---
+2026-01-30 11:18
+作業項目: Phase 5-1 Phase 6 完了 - Callback Integration
+実施内容:
+  1. init から subscriptionHandler 作成を削除
+     - startReceiving/resetForExternalDispatch で初期化するよう変更
+
+  2. initializeSubscriptionHandler() メソッド追加
+     - scheduleTimeout: Task 作成して timeoutTasks に保存
+     - cancelTimeout: timeoutTasks キャンセル
+     - scheduleSend: transport.send() を Task で実行
+     - cancelSend: sendTasks キャンセル
+
+  3. actor isolation 対応
+     - コールバックから直接プロパティアクセスせず
+     - 専用メソッド経由で actor context で実行
+
+  4. テスト確認
+     - swift test: 188テスト全てパス ✅
+
+決定事項:
+  - Phase 5-1 Phase 6 完了 ✅
+  - コールバックが正しく動作
+
+次のTODO:
+  - commit & push
+  - Phase 5-1 Phase 7: 重複コード削除（将来）
+---

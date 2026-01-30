@@ -383,18 +383,8 @@ public actor PEManager {
             logger: logger
         )
 
-        // Initialize subscription handler (Phase 5-1)
-        // Note: Callbacks are stubs for now; full delegation in later phases
-        self.subscriptionHandler = PESubscriptionHandler(
-            sourceMUID: sourceMUID,
-            transactionManager: transactionManager,
-            notifyAssemblyManager: notifyAssemblyManager,
-            logger: logger,
-            scheduleTimeout: { _, _, _ in },  // Stub: Phase 5 will implement
-            cancelTimeout: { _ in },           // Stub: Phase 5 will implement
-            scheduleSend: { _, _, _ in },      // Stub: Phase 3 will implement
-            cancelSend: { _ in }               // Stub: Phase 3 will implement
-        )
+        // subscriptionHandler is initialized in startReceiving() or resetForExternalDispatch()
+        // to allow proper callback binding after self is fully initialized (Phase 5-1)
     }
     
     deinit {
@@ -417,12 +407,88 @@ public actor PEManager {
     }
     
     // MARK: - Lifecycle
-    
+    /// Initialize subscription handler with proper callbacks (Phase 5-1)
+    ///
+    /// Called from startReceiving() or resetForExternalDispatch() after self is fully initialized.
+    private func initializeSubscriptionHandler() {
+        // Only initialize once
+        guard subscriptionHandler == nil else { return }
+
+        subscriptionHandler = PESubscriptionHandler(
+            sourceMUID: sourceMUID,
+            transactionManager: transactionManager,
+            notifyAssemblyManager: notifyAssemblyManager,
+            logger: logger,
+            scheduleTimeout: { [weak self] requestID, duration, action in
+                Task { [weak self] in
+                    await self?.scheduleSubscribeTimeout(requestID: requestID, duration: duration, action: action)
+                }
+            },
+            cancelTimeout: { [weak self] requestID in
+                Task { [weak self] in
+                    await self?.cancelSubscribeTimeout(requestID: requestID)
+                }
+            },
+            scheduleSend: { [weak self] requestID, message, destination in
+                Task { [weak self] in
+                    await self?.scheduleSubscribeSend(requestID: requestID, message: message, destination: destination)
+                }
+            },
+            cancelSend: { [weak self] requestID in
+                Task { [weak self] in
+                    await self?.cancelSubscribeSend(requestID: requestID)
+                }
+            }
+        )
+    }
+
+    /// Schedule a timeout for subscription handler (Phase 5-1)
+    private func scheduleSubscribeTimeout(requestID: UInt8, duration: Duration, action: @escaping @Sendable () async -> Void) {
+        let task = Task {
+            do {
+                try await Task.sleep(for: duration)
+                await action()
+            } catch {
+                // Cancelled - normal completion path
+            }
+        }
+        timeoutTasks[requestID] = task
+    }
+
+    /// Cancel a timeout for subscription handler (Phase 5-1)
+    private func cancelSubscribeTimeout(requestID: UInt8) {
+        timeoutTasks[requestID]?.cancel()
+        timeoutTasks.removeValue(forKey: requestID)
+    }
+
+    /// Schedule a send for subscription handler (Phase 5-1)
+    private func scheduleSubscribeSend(requestID: UInt8, message: [UInt8], destination: MIDIDestinationID) {
+        let transport = self.transport
+        let logger = self.logger
+        let task = Task {
+            do {
+                try await transport.send(message, to: destination)
+            } catch {
+                logger.error("Send failed [\(requestID)]: \(error)", category: Self.logCategory)
+            }
+        }
+        sendTasks[requestID] = task
+    }
+
+    /// Cancel a send for subscription handler (Phase 5-1)
+    private func cancelSubscribeSend(requestID: UInt8) {
+        sendTasks[requestID]?.cancel()
+        sendTasks.removeValue(forKey: requestID)
+    }
+
     /// Start receiving MIDI data
     @available(*, deprecated, message: "Use MIDI2Client.start() instead")
     public func startReceiving() async {
         guard receiveTask == nil else { return }
-        
+
+        // Initialize subscription handler with proper callbacks (Phase 5-1)
+        initializeSubscriptionHandler()
+
         // Reset transaction manager state (clear isStopped flag)
         await transactionManager.reset()
         await notifyAssemblyManager.cancelAll()
@@ -446,6 +512,9 @@ public actor PEManager {
     /// instead of having PEManager consume the transport stream directly.
     /// This resets internal state without starting the receive loop.
     public func resetForExternalDispatch() async {
+        // Initialize subscription handler with proper callbacks (Phase 5-1)
+        initializeSubscriptionHandler()
+
         // Reset transaction manager state (clear isStopped flag)
         await transactionManager.reset()
         await notifyAssemblyManager.cancelAll()
