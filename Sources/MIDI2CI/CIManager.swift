@@ -15,30 +15,41 @@ import MIDI2Transport
 public struct CIManagerConfiguration: Sendable {
     /// How often to send Discovery Inquiry (seconds)
     public var discoveryInterval: TimeInterval
-    
+
     /// How long before a device is considered lost (seconds)
     public var deviceTimeout: TimeInterval
-    
+
     /// Whether to automatically start discovery when start() is called
     public var autoStartDiscovery: Bool
-    
+
     /// Whether to respond to Discovery Inquiries (act as Responder)
     public var respondToDiscovery: Bool
-    
+
+    /// Whether to register devices from received Discovery Inquiry messages.
+    ///
+    /// When `false` (default), only devices that respond to our Discovery Inquiry
+    /// with a Discovery Reply are registered. This ensures that registered devices
+    /// are actually capable of responding to our requests.
+    ///
+    /// When `true`, devices are also registered when they send Discovery Inquiry
+    /// to us. This can detect more devices but they may not respond to PE requests.
+    public var registerFromInquiry: Bool
+
     /// Category support to advertise
     public var categorySupport: CategorySupport
-    
+
     /// Device identity to advertise
     public var deviceIdentity: DeviceIdentity
-    
+
     /// Maximum SysEx size (0 = no limit)
     public var maxSysExSize: UInt32
-    
+
     public init(
         discoveryInterval: TimeInterval = 5.0,
         deviceTimeout: TimeInterval = 15.0,
         autoStartDiscovery: Bool = true,
         respondToDiscovery: Bool = true,
+        registerFromInquiry: Bool = false,
         categorySupport: CategorySupport = .propertyExchange,
         deviceIdentity: DeviceIdentity = .default,
         maxSysExSize: UInt32 = 0
@@ -47,11 +58,12 @@ public struct CIManagerConfiguration: Sendable {
         self.deviceTimeout = deviceTimeout
         self.autoStartDiscovery = autoStartDiscovery
         self.respondToDiscovery = respondToDiscovery
+        self.registerFromInquiry = registerFromInquiry
         self.categorySupport = categorySupport
         self.deviceIdentity = deviceIdentity
         self.maxSysExSize = maxSysExSize
     }
-    
+
     /// Default configuration
     public static let `default` = CIManagerConfiguration()
 }
@@ -412,9 +424,11 @@ public actor CIManager {
     }
     
     private func handleDiscoveryInquiry(_ parsed: CIMessageParser.ParsedMessage, sourceID: MIDISourceID?, sendReply: Bool) async {
-        // Register the inquiring device (they may not respond to our inquiry)
-        // Discovery Inquiry uses the same payload format as Discovery Reply
-        if let payload = CIMessageParser.parseDiscoveryReply(parsed.payload) {
+        // Only register the inquiring device if registerFromInquiry is enabled
+        // By default, we only register devices that respond to our Discovery Inquiry
+        // because devices that only send Inquiry may not respond to PE requests
+        if configuration.registerFromInquiry,
+           let payload = CIMessageParser.parseDiscoveryReply(parsed.payload) {
             let device = DiscoveredDevice(
                 muid: parsed.sourceMUID,
                 identity: payload.identity,

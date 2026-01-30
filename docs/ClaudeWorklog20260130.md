@@ -1198,3 +1198,454 @@ Phase 7 計画:
   - 本日の作業完了
   - 残タスク: 実機テスト（KORG Module Pro等でP0/P1修正の効果確認）
 ---
+
+---
+2026-01-30 12:43
+作業項目: セッション開始 - テスト応答
+追加機能の説明:
+  - なし
+決定事項:
+  - ユーザーからのテストメッセージに応答
+次のTODO:
+  - ユーザーの次の指示を待つ
+---
+
+---
+2026-01-30 12:44
+作業項目: 次のタスク確認
+追加機能の説明:
+  - なし
+決定事項:
+  - 本日完了済みタスクと残タスクを整理
+次のTODO:
+  - ユーザーに次のタスク候補を提示
+---
+
+---
+2026-01-30 12:45
+作業項目: 実機テスト準備
+追加機能の説明:
+  - P0/P1修正の効果確認テスト
+確認項目:
+  1. peSendStrategy配線 - broadcastからsingle/fallbackへの切り替え効果
+  2. multiChunkTimeoutMultiplier - ResourceList等のマルチチャンク取得成功率
+  3. print→logger統一 - コンソールノイズ削減
+決定事項:
+  - ユーザーにテスト方法を確認
+次のTODO:
+  - テスト手順の提示
+---
+
+---
+2026-01-30 12:46
+作業項目: 簡易テストコード作成 完了
+追加機能の説明:
+  - Examples/RealDeviceTest CLIツール作成
+  - KORG Module Pro向け実機テスト
+対象ファイル:
+  - Examples/RealDeviceTest/main.swift（新規）
+  - Package.swift（executableTarget追加）
+実施内容:
+  1. Examples/RealDeviceTest/main.swift 作成
+     - デバイス検出（10秒待機）
+     - DeviceInfo取得テスト（単一チャンク）
+     - ResourceList取得テスト（マルチチャンク）
+     - CMList直接取得テスト
+     - 診断情報表示
+  2. Package.swift にexecutableTarget追加
+  3. ビルド確認: swift build --product RealDeviceTest 成功
+決定事項:
+  - swift run RealDeviceTest で実行可能
+次のTODO:
+  - ユーザーが実機でテスト実行
+---
+
+---
+2026-01-30 12:51
+作業項目: 実機テスト待機
+追加機能の説明:
+  - なし
+決定事項:
+  - ユーザーがテスト実行中
+次のTODO:
+  - テスト結果を確認
+---
+
+---
+2026-01-30 12:54
+作業項目: 実機テスト実行
+結果:
+  - ビルド成功
+  - 設定確認OK（peSendStrategy: fallback, multiChunkTimeoutMultiplier: 2.0）
+  - デバイス検出: 0台
+  - 原因: KORG Module Pro が接続されていない/ペアリングされていない
+決定事項:
+  - デバイス接続後に再テスト
+次のTODO:
+  - KORG Module Pro を接続してから再実行
+---
+
+---
+2026-01-30 12:55
+作業項目: USB MIDI デバイスでテスト検討
+追加機能の説明:
+  - なし
+決定事項:
+  - ユーザーがUSB MIDIデバイスでテストしたい
+次のTODO:
+  - MIDI-CI対応のUSBデバイスがあるか確認
+---
+
+---
+2026-01-30 12:57
+作業項目: iPhone + KORG Module Pro テスト
+結果:
+  - iPhone USB接続でテスト再実行
+  - デバイス検出: 0台
+確認事項:
+  - KORG Module Pro アプリが起動しているか
+  - iPhoneとMacの信頼設定が完了しているか
+  - アプリ内でMIDI-CIが有効か
+次のTODO:
+  - ユーザーがアプリ設定を確認
+---
+
+---
+2026-01-30 13:00
+作業項目: 再テスト
+結果:
+  - デバイス検出: 0台（変わらず）
+次のTODO:
+  - Audio MIDI Setup で確認
+---
+
+---
+2026-01-30 13:03
+作業項目: iPhone MIDI 接続トラブルシューティング
+問題:
+  - Audio MIDI Setup で iPhone が見えない
+対処法:
+  1. iPhoneで「このコンピュータを信頼」を許可
+  2. KORG Module Pro アプリを起動
+  3. Audio MIDI Setup で「ウインドウ」→「MIDIスタジオを表示」
+  4. iPhoneが表示されるか確認
+---
+
+---
+2026-01-30 15:12
+作業項目: TODO確認
+追加機能の説明:
+  - なし
+決定事項:
+  - 現在のTODO状況をユーザーに報告
+次のTODO:
+  - 下記参照
+---
+
+---
+2026-01-30 15:13
+作業項目: swift test 実行
+追加機能の説明:
+  - なし
+決定事項:
+  - ユニットテスト実行
+次のTODO:
+  - テスト結果確認
+---
+
+---
+2026-01-30 15:16
+作業項目: 次のタスク確認
+追加機能の説明:
+  - なし
+決定事項:
+  - 未コミット変更の確認
+次のTODO:
+  - 下記参照
+---
+
+---
+2026-01-30 15:17
+作業項目: Examples コミット & 実機テスト
+追加機能の説明:
+  - RealDeviceTest CLIツールをリポジトリに追加
+決定事項:
+  - Examples/ をコミット
+  - 実機テスト再トライ
+次のTODO:
+  - コミット実行
+  - swift run RealDeviceTest 実行
+---
+
+---
+2026-01-30 15:19
+作業項目: CoreMIDITransport Bus error 調査
+追加機能の説明:
+  - なし
+決定事項:
+  - 実機テストでクラッシュ発生
+  - CoreMIDITransport.swift:168 handlePacketList でBus error
+  - 原因調査が必要
+次のTODO:
+  - CoreMIDITransport のコールバック実装を確認
+  - メモリ安全性の問題を修正
+---
+
+---
+2026-01-30 15:22
+作業項目: MIDI-CI デバイス検出問題
+追加機能の説明:
+  - MIDIPacketNext の修正完了（Bus error 解消）
+現状:
+  - CoreMIDI: iOS デバイスは見えている（MIDIスタジオで確認）
+  - MIDI-CI: Discovery Reply が返ってこない（検出デバイス数: 0）
+原因候補:
+  - KORG Module Pro アプリが起動していない
+  - MIDI-CI が有効になっていない
+決定事項:
+  - CoreMIDI エンドポイント一覧を表示する機能を追加
+次のTODO:
+  - RealDeviceTest に CoreMIDI エンドポイント表示を追加
+---
+
+---
+2026-01-30 15:24
+作業項目: MIDI-CI デバイス検出問題 - 継続
+追加機能の説明:
+  - RealDeviceTest にCoreMIDIエンドポイント表示を追加
+結果:
+  - CoreMIDI: iOS Bluetooth, iPhone が見えている ✅
+  - MIDI-CI: 検出デバイス数 0 ❌
+原因:
+  - KORG Module Pro アプリが iPhone で起動していない可能性
+決定事項:
+  - ユーザーに確認を求める
+次のTODO:
+  - iPhone で KORG Module Pro を起動して再テスト
+---
+
+---
+2026-01-30 15:25
+作業項目: MIDI-CI Discovery 調査
+追加機能の説明:
+  - なし
+現状:
+  - KORG Module Pro は起動している
+  - しかし MIDI-CI Discovery で検出されない
+調査項目:
+  - Discovery Inquiry が正しく送信されているか
+  - KORG Module Pro が MIDI-CI Discovery に対応しているか
+次のTODO:
+  - CIManager/MIDI2Client のログを確認
+---
+
+---
+2026-01-30 15:28
+作業項目: KORG Module Pro MIDI-CI 調査
+追加機能の説明:
+  - なし
+結果:
+  - 10秒間 Discovery 応答なし
+  - KORG Module Pro が MIDI-CI Discovery に応答しない可能性
+決定事項:
+  - 受信メッセージをダンプして調査
+次のTODO:
+  - Raw MIDI 受信ログを追加
+---
+
+---
+2026-01-30 15:31
+作業項目: MIDI-CI メッセージ解析
+追加機能の説明:
+  - Raw MIDI モニタリング機能追加
+結果:
+  - Discovery Inquiry (0x70) を大量に受信 ✅
+  - Invalidate MUID (0x7E) を受信 ✅
+  - Discovery Reply (0x71) は受信なし ❌
+分析:
+  - KORG Module Pro は Discovery Inquiry を送信している
+  - しかし、こちらの Inquiry に Reply を返さない
+  - MIDI2Kit は Reply を待っているのでデバイス未検出
+解決策:
+  - Discovery Inquiry を受信した時にもデバイスを追加する
+  - または、受信した Inquiry から MUID を取得して直接使用
+次のTODO:
+  - CIManager を修正して Inquiry 受信時にもデバイス登録
+---
+
+---
+2026-01-30 15:34
+作業項目: デバイス検出成功 & Bus error 再発
+追加機能の説明:
+  - CIManager: Discovery Inquiry 受信時にデバイス登録
+結果:
+  - 5台のデバイス検出成功 ✅
+  - しかし PE リクエスト時に Bus error 再発 ❌
+原因:
+  - handlePacketList の MIDIPacketList 処理がまだ不安定
+  - withUnsafePointer(to:) でコピーが作成される問題
+解決策:
+  - MIDIPacketList.unsafeSequence() を使用（macOS 11+）
+次のTODO:
+  - handlePacketList を unsafeSequence で書き直し
+---
+
+---
+2026-01-30 15:47
+作業項目: 実機テスト成功（Bus error 解消）
+追加機能の説明:
+  - handlePacketList を unsafeSequence() で書き直し
+結果:
+  - Bus error 解消 ✅
+  - 7台のデバイス検出成功 ✅
+  - クラッシュなしで最後まで実行完了 ✅
+  - PE リクエストはタイムアウト（検出デバイスが PE 非対応の可能性）
+修正ファイル:
+  - CoreMIDITransport.swift: handlePacketList を unsafeSequence() で安全化
+  - CIManager.swift: Discovery Inquiry 受信時にもデバイス登録
+決定事項:
+  - コアの Bus error 問題は解消
+  - PE タイムアウトは KORG Module Pro 特有の問題（別途調査）
+次のTODO:
+  - 修正をコミット
+  - swift test で回帰確認
+---
+
+---
+2026-01-30 15:53
+作業項目: 次のタスク確認
+追加機能の説明:
+  - なし
+決定事項:
+  - 本日の作業を整理
+次のTODO:
+  - 下記参照
+---
+
+---
+2026-01-30 15:54
+作業項目: PE タイムアウト調査開始
+追加機能の説明:
+  - なし
+問題:
+  - 7台のデバイス検出成功
+  - しかし PE リクエストはすべてタイムアウト
+原因候補:
+  1. 検出デバイスが PE 非対応
+  2. destination 解決の問題
+  3. PE リクエスト送信の問題
+調査方針:
+  - PE リクエストが実際に送信されているか確認
+  - destination 解決のログを確認
+次のTODO:
+  - 調査開始
+---
+
+---
+2026-01-30 15:55
+作業項目: PE タイムアウト調査 - resetForExternalDispatch 確認
+追加機能の説明:
+  - なし
+問題:
+  - 診断情報に "Receiving: false" と表示されている
+  - PE リクエストがタイムアウト
+調査対象:
+  - PEManager.resetForExternalDispatch() の実装
+  - MIDI2Client の receive dispatcher
+  - handleReceivedExternal の呼び出し確認
+次のTODO:
+  - コード調査
+---
+
+---
+2026-01-30 15:56
+作業項目: PE タイムアウト調査 - 原因特定
+追加機能の説明:
+  - RealDeviceTest に PE サポートチェック追加
+調査結果:
+  1. "Receiving: false" は receiveTask が nil かどうかを示す
+     - 外部ディスパッチモードでは receiveTask は設定されない（期待動作）
+     - 診断メッセージが誤解を招く
+  2. 実装は正しい:
+     - handleReceivedExternal → handleReceived → PE Reply 処理
+     - MIDI2Client の receive dispatcher は正しく PE と CI に転送
+  3. 根本原因候補:
+     - 検出されたデバイスが PE 非対応の可能性
+     - Discovery Inquiry から登録されたデバイスは PE 対応とは限らない
+修正内容:
+  - RealDeviceTest に supportsPropertyExchange チェック追加
+  - PE 非対応デバイスをスキップするように変更
+決定事項:
+  - ビルド成功
+次のTODO:
+  - 実機で再テストしてデバイスの PE 対応状況を確認
+---
+
+---
+2026-01-30 16:22
+作業項目: 実機テスト実行結果
+追加機能の説明:
+  - なし
+テスト結果:
+  - 7-8台のデバイス検出 ✅
+  - 全デバイスが Supports PE: true と表示
+  - しかし全てのPEリクエストがタイムアウト ❌
+受信メッセージ分析:
+  - Discovery Inquiry (0x70): 大量に受信 ✅
+  - Invalidate MUID (0x7E): 複数受信 ✅
+  - PE GET Reply (0x35): 受信なし ❌
+検出デバイスの Manufacturer:
+  - 0x000000: 6台（不明/無効 - macOS内蔵MIDI-CIクライアントの可能性）
+  - 0x11: 1台（KORG?）
+根本原因分析:
+  1. 検出されたデバイスは macOS の内蔵 MIDI-CI クライアント（Discovery Inquiry を送信するが PE は実装していない）
+  2. Discovery Inquiry の categorySupport は PE 対応と宣言しているが、実際には PE GET に応答しない
+  3. KORG Module Pro からの正規の Discovery Reply を受信していない
+問題の本質:
+  - Discovery Inquiry から検出したデバイスは「PE 対応を宣言しているだけ」で実際に応答するとは限らない
+  - 真に PE 対応のデバイスは Discovery Reply を返すべき
+次のTODO:
+  - Discovery Reply を返すデバイスのみをPE対象にするオプションを検討
+  - または Manufacturer ID フィルタで信頼できるデバイスを選別
+---
+
+---
+2026-01-30 16:24
+作業項目: Discovery Reply のみを対象にする修正
+追加機能の説明:
+  - CIManagerConfiguration に registerFromInquiry フラグ追加
+  - false の場合は Discovery Inquiry からデバイス登録しない
+  - デフォルトは false（Discovery Reply のみ対象）
+修正ファイル:
+  - Sources/MIDI2CI/CIManagerConfiguration.swift
+  - Sources/MIDI2CI/CIManager.swift
+次のTODO:
+  - 実装開始
+---
+
+---
+2026-01-30 16:27
+作業項目: registerFromInquiry フラグ実装完了確認 & 実機テスト
+追加機能の説明:
+  - CIManagerConfiguration に registerFromInquiry プロパティ追加（デフォルト: false）
+  - handleDiscoveryInquiry でフラグをチェックし、false の場合はデバイス登録をスキップ
+  - Discovery Reply (0x71) を返すデバイスのみが登録されるようになった
+実施内容:
+  - 実装完了確認、ビルド成功、196テスト全パス
+  - swift run RealDeviceTest 実行
+テスト結果:
+  - 修正前: Discovery Inquiry (0x70) から7-8台検出 → 全てPEタイムアウト ❌
+  - 修正後: registerFromInquiry=false により検出デバイス0台 ✅
+    - Discovery Inquiry を大量受信（macOS内蔵MIDI-CIクライアント）
+    - Discovery Reply (0x71) は受信なし
+    - → 正しく PE 非応答デバイスをフィルタリング
+効果:
+  - PE 非対応デバイスへの無駄なリクエスト送信を防止
+  - タイムアウト待ちの時間を削減
+決定事項:
+  - registerFromInquiry 実装完了 ✅
+  - 修正は正しく機能している
+次のTODO:
+  - 変更をコミット
+  - CLAUDE.md 更新（registerFromInquiry の説明追加）
+---

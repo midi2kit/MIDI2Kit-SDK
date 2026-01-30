@@ -113,6 +113,15 @@ struct RealDeviceTest {
                 let identity = await device.identity
                 print("  Manufacturer: \(identity.manufacturerID.name ?? identity.manufacturerID.description)")
 
+                // CategorySupport 確認 (supportsPropertyExchange is nonisolated)
+                let supportsPE = device.supportsPropertyExchange
+                print("  Supports PE: \(supportsPE)")
+
+                if !supportsPE {
+                    print("  ⚠️ このデバイスは Property Exchange 非対応です。スキップします。")
+                    continue
+                }
+
                 // テスト1: DeviceInfo 取得（単一チャンク）
                 print("\n[テスト1] DeviceInfo 取得（単一チャンク）")
                 do {
