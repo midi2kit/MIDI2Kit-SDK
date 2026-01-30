@@ -182,7 +182,20 @@ internal actor PESubscriptionHandler {
     /// Cancel all pending Subscribe requests and clean up state
     /// Called during PEManager.stopReceiving()
     func cancelAll() async {
-        // TODO: Phase 2 - Implement cleanup
+        // Resume all pending Subscribe continuations with cancellation
+        for continuation in pendingSubscribeContinuations.values {
+            continuation.resume(throwing: PEError.cancelled)
+        }
+        pendingSubscribeContinuations.removeAll()
+
+        // Clear active subscriptions
+        activeSubscriptions.removeAll()
+
+        // Finish notification stream
+        notificationContinuation?.finish()
+        notificationContinuation = nil
+
+        logger.debug("Subscription handler cancelled all pending requests", category: "PESubscriptionHandler")
     }
 
     /// Start a notification stream

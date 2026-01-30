@@ -501,3 +501,97 @@ Phase 1 開始: P1-4 RobustJSONDecoder 安全化
 次のTODO:
   - push
 ---
+
+---
+2026-01-30 10:53
+作業項目: P2 push 完了
+実施内容:
+  - git push 成功
+  - e114746..4c106b5 main -> main
+
+追加機能の説明:
+  - なし
+
+決定事項:
+  - P0, P1, P2 全完了 & push済み ✅
+
+次のTODO:
+  - Phase 5-1 復帰 or 実機テスト
+---
+
+---
+2026-01-30 10:53
+作業項目: 次のタスク確認
+実施内容:
+  - TODO.md確認
+  - Phase 5-1の進捗確認
+
+追加機能の説明:
+  - なし
+
+決定事項:
+  - Phase 5-1 Phase 1 完了済み（PESubscriptionHandler skeleton）
+  - Phase 5-1 Phase 2 が次のステップ
+
+次のTODO候補:
+  1. Phase 5-1 Phase 2: Subscribe State Management（PEManagerとの統合）
+  2. Phase 5-2: エラーハンドリング高度化（小規模・効果大）
+  3. 実機テスト（P0/P1効果確認）
+---
+
+---
+2026-01-30 10:54
+作業項目: Phase 5-1 Phase 2 開始 - Subscribe State Management
+対象ファイル:
+  - Sources/MIDI2PE/PEManager.swift
+  - Sources/MIDI2PE/PESubscriptionHandler.swift
+
+現状確認:
+  - PESubscriptionHandler skeleton 作成済み（Phase 1）
+  - PEManager に pendingSubscribeContinuations, activeSubscriptions がある
+  - 使用箇所: 20箇所以上
+
+Phase 2 の作業:
+  1. PEManager に PESubscriptionHandler インスタンス追加
+  2. State Management メソッドを通じて委譲
+  3. 段階的に移行（一度に全部変えるとリスク大）
+
+修正方針:
+  - まず PESubscriptionHandler インスタンスを作成
+  - 次に cancelAll() を実装（stopReceiving から呼ばれる）
+  - テストで動作確認
+---
+
+---
+2026-01-30 10:59
+作業項目: Phase 5-1 Phase 2 完了 - Subscribe State Management
+実施内容:
+  1. PESubscriptionHandler.cancelAll() 実装
+     - pendingSubscribeContinuations のキャンセル
+     - activeSubscriptions のクリア
+     - notificationContinuation の終了
+     - Sources/MIDI2PE/PESubscriptionHandler.swift:184
+
+  2. PEManager に subscriptionHandler プロパティ追加
+     - Optional で宣言（段階的移行のため）
+     - Sources/MIDI2PE/PEManager.swift:351
+
+  3. PEManager.init() で subscriptionHandler 作成
+     - コールバックはスタブ（後のフェーズで実装）
+     - Sources/MIDI2PE/PEManager.swift:385-395
+
+  4. PEManager.stopReceiving() で subscriptionHandler.cancelAll() 呼び出し
+     - 既存のクリーンアップと並行実行（段階的移行）
+     - Sources/MIDI2PE/PEManager.swift:487
+
+  5. テスト確認
+     - swift test: 188テスト全てパス ✅
+
+決定事項:
+  - Phase 5-1 Phase 2 完了 ✅
+  - 段階的移行: 既存コードを残しつつ新実装を追加
+
+次のTODO:
+  - commit & push
+  - Phase 5-1 Phase 3: Subscribe/Unsubscribe Public API
+---

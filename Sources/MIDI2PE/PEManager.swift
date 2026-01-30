@@ -336,15 +336,22 @@ public actor PEManager {
     private var pendingRequestMetadata: [UInt8: (muid: MUID, destination: MIDIDestinationID)] = [:]
     
     // MARK: - Subscribe State
-    
+
     /// Continuations waiting for Subscribe/Unsubscribe responses
+    /// Note: Being migrated to subscriptionHandler (Phase 5-1)
     private var pendingSubscribeContinuations: [UInt8: CheckedContinuation<PESubscribeResponse, Error>] = [:]
-    
+
     /// Active subscriptions by subscribeId
+    /// Note: Being migrated to subscriptionHandler (Phase 5-1)
     private var activeSubscriptions: [String: PESubscription] = [:]
-    
+
     /// Notification stream continuation (single listener)
+    /// Note: Being migrated to subscriptionHandler (Phase 5-1)
     private var notificationContinuation: AsyncStream<PENotification>.Continuation?
+
+    /// Subscription handler for managing Subscribe/Unsubscribe/Notify operations
+    /// Introduced in Phase 5-1 for better modularity
+    private var subscriptionHandler: PESubscriptionHandler?
     
     // MARK: - Initialization
     
@@ -374,6 +381,18 @@ public actor PEManager {
         self.transactionManager = PETransactionManager(
             maxInflightPerDevice: maxInflightPerDevice,
             logger: logger
+        )
+
+        // Initialize subscription handler (Phase 5-1)
+        // Note: Callbacks are stubs for now; full delegation in later phases
+        self.subscriptionHandler = PESubscriptionHandler(
+            transactionManager: transactionManager,
+            notifyAssemblyManager: notifyAssemblyManager,
+            logger: logger,
+            scheduleTimeout: { _, _, _ in },  // Stub: Phase 5 will implement
+            cancelTimeout: { _ in },           // Stub: Phase 5 will implement
+            scheduleSend: { _, _, _ in },      // Stub: Phase 3 will implement
+            cancelSend: { _ in }               // Stub: Phase 3 will implement
         )
     }
     
@@ -462,15 +481,19 @@ public actor PEManager {
         // Clear pending request metadata
         pendingRequestMetadata.removeAll()
         
+        // Cancel all subscription-related state (Phase 5-1)
+        await subscriptionHandler?.cancelAll()
+
+        // Legacy cleanup (will be removed after Phase 5-1 migration complete)
         // Resume all pending Subscribe continuations with cancellation
         for continuation in pendingSubscribeContinuations.values {
             continuation.resume(throwing: PEError.cancelled)
         }
         pendingSubscribeContinuations.removeAll()
-        
+
         // Clear subscriptions
         activeSubscriptions.removeAll()
-        
+
         // Finish notification stream
         notificationContinuation?.finish()
         notificationContinuation = nil
