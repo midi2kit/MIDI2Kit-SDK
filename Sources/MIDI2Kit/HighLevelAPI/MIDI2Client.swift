@@ -468,7 +468,11 @@ public actor MIDI2Client {
         )
 
         do {
-            let result = try await peManager.getResourceList(from: handle)
+            let result = try await peManager.getResourceList(
+                from: handle,
+                timeout: timeout,
+                maxRetries: configuration.maxRetries
+            )
             recordTrace(
                 operation: .getResourceList,
                 muid: muid,
@@ -485,7 +489,11 @@ public actor MIDI2Client {
                     MIDI2Logger.pe.midi2Info("ResourceList timeout, trying fallback destination: \(nextDest)")
                     let retryHandle = PEDeviceHandle(muid: muid, destination: nextDest)
                     do {
-                        let result = try await peManager.getResourceList(from: retryHandle)
+                        let result = try await peManager.getResourceList(
+                            from: retryHandle,
+                            timeout: timeout,
+                            maxRetries: configuration.maxRetries
+                        )
                         // Cache successful destination
                         await destinationResolver.cacheDestination(nextDest, for: muid)
                         MIDI2Logger.pe.midi2Info("ResourceList succeeded with fallback destination")

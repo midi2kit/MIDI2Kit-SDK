@@ -735,9 +735,13 @@ public actor PEManager {
     }
     
     /// Get ResourceList (MUID-only)
-    public func getResourceList(from muid: MUID) async throws -> [PEResourceEntry] {
+    public func getResourceList(
+        from muid: MUID,
+        timeout: Duration = defaultTimeout,
+        maxRetries: Int = 5
+    ) async throws -> [PEResourceEntry] {
         let device = try await resolveDevice(muid)
-        return try await getResourceList(from: device)
+        return try await getResourceList(from: device, timeout: timeout, maxRetries: maxRetries)
     }
     
     /// Subscribe to notifications (MUID-only)
@@ -1000,13 +1004,14 @@ public actor PEManager {
     /// BLE MIDI is unreliable and packet loss is common - retrying is more effective than waiting.
     public func getResourceList(
         from device: PEDeviceHandle,
+        timeout: Duration = defaultTimeout,
         maxRetries: Int = 5
     ) async throws -> [PEResourceEntry] {
         var lastError: Error?
-        
+
         for attempt in 1...maxRetries {
             do {
-                let response = try await get("ResourceList", from: device)
+                let response = try await get("ResourceList", from: device, timeout: timeout)
                 
                 guard response.isSuccess else {
                     throw PEError.deviceError(status: response.status, message: response.header?.message)
@@ -1050,10 +1055,12 @@ public actor PEManager {
     @available(*, deprecated, message: "Use getResourceList(from:) with PEDeviceHandle instead")
     public func getResourceList(
         from device: MUID,
-        via destination: MIDIDestinationID
+        via destination: MIDIDestinationID,
+        timeout: Duration = defaultTimeout,
+        maxRetries: Int = 5
     ) async throws -> [PEResourceEntry] {
         let handle = PEDeviceHandle(muid: device, destination: destination)
-        return try await getResourceList(from: handle)
+        return try await getResourceList(from: handle, timeout: timeout, maxRetries: maxRetries)
     }
     
     // MARK: - Typed API (JSON Codable)

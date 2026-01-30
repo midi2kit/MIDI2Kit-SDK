@@ -99,3 +99,55 @@ PE timeout 切り分けチェックポイント:
   - P0-3: print → logger統一
   - commit & push
 ---
+
+---
+2026-01-30 10:04
+作業項目: Phase 0-2 開始 - multiChunkTimeoutMultiplier適用
+対象ファイル:
+  - Sources/MIDI2Kit/HighLevelAPI/MIDI2Client.swift
+  - Sources/MIDI2PE/PEManager.swift
+
+問題内容:
+  - MIDI2Client.getResourceList() で timeout を計算しているが peManager に渡していない
+  - PEManager 側のデフォルトtimeoutのままになる
+  - 表面上のエラー変換やログには反映されても、実際の待ち時間が伸びていない
+  - 結果: マルチチャンクリクエストがタイムアウトしやすい
+
+修正方針:
+  1. MIDI2Client 各メソッドでの timeout 計算箇所を確認
+  2. PEManager のメソッドが timeout パラメータを受け取れるか確認
+  3. 計算した timeout を実際の PEManager 呼び出しに渡す
+---
+
+---
+2026-01-30 10:06
+作業項目: Phase 0-2 完了 - multiChunkTimeoutMultiplier適用
+実施内容:
+  1. PEManager.getResourceList() に timeout パラメータ追加
+     - getResourceList(from muid:, timeout:, maxRetries:)
+     - getResourceList(from device:, timeout:, maxRetries:)
+     - 内部の get() 呼び出しに timeout を渡すよう修正
+     - Sources/MIDI2PE/PEManager.swift:738,1001,1051
+
+  2. MIDI2Client.getResourceList() から計算済み timeout を渡すよう修正
+     - timeout = peTimeout * multiChunkTimeoutMultiplier
+     - 初回リクエストとフォールバック両方に適用
+     - maxRetries も configuration から渡すよう統一
+     - Sources/MIDI2Kit/HighLevelAPI/MIDI2Client.swift:473,495
+
+  3. ビルド・テスト確認
+     - swift build: 成功
+     - swift test: 188テスト、6失敗（既存の問題）
+
+効果:
+  - multiChunkTimeoutMultiplier が実際の PEリクエストに反映されるようになった
+  - ResourceList等のマルチチャンクリクエストに十分な待ち時間が確保される
+  - タイムアウト設定と実際の挙動が一致し、デバッグが容易に
+
+決定事項:
+  - P0-2 完了 ✅
+
+次のTODO:
+  - P0-3: print → logger統一
+  - commit & push
+---
