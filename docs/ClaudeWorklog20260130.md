@@ -329,3 +329,175 @@ Phase 1 開始: P1-4 RobustJSONDecoder 安全化
   - Phase 0 & Phase 1 完了サマリ
   - 次のステップ検討（P2タスク or Phase 5-1復帰）
 ---
+
+---
+2026-01-30 10:20
+作業項目: /init コマンド実行 - CLAUDE.md作成
+実施内容:
+  1. 既存 CLAUDE.md の内容確認（ワークログルールのみ）
+  2. README.md, Package.swift, CI設定を読み込み
+  3. Explore エージェントでアーキテクチャを調査
+  4. 新しい CLAUDE.md を作成（アーキテクチャ情報を含む）
+
+追加機能の説明:
+  - コードベースの概要とモジュール構成
+  - ビルド・テスト・開発コマンド
+  - アーキテクチャの重要なパターンと設計決定
+  - KORG Module Pro等のデバイス特有の注意事項
+  - デバッグ・ロギングの方法
+
+決定事項:
+  - 新しい CLAUDE.md は既存のワークログルールを維持
+  - アーキテクチャ情報を追加してより包括的なガイドに
+
+次のTODO:
+  - CLAUDE.md の内容確認
+  - 必要に応じて調整
+---
+
+---
+2026-01-30 10:26
+作業項目: ユーザーリクエスト確認 - Opus 4.5使用について
+実施内容:
+  - ユーザーから「OPUS 4.5使って」とのリクエスト受信
+
+追加機能の説明:
+  - なし（確認中）
+
+決定事項:
+  - ユーザーの意図を確認する必要あり
+  - CLAUDE.mdのレビュー・改善をOpus 4.5で実施する可能性
+  - または別のタスクをOpus 4.5で実施する可能性
+
+次のTODO:
+  - ユーザーに何をOpus 4.5で実施すべきか確認
+---
+
+---
+2026-01-30 10:36
+作業項目: セッション終了
+実施内容:
+  - ユーザーから「終了」指示
+  - 本日の作業を終了
+
+追加機能の説明:
+  - なし
+
+決定事項:
+  - 本日のセッション終了
+
+次のTODO:
+  - 次回: P2タスク（CI設定）または Phase 5-1 復帰を検討
+  - CLAUDE.md の内容確認・必要に応じて調整
+---
+
+---
+2026-01-30 10:38
+作業項目: セッション再開
+実施内容:
+  - 前回のワークログ確認
+  - P0, P1タスク完了済み確認
+  - CLAUDE.md更新完了確認
+
+追加機能の説明:
+  - なし
+
+決定事項:
+  - セッション再開
+
+次のTODO:
+  - P2タスク（CI設定改善）または Phase 5-1 復帰を検討
+  - ユーザーに次のタスクを確認
+---
+
+---
+2026-01-30 10:39
+作業項目: P2 開始 - CI設定改善
+対象ファイル:
+  - .github/workflows/ci.yml
+
+問題内容:
+  - 29行目: `swift test -v || echo "Tests completed..."`
+  - `|| echo` により、テスト失敗でも exit code 0 でCIがグリーンになる
+  - PRがマージ可能に見えて問題が見逃される
+
+現状確認:
+  - 188テスト中6テスト失敗（既存の問題）
+  - CI修正すると即座にCIが赤くなる可能性
+
+修正方針:
+  1. まず既存の失敗テストを確認
+  2. 失敗テストを修正 or スキップ
+  3. `|| echo` を削除してCIを正しく動作させる
+---
+
+---
+2026-01-30 10:42
+作業項目: P2 - テスト失敗の原因特定
+調査結果:
+  - 6テスト失敗中、5つは PEManagerTests で `sent.count → 0`
+  - 原因: sendStrategy=.broadcast だが mockDestinations が空
+  - broadcast() は mockDestinations をループするので、空だと何も送信されない
+  - 1つは MUIDTests の "MUID from byte array with offset"（別問題）
+
+修正方針:
+  1. PEManagerTests: mockDestinations を設定して broadcast が動作するようにする
+  2. MUIDTests: "MUID from byte array with offset" の原因を調査して修正
+  3. CI設定: `|| echo` を削除
+
+次のTODO:
+  - PEManagerTests を修正
+  - MUIDTests を修正
+  - CI設定を修正
+---
+
+---
+2026-01-30 10:47
+作業項目: P2 完了 - CI設定改善 & テスト修正
+実施内容:
+  1. MUIDTests 修正
+     - "MUID from byte array with offset" テスト
+     - Int vs UInt32 の型不一致を修正
+     - Tests/MIDI2KitTests/MUIDTests.swift:86
+
+  2. PEManagerTests 修正（5テスト）
+     - sendStrategy: .single を追加
+     - broadcast が mockDestinations を必要とする問題を回避
+     - "GET with DeviceHandle sends correct message"
+     - "SET sends correct message format"
+     - "Paginated GET sends offset and limit"
+     - "send(request:) works correctly"
+     - "Request IDs can be reused after stopReceiving"
+
+  3. CI設定修正
+     - `|| echo "Tests completed..."` を削除
+     - テスト失敗時にCIが赤くなるよう修正
+     - .github/workflows/ci.yml:29
+
+  4. テスト確認
+     - swift test: 188テスト全てパス ✅
+
+決定事項:
+  - P2 完了 ✅
+  - P0, P1, P2 全完了
+
+次のTODO:
+  - commit & push
+  - 次のステップ検討
+---
+
+---
+2026-01-30 10:48
+作業項目: P2 コミット作成
+実施内容:
+  - 変更ファイルをコミット
+
+追加機能の説明:
+  - なし
+
+決定事項:
+  - コミット実行
+
+次のTODO:
+  - push
+---
