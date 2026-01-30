@@ -386,6 +386,7 @@ public actor PEManager {
         // Initialize subscription handler (Phase 5-1)
         // Note: Callbacks are stubs for now; full delegation in later phases
         self.subscriptionHandler = PESubscriptionHandler(
+            sourceMUID: sourceMUID,
             transactionManager: transactionManager,
             notifyAssemblyManager: notifyAssemblyManager,
             logger: logger,

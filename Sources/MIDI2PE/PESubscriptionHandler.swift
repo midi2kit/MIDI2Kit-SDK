@@ -7,6 +7,7 @@
 //
 
 import Foundation
+import MIDI2CI
 import MIDI2Transport
 
 // MARK: - PESubscriptionHandler
@@ -50,6 +51,9 @@ internal actor PESubscriptionHandler {
 
     // MARK: - Dependencies
 
+    /// Our MUID for constructing messages
+    private let sourceMUID: MUID
+
     /// Transaction manager for Request ID allocation
     private let transactionManager: PETransactionManager
 
@@ -87,6 +91,7 @@ internal actor PESubscriptionHandler {
 
     /// Create a new subscription handler
     /// - Parameters:
+    ///   - sourceMUID: Our MUID for constructing messages
     ///   - transactionManager: Transaction manager for Request ID allocation
     ///   - notifyAssemblyManager: Notify assembly manager for multi-chunk Notify
     ///   - logger: Logger for debugging
@@ -95,6 +100,7 @@ internal actor PESubscriptionHandler {
     ///   - scheduleSend: Callback to schedule send tasks
     ///   - cancelSend: Callback to cancel send tasks
     init(
+        sourceMUID: MUID,
         transactionManager: PETransactionManager,
         notifyAssemblyManager: PENotifyAssemblyManager,
         logger: any MIDI2Logger,
@@ -103,6 +109,7 @@ internal actor PESubscriptionHandler {
         scheduleSend: @escaping @Sendable (UInt8, [UInt8], MIDIDestinationID) -> Void,
         cancelSend: @escaping @Sendable (UInt8) -> Void
     ) {
+        self.sourceMUID = sourceMUID
         self.transactionManager = transactionManager
         self.notifyAssemblyManager = notifyAssemblyManager
         self.logger = logger
@@ -126,8 +133,25 @@ internal actor PESubscriptionHandler {
         device: PEDeviceHandle,
         timeout: Duration
     ) async throws -> (requestID: UInt8, message: [UInt8]) {
-        // TODO: Phase 3 - Implement Subscribe request initiation
-        fatalError("Not yet implemented")
+        logger.debug("SUBSCRIBE \(resource) on \(device.debugDescription)", category: "PESubscriptionHandler")
+
+        guard let requestID = await transactionManager.begin(
+            resource: resource,
+            destinationMUID: device.muid,
+            timeout: timeout.asTimeInterval
+        ) else {
+            throw PEError.requestIDExhausted
+        }
+
+        let headerData = CIMessageBuilder.subscribeStartHeader(resource: resource)
+        let message = CIMessageBuilder.peSubscribeInquiry(
+            sourceMUID: sourceMUID,
+            destinationMUID: device.muid,
+            requestID: requestID,
+            headerData: headerData
+        )
+
+        return (requestID: requestID, message: message)
     }
 
     /// Begin an Unsubscribe request
@@ -140,8 +164,32 @@ internal actor PESubscriptionHandler {
         subscribeId: String,
         timeout: Duration
     ) async throws -> (requestID: UInt8, message: [UInt8], destination: MIDIDestinationID) {
-        // TODO: Phase 3 - Implement Unsubscribe request initiation
-        fatalError("Not yet implemented")
+        guard let subscription = activeSubscriptions[subscribeId] else {
+            throw PEError.invalidResponse("Unknown subscribeId: \(subscribeId)")
+        }
+
+        logger.debug("UNSUBSCRIBE \(subscription.resource) [\(subscribeId)]", category: "PESubscriptionHandler")
+
+        guard let requestID = await transactionManager.begin(
+            resource: subscription.resource,
+            destinationMUID: subscription.device.muid,
+            timeout: timeout.asTimeInterval
+        ) else {
+            throw PEError.requestIDExhausted
+        }
+
+        let headerData = CIMessageBuilder.subscribeEndHeader(
+            resource: subscription.resource,
+            subscribeId: subscribeId
+        )
+        let message = CIMessageBuilder.peSubscribeInquiry(
+            sourceMUID: sourceMUID,
+            destinationMUID: subscription.device.muid,
+            requestID: requestID,
+            headerData: headerData
+        )
+
+        return (requestID: requestID, message: message, destination: subscription.device.destination)
     }
 
     /// Handle a Subscribe reply message

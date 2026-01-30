@@ -595,3 +595,66 @@ Phase 2 の作業:
   - commit & push
   - Phase 5-1 Phase 3: Subscribe/Unsubscribe Public API
 ---
+
+---
+2026-01-30 11:01
+作業項目: Phase 5-1 Phase 3 開始 - Subscribe/Unsubscribe Public API
+対象:
+  - PEManager.subscribe() - 864行目
+  - PEManager.unsubscribe() - 941行目
+  - PESubscriptionHandler.beginSubscribe()
+  - PESubscriptionHandler.beginUnsubscribe()
+
+現状分析:
+  - subscribe() は transactionManager, CIMessageBuilder, performSubscribeRequest を使用
+  - activeSubscriptions への追加も行う
+  - 依存関係が多く、段階的な移行が必要
+
+Phase 3 計画:
+  1. PESubscriptionHandler に sourceMUID 追加
+  2. beginSubscribe() でメッセージ構築を実装
+  3. beginUnsubscribe() を実装
+  4. PEManager から委譲
+
+次のTODO:
+  - sourceMUID を PESubscriptionHandler に追加
+---
+
+---
+2026-01-30 11:04
+作業項目: Phase 5-1 Phase 3 完了 - Subscribe/Unsubscribe Public API
+実施内容:
+  1. PESubscriptionHandler に sourceMUID 追加
+     - Dependencies セクションに追加
+     - init で受け取るよう修正
+     - Sources/MIDI2PE/PESubscriptionHandler.swift:54,100
+
+  2. beginSubscribe() 実装
+     - transactionManager.begin() で Request ID 取得
+     - CIMessageBuilder でメッセージ構築
+     - Sources/MIDI2PE/PESubscriptionHandler.swift:131-156
+
+  3. beginUnsubscribe() 実装
+     - activeSubscriptions から subscription 取得
+     - メッセージ構築と destination 返却
+     - Sources/MIDI2PE/PESubscriptionHandler.swift:165-196
+
+  4. PEManager 初期化更新
+     - sourceMUID を渡すよう修正
+     - Sources/MIDI2PE/PEManager.swift:389
+
+  5. MIDI2CI import 追加
+     - CIMessageBuilder 使用のため
+     - Sources/MIDI2PE/PESubscriptionHandler.swift:10
+
+  6. テスト確認
+     - swift test: 188テスト全てパス ✅
+
+決定事項:
+  - Phase 5-1 Phase 3 完了 ✅
+  - beginSubscribe/beginUnsubscribe はまだ PEManager から呼ばれていない（後のフェーズで統合）
+
+次のTODO:
+  - commit & push
+  - Phase 5-1 Phase 4: Notification Handling
+---
