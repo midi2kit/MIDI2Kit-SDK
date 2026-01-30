@@ -93,6 +93,7 @@ MIDI2Core (Foundation - no dependencies)
 
 **Key Types**:
 - `CIManager` (actor): High-level device discovery
+- `CIManagerConfiguration`: Discovery behavior settings
 - `DiscoveredDevice`: Device metadata from discovery
 - `CIMessageBuilder`: Constructs MIDI-CI SysEx messages
 - `CIMessageParser`: Parses incoming MIDI-CI responses
@@ -102,6 +103,7 @@ MIDI2Core (Foundation - no dependencies)
 - Device lifecycle tracking (discovered → updated → lost)
 - Device timeout detection
 - Optional responder mode
+- `registerFromInquiry` flag (default: false) - only register devices from Discovery Reply
 
 **Location**: `Sources/MIDI2CI/`
 
@@ -351,6 +353,17 @@ let responses = await peManager.batchGet(
    - `PEManager+JSON.swift` (142 lines): Typed API
    - `PEManager+Legacy.swift` (104 lines): Deprecated API
    - PEManager.swift: 1718 → 1315 lines (29.3% total reduction from original)
+
+### Device Registration Fix
+9. **registerFromInquiry flag** (Sources/MIDI2CI/CIManager.swift)
+   - Added `CIManagerConfiguration.registerFromInquiry` (default: `false`)
+   - When `false`, only devices responding with Discovery Reply (0x71) are registered
+   - Prevents false positives from macOS built-in MIDI-CI clients
+   - Eliminates PE timeouts caused by non-responding devices
+
+10. **CoreMIDI Bus error fix** (Sources/MIDI2Transport/CoreMIDITransport.swift)
+    - Fixed MIDIPacketList handling using `unsafeSequence()`
+    - Resolves crash in packet callback
 
 ---
 
