@@ -173,6 +173,9 @@ public actor MIDI2Client {
             transport: transport,
             sourceMUID: muid,
             maxInflightPerDevice: configuration.maxInflightPerDevice,
+            notifyAssemblyTimeout: 2.0,  // Use default
+            destinationCacheTTL: configuration.destinationCacheTTL.asTimeInterval,
+            sendStrategy: configuration.peSendStrategy,
             logger: configuration.logger
         )
         

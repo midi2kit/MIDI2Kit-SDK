@@ -327,6 +327,7 @@ public actor PEManager {
     ///   - sourceMUID: Our MUID (for message filtering)
     ///   - maxInflightPerDevice: Maximum concurrent requests per device (default: 2)
     ///   - destinationCacheTTL: Time-to-live for destination cache entries (default: 30 minutes)
+    ///   - sendStrategy: PE send strategy (default: .broadcast for backward compatibility)
     ///   - logger: Optional logger (default: silent)
     public init(
         transport: any MIDITransport,
@@ -334,10 +335,12 @@ public actor PEManager {
         maxInflightPerDevice: Int = 2,
         notifyAssemblyTimeout: TimeInterval = 2.0,
         destinationCacheTTL: TimeInterval = 1800,
+        sendStrategy: PESendStrategy = .broadcast,
         logger: any MIDI2Logger = NullMIDI2Logger()
     ) {
         self.transport = transport
         self.sourceMUID = sourceMUID
+        self.sendStrategy = sendStrategy
         self.logger = logger
         self.destinationCache = DestinationCache(ttl: destinationCacheTTL)
         self.notifyAssemblyManager = PENotifyAssemblyManager(timeout: notifyAssemblyTimeout, logger: logger)
