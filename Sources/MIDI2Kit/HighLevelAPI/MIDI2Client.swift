@@ -158,6 +158,7 @@ public actor MIDI2Client {
             deviceTimeout: configuration.deviceTimeout.asTimeInterval,
             autoStartDiscovery: false,  // We'll start manually after setup
             respondToDiscovery: configuration.respondToDiscovery,
+            registerFromInquiry: configuration.registerFromInquiry,
             categorySupport: configuration.categorySupport,
             deviceIdentity: configuration.deviceIdentity,
             maxSysExSize: configuration.maxSysExSize
@@ -165,7 +166,8 @@ public actor MIDI2Client {
         self.ciManager = CIManager(
             transport: transport,
             muid: muid,
-            configuration: ciConfig
+            configuration: ciConfig,
+            logger: configuration.logger
         )
         
         // Initialize PE Manager

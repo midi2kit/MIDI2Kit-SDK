@@ -3,12 +3,16 @@
 
 import Foundation
 import MIDI2Kit
+import MIDI2Core
 import MIDI2Transport
 import CoreMIDI
 
 @main
 struct RealDeviceTest {
     static func main() async {
+        // Disable stdout buffering for proper output in non-TTY
+        setbuf(stdout, nil)
+
         print("=== MIDI2Kit 実機テスト ===")
         print("P0/P1 修正の効果を確認します\n")
 
@@ -28,6 +32,11 @@ struct RealDeviceTest {
         config.multiChunkTimeoutMultiplier = 2.0
         config.warmUpBeforeResourceList = true
         config.maxRetries = 2
+        // KORG Module Pro は Discovery Inquiry を送信するが Reply を返さない
+        // registerFromInquiry: true で Inquiry からもデバイス登録
+        config.registerFromInquiry = true
+        // デバッグ用ロガーを設定
+        config.logger = StdoutMIDI2Logger(minimumLevel: .debug)
 
         print("[Configuration]")
         print("- peSendStrategy: \(config.peSendStrategy)")
@@ -35,6 +44,7 @@ struct RealDeviceTest {
         print("- multiChunkTimeoutMultiplier: \(config.multiChunkTimeoutMultiplier)")
         print("- warmUpBeforeResourceList: \(config.warmUpBeforeResourceList)")
         print("- maxRetries: \(config.maxRetries)")
+        print("- registerFromInquiry: \(config.registerFromInquiry)")
         print("")
 
         // CoreMIDI エンドポイント一覧を表示
@@ -68,16 +78,16 @@ struct RealDeviceTest {
             let client = try MIDI2Client(name: "RealDeviceTest", configuration: config)
             print("OK: MIDI2Client 初期化完了\n")
 
-            // Raw MIDI 受信をモニタリング
-            print("[Raw MIDI モニタリング開始...]")
-            let monitorTask = Task {
-                let transport = try! CoreMIDITransport(clientName: "Monitor")
-                try! await transport.connectToAllSources()
-                for await received in transport.received {
-                    let hex = received.data.map { String(format: "%02X", $0) }.joined(separator: " ")
-                    print("  📥 [\(received.sourceID?.value ?? 0)] \(hex)")
-                }
-            }
+            // Raw MIDI 受信をモニタリング（大量出力を避けるため無効化）
+            // print("[Raw MIDI モニタリング開始...]")
+            // let monitorTask = Task {
+            //     let transport = try! CoreMIDITransport(clientName: "Monitor")
+            //     try! await transport.connectToAllSources()
+            //     for await received in transport.received {
+            //         let hex = received.data.map { String(format: "%02X", $0) }.joined(separator: " ")
+            //         print("  📥 [\(received.sourceID?.value ?? 0)] \(hex)")
+            //     }
+            // }
 
             print("[デバイス検出開始...]")
             try await client.start()
@@ -93,7 +103,7 @@ struct RealDeviceTest {
                 if count > 0 { break }
             }
 
-            monitorTask.cancel()
+            // monitorTask.cancel()
 
             let devices = await client.discoveredDevices
             print("検出デバイス数: \(devices.count)")

@@ -152,6 +152,19 @@ public struct MIDI2ClientConfiguration: Sendable {
     ///
     /// Default: false (most apps are Initiator-only)
     public var respondToDiscovery: Bool
+
+    /// Whether to register devices from received Discovery Inquiry messages
+    ///
+    /// When `false` (default), only devices that respond to our Discovery Inquiry
+    /// with a Discovery Reply are registered. This ensures that registered devices
+    /// are actually capable of responding to our requests.
+    ///
+    /// When `true`, devices are also registered when they send Discovery Inquiry
+    /// to us. This is useful for devices like KORG Module Pro that send Inquiry
+    /// but don't respond to our Inquiry with a Reply.
+    ///
+    /// Default: false
+    public var registerFromInquiry: Bool
     
     /// Whether to tolerate CI version mismatches
     ///
@@ -202,6 +215,7 @@ public struct MIDI2ClientConfiguration: Sendable {
         self.fallbackStepTimeout = .milliseconds(500)
         self.destinationCacheTTL = .seconds(1800)
         self.respondToDiscovery = false
+        self.registerFromInquiry = false
         self.tolerateCIVersionMismatch = true
         self.maxSysExSize = 0
         self.deviceIdentity = .default

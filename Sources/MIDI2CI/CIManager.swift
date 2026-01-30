@@ -119,6 +119,9 @@ public actor CIManager {
     
     /// Underlying transport
     private let transport: any MIDITransport
+
+    /// Logger for debugging
+    private let logger: any MIDI2Logger
     
     /// Discovered devices indexed by MUID
     private var devices: [MUID: DeviceEntry] = [:]
@@ -156,12 +159,14 @@ public actor CIManager {
     public init(
         transport: any MIDITransport,
         muid: MUID? = nil,
-        configuration: CIManagerConfiguration = .default
+        configuration: CIManagerConfiguration = .default,
+        logger: (any MIDI2Logger)? = nil
     ) {
         self.transport = transport
         self.muid = muid ?? MUID.random()
         self.configuration = configuration
-        
+        self.logger = logger ?? NullMIDI2Logger()
+
         var continuation: AsyncStream<CIManagerEvent>.Continuation?
         self.events = AsyncStream { cont in
             continuation = cont
@@ -399,25 +404,37 @@ public actor CIManager {
     
     private func handleReceived(_ received: MIDIReceivedData) {
         guard let parsed = CIMessageParser.parse(received.data) else { return }
-        
+
+        // Verbose logging for Discovery messages
+        if parsed.messageType == .discoveryInquiry || parsed.messageType == .discoveryReply {
+            logger.debug("CI: Received \(parsed.messageType) from \(parsed.sourceMUID) to \(parsed.destinationMUID)", category: "MIDI2CI")
+        }
+
         // Ignore messages from ourselves
-        guard parsed.sourceMUID != muid else { return }
-        
+        guard parsed.sourceMUID != muid else {
+            logger.debug("CI: Ignoring message from ourselves", category: "MIDI2CI")
+            return
+        }
+
         // Ignore messages not addressed to us (unless broadcast)
-        guard parsed.destinationMUID == muid || parsed.destinationMUID.isBroadcast else { return }
-        
+        guard parsed.destinationMUID == muid || parsed.destinationMUID.isBroadcast else {
+            logger.debug("CI: Ignoring message not addressed to us (dest=\(parsed.destinationMUID), our muid=\(muid))", category: "MIDI2CI")
+            return
+        }
+
         switch parsed.messageType {
         case .discoveryInquiry:
             // Always register the device from Discovery Inquiry (they may not respond to our inquiry)
             // Only send reply if respondToDiscovery is true
+            logger.debug("CI: Processing Discovery Inquiry from \(parsed.sourceMUID)", category: "MIDI2CI")
             Task { await handleDiscoveryInquiry(parsed, sourceID: received.sourceID, sendReply: configuration.respondToDiscovery) }
 
         case .discoveryReply:
             handleDiscoveryReply(parsed, sourceID: received.sourceID)
-            
+
         case .invalidateMUID:
             handleInvalidateMUID(parsed)
-            
+
         default:
             break
         }
@@ -427,24 +444,31 @@ public actor CIManager {
         // Only register the inquiring device if registerFromInquiry is enabled
         // By default, we only register devices that respond to our Discovery Inquiry
         // because devices that only send Inquiry may not respond to PE requests
-        if configuration.registerFromInquiry,
-           let payload = CIMessageParser.parseDiscoveryReply(parsed.payload) {
-            let device = DiscoveredDevice(
-                muid: parsed.sourceMUID,
-                identity: payload.identity,
-                categorySupport: payload.categorySupport,
-                maxSysExSize: payload.maxSysExSize,
-                initiatorOutputPath: payload.initiatorOutputPath,
-                functionBlock: payload.functionBlock
-            )
+        logger.debug("CI: handleDiscoveryInquiry - registerFromInquiry=\(configuration.registerFromInquiry), payloadCount=\(parsed.payload.count)", category: "MIDI2CI")
 
-            let destination = await self.findDestination(for: sourceID)
-            await self.registerDevice(
-                device,
-                sourceMUID: parsed.sourceMUID,
-                sourceID: sourceID,
-                destination: destination
-            )
+        if configuration.registerFromInquiry {
+            if let payload = CIMessageParser.parseDiscoveryReply(parsed.payload) {
+                logger.debug("CI: Parsed payload - mfr=\(payload.identity.manufacturerID), category=\(payload.categorySupport)", category: "MIDI2CI")
+                let device = DiscoveredDevice(
+                    muid: parsed.sourceMUID,
+                    identity: payload.identity,
+                    categorySupport: payload.categorySupport,
+                    maxSysExSize: payload.maxSysExSize,
+                    initiatorOutputPath: payload.initiatorOutputPath,
+                    functionBlock: payload.functionBlock
+                )
+
+                let destination = await self.findDestination(for: sourceID)
+                logger.debug("CI: Registering device from Inquiry: \(parsed.sourceMUID), mfr=\(payload.identity.manufacturerID)", category: "MIDI2CI")
+                await self.registerDevice(
+                    device,
+                    sourceMUID: parsed.sourceMUID,
+                    sourceID: sourceID,
+                    destination: destination
+                )
+            } else {
+                logger.debug("CI: Failed to parse payload (count=\(parsed.payload.count))", category: "MIDI2CI")
+            }
         }
 
         // Send reply if configured

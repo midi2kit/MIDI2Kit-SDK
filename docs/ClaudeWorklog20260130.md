@@ -1678,3 +1678,81 @@ Phase 7 計画:
   - 編集実行
   - commit & push
 ---
+
+---
+2026-01-30 16:32
+作業項目: CLAUDE.md 更新完了
+実施内容:
+  - MIDI2CI セクション更新
+    - CIManagerConfiguration を Key Types に追加
+    - registerFromInquiry フラグを Key Features に追加
+  - Recent Fixes セクション更新
+    - Device Registration Fix (registerFromInquiry) 追加
+    - CoreMIDI Bus error fix 追加
+  - commit & push 完了 (4ff571f)
+決定事項:
+  - CLAUDE.md 更新完了 ✅
+次のTODO:
+  - 本日の作業完了
+---
+
+---
+2026-01-30 16:36
+作業項目: registerFromInquiry を MIDI2ClientConfiguration に公開
+追加機能の説明:
+  - MIDI2ClientConfiguration に registerFromInquiry プロパティ追加
+  - MIDI2Client から CIManagerConfiguration へ渡すよう修正
+  - RealDeviceTest で registerFromInquiry: true を設定
+背景:
+  - KORG Module Pro は Discovery Inquiry を送信するが Reply を返さない
+  - registerFromInquiry: true で Inquiry からもデバイス登録可能に
+次のTODO:
+  - 実装
+---
+
+---
+2026-01-30 16:58
+作業項目: セッション継続 - CIMessageParser 調査
+追加機能の説明:
+  - なし（調査継続）
+現状:
+  - registerFromInquiry: true が設定済み
+  - 18デバイス検出されるが KORG (ManufacturerID 0x11) が含まれていない
+  - macOS MIDI-CI clients (ManufacturerID 0x000000) は検出される
+  - Raw MIDI で KORG からの Discovery Inquiry を受信確認済み
+調査対象:
+  - CIMessageParser.parseDiscoveryReply() の CI v2 対応
+  - KORG ペイロードが正しくパースされているか
+次のTODO:
+  - CIManager.handleDiscoveryInquiry() のトレース
+  - パース失敗の原因特定
+---
+
+---
+2026-01-30 17:10
+作業項目: CIManager デバッグログ追加 & 調査完了
+実施内容:
+  1. CIManager にデバッグログ追加
+     - logger プロパティ追加（MIDI2Core.MIDI2Logger プロトコル）
+     - handleReceived() にログ追加（Discovery Inquiry/Reply 受信）
+     - handleDiscoveryInquiry() にログ追加（パース結果、登録処理）
+  2. MIDI2Client から CIManager へ logger 渡すよう修正
+  3. RealDeviceTest に StdoutMIDI2Logger 設定追加
+調査結果:
+  - registerFromInquiry: true は正常に動作 ✅
+  - ManufacturerID 0x11 のデバイスが検出・登録されている ✅
+  - MUID: 0x5404629, CategorySupport: Profile, PE, Process
+  - 21デバイス検出（0x000000: 20台, 0x11: 1台）
+注意事項:
+  - ManufacturerID 0x11 は KORG (0x42) ではない
+  - MIDI標準では 0x11 は別のメーカー
+  - KORG Module Pro が非標準 ID を使用している可能性
+  - または iPhone 上の別のアプリ/サービスからの送信
+決定事項:
+  - registerFromInquiry 機能は正常動作を確認 ✅
+  - Discovery Inquiry からのデバイス登録が動作
+  - デバッグログで詳細なトレースが可能に
+次のTODO:
+  - swift test で回帰テスト確認
+  - 変更をコミット
+---
