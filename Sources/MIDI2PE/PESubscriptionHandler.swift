@@ -8,6 +8,7 @@
 
 import Foundation
 import MIDI2CI
+import MIDI2Core
 import MIDI2Transport
 
 // MARK: - PESubscriptionHandler
@@ -201,7 +202,13 @@ internal actor PESubscriptionHandler {
     /// Handle a Notify message (single-chunk)
     /// - Parameter notify: Parsed Notify message
     func handleNotify(_ notify: CIMessageParser.FullNotify) async {
-        // TODO: Phase 4 - Implement single-chunk Notify handling
+        await handleNotifyParts(
+            sourceMUID: notify.sourceMUID,
+            subscribeId: notify.subscribeId,
+            resource: notify.resource,
+            headerData: notify.headerData,
+            propertyData: notify.propertyData
+        )
     }
 
     /// Handle assembled Notify parts (multi-chunk complete)
@@ -218,7 +225,48 @@ internal actor PESubscriptionHandler {
         headerData: Data,
         propertyData: Data
     ) async {
-        // TODO: Phase 4 - Implement multi-chunk Notify processing
+        guard let subscribeId = subscribeId else {
+            logger.warning("Notify without subscribeId", category: "PESubscriptionHandler")
+            return
+        }
+
+        guard let subscription = activeSubscriptions[subscribeId] else {
+            logger.debug("Notify for unknown subscription: \(subscribeId)", category: "PESubscriptionHandler")
+            return
+        }
+
+        // Parse header
+        let parsedHeader: PEHeader?
+        if !headerData.isEmpty {
+            parsedHeader = try? JSONDecoder().decode(PEHeader.self, from: headerData)
+        } else {
+            parsedHeader = nil
+        }
+
+        // Decode property data if Mcoded7
+        let decodedData: Data
+        if parsedHeader?.isMcoded7 == true {
+            decodedData = Mcoded7.decode(propertyData) ?? propertyData
+        } else {
+            decodedData = propertyData
+        }
+
+        // Build notification
+        let notification = PENotification(
+            resource: resource ?? subscription.resource,
+            subscribeId: subscribeId,
+            header: parsedHeader,
+            data: decodedData,
+            sourceMUID: sourceMUID
+        )
+
+        logger.debug(
+            "Notify \(notification.resource) [\(subscribeId)] \(decodedData.count)B",
+            category: "PESubscriptionHandler"
+        )
+
+        // Yield to stream
+        notificationContinuation?.yield(notification)
     }
 
     /// Handle a Subscribe timeout

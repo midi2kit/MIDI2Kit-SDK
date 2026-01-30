@@ -658,3 +658,56 @@ Phase 3 計画:
   - commit & push
   - Phase 5-1 Phase 4: Notification Handling
 ---
+
+---
+2026-01-30 11:05
+作業項目: Phase 5-1 Phase 4 開始 - Notification Handling
+対象:
+  - PEManager.handleNotify() - 1831行目
+  - PEManager.handleNotifyParts() - 1841行目
+  - PESubscriptionHandler.handleNotify()
+  - PESubscriptionHandler.handleNotifyParts()
+
+現状分析:
+  - handleNotify は FullNotify を handleNotifyParts に渡すだけ
+  - handleNotifyParts は activeSubscriptions を参照
+  - Mcoded7 デコードと PENotification 構築
+  - notificationContinuation.yield() で通知
+
+Phase 4 計画:
+  1. handleNotifyParts() を PESubscriptionHandler に実装
+  2. handleNotify() を実装
+  3. 動作確認
+---
+
+---
+2026-01-30 11:07
+作業項目: Phase 5-1 Phase 4 完了 - Notification Handling
+実施内容:
+  1. MIDI2Core import 追加
+     - Mcoded7 使用のため
+     - Sources/MIDI2PE/PESubscriptionHandler.swift:11
+
+  2. handleNotify() 実装
+     - FullNotify を handleNotifyParts に委譲
+     - Sources/MIDI2PE/PESubscriptionHandler.swift:203-212
+
+  3. handleNotifyParts() 実装
+     - subscribeId 検証
+     - activeSubscriptions から subscription 取得
+     - PEHeader パース
+     - Mcoded7 デコード
+     - PENotification 構築
+     - notificationContinuation.yield()
+     - Sources/MIDI2PE/PESubscriptionHandler.swift:221-267
+
+  4. テスト確認
+     - swift test: 188テスト全てパス ✅
+
+決定事項:
+  - Phase 5-1 Phase 4 完了 ✅
+
+次のTODO:
+  - commit & push
+  - Phase 5-1 Phase 5: Subscribe Reply Handling
+---
