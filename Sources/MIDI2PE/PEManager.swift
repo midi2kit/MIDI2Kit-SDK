@@ -345,10 +345,6 @@ public actor PEManager {
     /// Note: Being migrated to subscriptionHandler (Phase 5-1)
     private var activeSubscriptions: [String: PESubscription] = [:]
 
-    /// Notification stream continuation (single listener)
-    /// Note: Being migrated to subscriptionHandler (Phase 5-1)
-    private var notificationContinuation: AsyncStream<PENotification>.Continuation?
-
     /// Subscription handler for managing Subscribe/Unsubscribe/Notify operations
     /// Introduced in Phase 5-1 for better modularity
     private var subscriptionHandler: PESubscriptionHandler?
@@ -398,11 +394,9 @@ public actor PEManager {
         for (_, task) in sendTasks {
             task.cancel()
         }
-        
-        // Finish notification stream
-        notificationContinuation?.finish()
-        
+
         // Note: pendingContinuations will be dropped without resuming.
+        // subscriptionHandler cleanup is handled by its own deinit.
         // Callers should ensure stopReceiving() is called before releasing PEManager.
     }
     
@@ -564,10 +558,6 @@ public actor PEManager {
         // Clear subscriptions
         activeSubscriptions.removeAll()
 
-        // Finish notification stream
-        notificationContinuation?.finish()
-        notificationContinuation = nil
-        
         // Release all Request IDs
         await transactionManager.cancelAll()
 
@@ -976,6 +966,8 @@ public actor PEManager {
                 device: device
             )
             activeSubscriptions[subscribeId] = subscription
+            // Also add to subscriptionHandler for future delegation (Phase 5-1)
+            await subscriptionHandler?.addActiveSubscription(subscribeId, subscription)
             logger.info("Subscribed to \(resource): \(subscribeId)", category: Self.logCategory)
         }
         
@@ -1054,6 +1046,8 @@ public actor PEManager {
         // Remove subscription on success
         if response.isSuccess {
             activeSubscriptions.removeValue(forKey: subscribeId)
+            // Also remove from subscriptionHandler (Phase 5-1)
+            _ = await subscriptionHandler?.removeActiveSubscription(subscribeId)
             logger.info("Unsubscribed: \(subscribeId)", category: Self.logCategory)
         }
         
@@ -1065,17 +1059,17 @@ public actor PEManager {
     /// Only one listener is supported at a time. Calling this method
     /// again will finish the previous stream.
     ///
+    /// Note: Must be called after `startReceiving()` or `resetForExternalDispatch()`.
+    ///
     /// - Returns: AsyncStream of notifications
-    public func startNotificationStream() -> AsyncStream<PENotification> {
-        // Store and clear old continuation atomically before finishing
-        // This prevents handleNotify() from yielding to a finishing continuation
-        let oldContinuation = notificationContinuation
-        notificationContinuation = nil
-        oldContinuation?.finish()
-        
-        return AsyncStream { continuation in
-            self.notificationContinuation = continuation
+    public func startNotificationStream() async -> AsyncStream<PENotification> {
+        // Delegate to subscriptionHandler (Phase 5-1)
+        guard let handler = subscriptionHandler else {
+            logger.warning("startNotificationStream called before startReceiving", category: Self.logCategory)
+            // Return empty stream if handler not initialized
+            return AsyncStream { $0.finish() }
         }
+        return await handler.startNotificationStream()
     }
     
     /// Get list of active subscriptions
@@ -1636,7 +1630,8 @@ public actor PEManager {
                 // Notify may be multi-chunk. For multi-chunk, the subscribeId/resource
                 // may only exist in chunk 1, so we must assemble before dispatch.
                 if notify.numChunks <= 1 {
-                    handleNotify(notify)
+                    // Delegate to subscriptionHandler (Phase 5-1)
+                    await subscriptionHandler?.handleNotify(notify)
                 } else {
                     let result = await notifyAssemblyManager.processChunk(
                         sourceMUID: notify.sourceMUID,
@@ -1650,7 +1645,8 @@ public actor PEManager {
                     switch result {
                     case .complete(let header, let body):
                         let info = parseNotifyHeaderInfo(header)
-                        handleNotifyParts(
+                        // Delegate to subscriptionHandler (Phase 5-1)
+                        await subscriptionHandler?.handleNotifyParts(
                             sourceMUID: notify.sourceMUID,
                             subscribeId: info.subscribeId,
                             resource: info.resource,
@@ -1897,62 +1893,7 @@ public actor PEManager {
         // The request will eventually timeout.
     }
     
-    private func handleNotify(_ notify: CIMessageParser.FullNotify) {
-        handleNotifyParts(
-            sourceMUID: notify.sourceMUID,
-            subscribeId: notify.subscribeId,
-            resource: notify.resource,
-            headerData: notify.headerData,
-            propertyData: notify.propertyData
-        )
-    }
-
-    private func handleNotifyParts(
-        sourceMUID: MUID,
-        subscribeId: String?,
-        resource: String?,
-        headerData: Data,
-        propertyData: Data
-    ) {
-        guard let subscribeId = subscribeId else {
-            logger.warning("Notify without subscribeId", category: Self.logCategory)
-            return
-        }
-
-        guard let subscription = activeSubscriptions[subscribeId] else {
-            logger.debug("Notify for unknown subscription: \(subscribeId)", category: Self.logCategory)
-            return
-        }
-
-        let parsedHeader: PEHeader?
-        if !headerData.isEmpty {
-            parsedHeader = try? JSONDecoder().decode(PEHeader.self, from: headerData)
-        } else {
-            parsedHeader = nil
-        }
-
-        let decodedData: Data
-        if parsedHeader?.isMcoded7 == true {
-            decodedData = Mcoded7.decode(propertyData) ?? propertyData
-        } else {
-            decodedData = propertyData
-        }
-
-        let notification = PENotification(
-            resource: resource ?? subscription.resource,
-            subscribeId: subscribeId,
-            header: parsedHeader,
-            data: decodedData,
-            sourceMUID: sourceMUID
-        )
-
-        logger.debug(
-            "Notify \(notification.resource) [\(subscribeId)] \(decodedData.count)B",
-            category: Self.logCategory
-        )
-
-        notificationContinuation?.yield(notification)
-    }
+    // MARK: - Private: Notify Header Parsing
 
     private func parseNotifyHeaderInfo(_ headerData: Data) -> (subscribeId: String?, resource: String?) {
         guard !headerData.isEmpty,

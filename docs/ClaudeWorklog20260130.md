@@ -810,3 +810,84 @@ Phase 6 計画:
   - commit & push
   - Phase 5-1 Phase 7: 重複コード削除（将来）
 ---
+
+---
+2026-01-30 11:19
+作業項目: Phase 5-1 Phase 7 開始 - 重複コード削除
+現状:
+  - PEManager.swift: 2002行
+  - 目標: 600-700行（60%削減）
+
+Phase 7 計画:
+  1. handleNotify/handleNotifyParts を subscriptionHandler に委譲
+  2. handleSubscribeReply を subscriptionHandler に委譲
+  3. 既存の重複コードを削除
+  4. テスト確認
+
+段階的に進める:
+  - まず handleNotify の委譲から
+---
+
+---
+2026-01-30 11:27
+作業項目: Phase 5-1 Phase 7 継続 - セッション復帰
+実施内容:
+  - 前回セッションのコンテキスト復元
+  - Phase 7 の進捗確認（委譲完了、重複削除前）
+
+現状確認:
+  - handleNotify/handleNotifyParts 委譲済み
+  - handleSubscribeReply 委譲済み
+  - startNotificationStream 委譲済み
+  - subscription sync 実装済み
+  - 188テスト全てパス
+  - PEManager.swift: 2012行（目標: 600-700行）
+
+次の作業:
+  - PEManager から不要になったコードを削除
+  - 重複している handleNotify/handleNotifyParts
+  - レガシーの notificationContinuation 処理
+  - 未使用のサブスクリプション管理コード
+---
+
+---
+2026-01-30 11:32
+作業項目: Phase 5-1 Phase 7 一部完了 - デッドコード削除
+実施内容:
+  1. handleNotify() 削除（1910-1918行）
+     - subscriptionHandler に委譲済みで未使用
+
+  2. handleNotifyParts() 削除（1920-1965行）
+     - subscriptionHandler に委譲済みで未使用
+
+  3. notificationContinuation プロパティ削除
+     - startNotificationStream() が subscriptionHandler に委譲
+     - deinit/stopReceiving のクリーンアップコード削除
+
+  4. startNotificationStream() 簡素化
+     - フォールバックパス削除
+     - subscriptionHandler 未初期化時は空ストリーム返却
+
+  5. テスト確認
+     - swift test: 188テスト全てパス ✅
+
+結果:
+  - PEManager.swift: 2012行 → 1943行（69行削減）
+  - 目標（600-700行）にはまだ未達
+
+残りの作業（Phase 5-1 Phase 8 として）:
+  - subscribe/unsubscribe の完全移行
+    - PEManager.subscribe() → subscriptionHandler.beginSubscribe() 利用
+    - PEManager.unsubscribe() → subscriptionHandler.beginUnsubscribe() 利用
+  - pendingSubscribeContinuations の完全移行
+  - activeSubscriptions の完全移行
+  - handleSubscribeReply/handleSubscribeTimeout の移行
+
+決定事項:
+  - Phase 5-1 Phase 7 部分完了（デッドコード削除）
+  - 完全移行は Phase 5-1 Phase 8 として計画
+
+次のTODO:
+  - commit & push
+  - Phase 5-1 Phase 8 検討（subscribe/unsubscribe 完全移行）
+---
