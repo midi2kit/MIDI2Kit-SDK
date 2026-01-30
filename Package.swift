@@ -103,7 +103,7 @@ let package = Package(
         // MARK: - Examples
         .executableTarget(
             name: "RealDeviceTest",
-            dependencies: ["MIDI2Kit"],
+            dependencies: ["MIDI2Kit", "MIDI2Transport"],
             path: "Examples/RealDeviceTest",
             swiftSettings: [
                 .swiftLanguageMode(.v6),
