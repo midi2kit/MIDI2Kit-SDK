@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import MIDI2Core
 
 /// Result of chunk assembly operation
 public enum PEChunkResult: Sendable {
@@ -71,21 +72,28 @@ public struct PendingChunkState: Sendable {
 /// - Tracks timeout per request
 /// - Thread-safe via Sendable conformance
 public struct PEChunkAssembler: Sendable {
-    
+
     /// Default timeout for chunk assembly (seconds)
     /// Reduced from 3.0 to 2.0 - lost packets won't arrive, so faster retry is better
     public static let defaultTimeout: TimeInterval = 2.0
-    
+
     /// Timeout duration
     public let timeout: TimeInterval
-    
+
+    /// Logger for debugging
+    private let logger: any MIDI2Logger
+
     /// Pending chunk assemblies by requestID
     private var pending: [UInt8: PendingChunkState]
-    
+
     // MARK: - Initialization
-    
-    public init(timeout: TimeInterval = PEChunkAssembler.defaultTimeout) {
+
+    public init(
+        timeout: TimeInterval = PEChunkAssembler.defaultTimeout,
+        logger: any MIDI2Logger = NullMIDI2Logger()
+    ) {
         self.timeout = timeout
+        self.logger = logger
         self.pending = [:]
     }
     
@@ -108,17 +116,23 @@ public struct PEChunkAssembler: Sendable {
         propertyData: Data,
         resource: String = ""
     ) -> PEChunkResult {
-        print("[ChunkAssembler] addChunk [\(requestID)] chunk \(thisChunk)/\(numChunks), header=\(headerData.count)B, body=\(propertyData.count)B")
+        logger.debug(
+            "[ChunkAssembler] addChunk [\(requestID)] chunk \(thisChunk)/\(numChunks), header=\(headerData.count)B, body=\(propertyData.count)B",
+            category: "MIDI2PE"
+        )
         
         // Single-chunk response - return immediately
         if numChunks == 1 {
-            print("[ChunkAssembler] [\(requestID)] Single chunk -> complete")
+            logger.debug("[ChunkAssembler] [\(requestID)] Single chunk -> complete", category: "MIDI2PE")
             return .complete(header: headerData, body: propertyData)
         }
         
         // Initialize or get existing state
         if pending[requestID] == nil {
-            print("[ChunkAssembler] [\(requestID)] Creating new pending state for \(numChunks) chunks")
+            logger.debug(
+                "[ChunkAssembler] [\(requestID)] Creating new pending state for \(numChunks) chunks",
+                category: "MIDI2PE"
+            )
             pending[requestID] = PendingChunkState(
                 requestID: requestID,
                 numChunks: numChunks,
@@ -128,36 +142,57 @@ public struct PEChunkAssembler: Sendable {
                 headerData: Data()
             )
         } else {
-            print("[ChunkAssembler] [\(requestID)] Using existing pending state, already have \(pending[requestID]?.receivedCount ?? 0) chunks")
+            logger.debug(
+                "[ChunkAssembler] [\(requestID)] Using existing pending state, already have \(pending[requestID]?.receivedCount ?? 0) chunks",
+                category: "MIDI2PE"
+            )
         }
         
         // Capture header from first non-empty chunk
         if !headerData.isEmpty && pending[requestID]?.headerData.isEmpty == true {
             pending[requestID]?.headerData = headerData
-            print("[ChunkAssembler] [\(requestID)] Captured header: \(headerData.count)B")
+            logger.debug(
+                "[ChunkAssembler] [\(requestID)] Captured header: \(headerData.count)B",
+                category: "MIDI2PE"
+            )
         }
         
         // Store chunk
         pending[requestID]?.chunks[thisChunk] = propertyData
-        print("[ChunkAssembler] [\(requestID)] Stored chunk \(thisChunk), now have chunks: \(pending[requestID]?.chunks.keys.sorted() ?? [])")
+        logger.debug(
+            "[ChunkAssembler] [\(requestID)] Stored chunk \(thisChunk), now have chunks: \(pending[requestID]?.chunks.keys.sorted() ?? [])",
+            category: "MIDI2PE"
+        )
         
         // Check completion
         guard let state = pending[requestID] else {
-            print("[ChunkAssembler] [\(requestID)] ERROR: pending state disappeared!")
+            logger.error(
+                "[ChunkAssembler] [\(requestID)] ERROR: pending state disappeared!",
+                category: "MIDI2PE"
+            )
             return .incomplete(received: 0, total: numChunks)
         }
         
-        print("[ChunkAssembler] [\(requestID)] State: \(state.receivedCount)/\(state.numChunks) chunks, isComplete=\(state.isComplete)")
+        logger.debug(
+            "[ChunkAssembler] [\(requestID)] State: \(state.receivedCount)/\(state.numChunks) chunks, isComplete=\(state.isComplete)",
+            category: "MIDI2PE"
+        )
         
         if state.isComplete {
             // Assemble complete response
             let assembled = assembleChunks(state)
             pending.removeValue(forKey: requestID)
-            print("[ChunkAssembler] [\(requestID)] COMPLETE! Assembled \(assembled.count)B body")
+            logger.debug(
+                "[ChunkAssembler] [\(requestID)] COMPLETE! Assembled \(assembled.count)B body",
+                category: "MIDI2PE"
+            )
             return .complete(header: state.headerData, body: assembled)
         }
         
-        print("[ChunkAssembler] [\(requestID)] Incomplete, waiting for chunks: \(state.missingChunks)")
+        logger.debug(
+            "[ChunkAssembler] [\(requestID)] Incomplete, waiting for chunks: \(state.missingChunks)",
+            category: "MIDI2PE"
+        )
         return .incomplete(received: state.receivedCount, total: numChunks)
     }
     

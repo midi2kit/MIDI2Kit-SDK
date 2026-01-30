@@ -236,7 +236,7 @@ public actor PETransactionManager {
         )
         
         activeTransactions[requestID] = transaction
-        chunkAssemblers[requestID] = PEChunkAssembler(timeout: timeout)
+        chunkAssemblers[requestID] = PEChunkAssembler(timeout: timeout, logger: logger)
         
         // Warn if too many active (possible leak)
         if activeCount > Self.warningThreshold {

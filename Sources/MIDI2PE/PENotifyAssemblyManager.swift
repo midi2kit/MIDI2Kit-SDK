@@ -51,7 +51,7 @@ public actor PENotifyAssemblyManager {
         headerData: Data,
         propertyData: Data
     ) -> PEChunkResult {
-        var assembler = assemblersBySource[sourceMUID] ?? PEChunkAssembler(timeout: timeout)
+        var assembler = assemblersBySource[sourceMUID] ?? PEChunkAssembler(timeout: timeout, logger: logger)
 
         let result = assembler.addChunk(
             requestID: requestID,

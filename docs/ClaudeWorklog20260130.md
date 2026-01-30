@@ -151,3 +151,58 @@ PE timeout 切り分けチェックポイント:
   - P0-3: print → logger統一
   - commit & push
 ---
+
+---
+2026-01-30 10:07
+作業項目: Phase 0-3 開始 - print → logger統一
+対象ファイル:
+  - Sources/MIDI2PE/PEChunkAssembler.swift
+
+問題内容:
+  - PEChunkAssembler.addChunk() が print() を大量に出す
+  - アプリ利用時にノイズになり、ログ収集も困る
+  - MIDI2Logger 経由に統一されていない
+
+修正方針:
+  1. PEChunkAssembler で print() を使用している箇所を特定
+  2. logger.debug() または logger.midi2Debug() に置き換え
+  3. verbose フラグで制御可能にする（必要に応じて）
+---
+
+---
+2026-01-30 10:12
+作業項目: Phase 0-3 完了 - print → logger統一
+実施内容:
+  1. PEChunkAssembler に logger プロパティ追加
+     - import MIDI2Core 追加
+     - init(timeout:, logger:) でロガー受け取り
+     - デフォルト: NullMIDI2Logger()（後方互換性）
+     - Sources/MIDI2PE/PEChunkAssembler.swift:8,80
+
+  2. 全 print() を logger 呼び出しに置換（10箇所）
+     - logger.debug() × 9箇所（デバッグ情報）
+     - logger.error() × 1箇所（エラー：pending state disappeared）
+     - カテゴリ: "MIDI2PE"
+
+  3. PEChunkAssembler のインスタンス生成箇所を更新
+     - PETransactionManager.swift:239 - logger 渡すよう修正
+     - PENotifyAssemblyManager.swift:54 - logger 渡すよう修正
+
+  4. ビルド・テスト確認
+     - swift package clean && swift test
+     - 188テスト、6失敗（既存の問題）
+
+効果:
+  - print() デバッグが logger 経由に統一された
+  - アプリ利用時にノイズにならず、ログレベルで制御可能に
+  - OSLog 等の構造化ログ出力に統合可能
+  - 本番環境でデバッグログを無効化できる
+
+決定事項:
+  - P0-3 完了 ✅
+  - P0 (Critical Fixes) 全完了 ✅
+
+次のTODO:
+  - commit & push
+  - P1タスク検討（RobustJSONDecoder, PEDecodingDiagnostics）
+---
