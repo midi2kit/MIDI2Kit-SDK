@@ -206,3 +206,69 @@ PE timeout 切り分けチェックポイント:
   - commit & push
   - P1タスク検討（RobustJSONDecoder, PEDecodingDiagnostics）
 ---
+
+---
+2026-01-30 10:13
+作業項目: Phase 0 完了確認 & Phase 1 開始
+Phase 0 完了サマリ:
+  - P0-1: peSendStrategy配線 ✅
+  - P0-2: multiChunkTimeoutMultiplier適用 ✅
+  - P0-3: print → logger統一 ✅
+  - 全コミット済み、push完了
+
+Phase 1 開始: P1-4 RobustJSONDecoder 安全化
+対象ファイル:
+  - Sources/MIDI2Core/JSON/RobustJSONDecoder.swift
+
+問題内容:
+  1. escapeControlCharacters() が JSON文字列外の改行まで置換しうる
+     - pretty JSON（整形済みJSON）を壊す可能性
+     - 文字列リテラル内のみを対象にすべき
+  2. removeComments() が "https://" の // をコメント扱いして壊す
+     - lookbehind だけでは不十分
+     - 文字列外のみを厳密に保証すべき
+
+現状の影響:
+  - 標準 decode が失敗した時だけなので被害は限定的
+  - しかし JSON以外の原因の時にさらに壊して診断を難しくする
+
+修正方針:
+  1. RobustJSONDecoder の preprocess 処理を確認
+  2. escapeControlCharacters と removeComments の実装を確認
+  3. 安全な実装に修正（文字列リテラル内外を正しく判定）
+---
+
+---
+2026-01-30 10:15
+作業項目: Phase 1-4 完了 - RobustJSONDecoder 安全化
+実施内容:
+  1. removeComments() を状態機械で書き直し
+     - 文字列リテラル内の // や /* */ を保護
+     - 文字列境界を正しく追跡（エスケープも処理）
+     - "https://example.com" 等のURLを壊さない
+     - Sources/MIDI2Core/JSON/RobustJSONDecoder.swift:204
+
+  2. escapeControlCharacters() を安全化
+     - pretty JSON（複数行・インデント有り）を検出してスキップ
+     - compact JSON のみ処理対象にする
+     - 文字列リテラル内のみ制御文字をエスケープ
+     - 構造的な改行・タブは保護
+     - Sources/MIDI2Core/JSON/RobustJSONDecoder.swift:278
+
+  3. ビルド・テスト確認
+     - swift build: 成功
+     - swift test: 188テスト、6失敗（既存の問題）
+
+効果:
+  - valid な pretty JSON を壊さなくなった
+  - URL等を含むJSONを正しく処理できる
+  - 誤診断（壊れたJSONをさらに壊す）を防止
+  - デバッグが容易になった
+
+決定事項:
+  - P1-4 完了 ✅
+
+次のTODO:
+  - commit & push
+  - P1-5: PEDecodingDiagnostics の外部公開
+---

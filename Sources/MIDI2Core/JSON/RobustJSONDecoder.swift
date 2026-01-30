@@ -201,33 +201,89 @@ public struct RobustJSONDecoder: Sendable {
     // MARK: - Fix Functions
     
     /// Remove JavaScript-style comments
+    ///
+    /// Safely removes comments while preserving strings containing // or /* */
+    /// Uses a simple state machine to track whether we're inside a string literal.
     private func removeComments(_ string: String) -> String {
-        var result = string
-        
-        // Remove single-line comments: // ...
-        // Be careful not to remove // inside strings
-        let singleLinePattern = #"(?<!["'])//[^\n]*"#
-        if let regex = try? NSRegularExpression(pattern: singleLinePattern, options: []) {
-            result = regex.stringByReplacingMatches(
-                in: result,
-                options: [],
-                range: NSRange(result.startIndex..., in: result),
-                withTemplate: ""
-            )
+        var result = [Character]()
+        var inString = false
+        var escaped = false
+        var i = string.startIndex
+
+        while i < string.endIndex {
+            let char = string[i]
+
+            // Handle escape sequences
+            if escaped {
+                result.append(char)
+                escaped = false
+                i = string.index(after: i)
+                continue
+            }
+
+            // Check for backslash (escape character)
+            if char == "\\" && inString {
+                result.append(char)
+                escaped = true
+                i = string.index(after: i)
+                continue
+            }
+
+            // Track string boundaries
+            if char == "\"" {
+                inString.toggle()
+                result.append(char)
+                i = string.index(after: i)
+                continue
+            }
+
+            // If we're inside a string, keep everything as-is
+            if inString {
+                result.append(char)
+                i = string.index(after: i)
+                continue
+            }
+
+            // Check for single-line comment: //
+            if char == "/" && i < string.index(before: string.endIndex) {
+                let nextIdx = string.index(after: i)
+                if string[nextIdx] == "/" {
+                    // Skip until end of line
+                    while i < string.endIndex && string[i] != "\n" {
+                        i = string.index(after: i)
+                    }
+                    // Keep the newline
+                    if i < string.endIndex {
+                        result.append(string[i])
+                        i = string.index(after: i)
+                    }
+                    continue
+                }
+
+                // Check for multi-line comment: /*
+                if string[nextIdx] == "*" {
+                    // Skip until */
+                    i = string.index(after: nextIdx)
+                    while i < string.index(before: string.endIndex) {
+                        if string[i] == "*" {
+                            let afterStar = string.index(after: i)
+                            if afterStar < string.endIndex && string[afterStar] == "/" {
+                                i = string.index(after: afterStar)
+                                break
+                            }
+                        }
+                        i = string.index(after: i)
+                    }
+                    continue
+                }
+            }
+
+            // Not in a string, not a comment - keep the character
+            result.append(char)
+            i = string.index(after: i)
         }
-        
-        // Remove multi-line comments: /* ... */
-        let multiLinePattern = #"/\*[\s\S]*?\*/"#
-        if let regex = try? NSRegularExpression(pattern: multiLinePattern, options: []) {
-            result = regex.stringByReplacingMatches(
-                in: result,
-                options: [],
-                range: NSRange(result.startIndex..., in: result),
-                withTemplate: ""
-            )
-        }
-        
-        return result
+
+        return String(result)
     }
     
     /// Fix trailing commas before ] or }
@@ -276,29 +332,72 @@ public struct RobustJSONDecoder: Sendable {
     }
     
     /// Escape unescaped control characters
+    ///
+    /// Only processes compact (single-line) JSON to avoid corrupting
+    /// valid pretty-formatted JSON with structural whitespace.
+    ///
+    /// Escapes control characters inside string literals using a state machine.
     private func escapeControlCharacters(_ string: String) -> String {
-        var result = string
-        
-        // Escape common problematic control characters
-        // Tab, newline, carriage return inside strings should be escaped
-        
-        // This is a simplified approach - full implementation would need
-        // to track whether we're inside a string literal
-        
-        // For now, just ensure any literal control chars are escaped
-        let replacements: [(String, String)] = [
-            ("\t", "\\t"),
-            ("\r\n", "\\r\\n"),
-            ("\r", "\\r"),
-            ("\n", "\\n"),
-        ]
-        
-        for (original, escaped) in replacements {
-            // Only replace if not already escaped
-            result = result.replacingOccurrences(of: original, with: escaped)
+        // Quick check: if JSON has multiple lines with proper structure,
+        // it's likely valid pretty JSON - don't process it
+        let lines = string.components(separatedBy: .newlines)
+        if lines.count > 1 {
+            // Check if it looks like pretty JSON (has structural indentation)
+            let hasStructuralWhitespace = lines.contains { line in
+                line.trimmingCharacters(in: .whitespaces).isEmpty ||
+                line.hasPrefix("  ") || line.hasPrefix("\t")
+            }
+            if hasStructuralWhitespace {
+                // Looks like pretty JSON, don't process
+                return string
+            }
         }
-        
-        return result
+
+        // Process compact JSON: escape control chars inside string literals
+        var result = [Character]()
+        var inString = false
+        var escaped = false
+
+        for char in string {
+            if escaped {
+                // Already escaped, keep as-is
+                result.append(char)
+                escaped = false
+                continue
+            }
+
+            if char == "\\" {
+                result.append(char)
+                escaped = true
+                continue
+            }
+
+            if char == "\"" {
+                inString.toggle()
+                result.append(char)
+                continue
+            }
+
+            // Only escape control chars inside strings
+            if inString {
+                switch char {
+                case "\t":
+                    result.append(contentsOf: "\\t")
+                case "\r":
+                    // Check if next is \n (CRLF)
+                    result.append(contentsOf: "\\r")
+                case "\n":
+                    result.append(contentsOf: "\\n")
+                default:
+                    result.append(char)
+                }
+            } else {
+                // Outside strings, keep as-is (including structural whitespace)
+                result.append(char)
+            }
+        }
+
+        return String(result)
     }
     
     /// Fix unquoted keys (common in JavaScript-style JSON)
