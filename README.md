@@ -12,9 +12,9 @@ A Swift library for MIDI 2.0 / MIDI-CI / Property Exchange on Apple platforms.
 
 ## Requirements
 
-- iOS 16.0+ / macOS 13.0+
-- Xcode 15.0+
-- Swift 5.9+
+- iOS 17.0+ / macOS 14.0+ / tvOS 17.0+ / watchOS 10.0+ / visionOS 1.0+
+- Xcode 16.0+
+- Swift 6.0+
 
 ## Installation
 
@@ -230,33 +230,68 @@ let response = try await client.get("ChannelList", from: device.muid)
 
 ## Architecture
 
-MIDI2Kit is organized into layers:
+MIDI2Kit is organized into 5 modular Swift Package Manager targets with clear dependency hierarchy:
 
 ```
-MIDI2Kit (High-Level API)
-├── MIDI2Client      - Unified async client
-├── MIDI2Device      - Device representation
-└── Configuration    - Settings & presets
-
-MIDI2PE (Property Exchange)
-├── PEManager        - Request/response handling
-└── PETransactionManager
-
-MIDI2CI (Capability Inquiry)
-├── CIManager        - Discovery protocol
-└── CIMessageParser  - Message parsing
-
-MIDI2Transport
-└── CoreMIDITransport - Apple MIDI integration
-
-MIDI2Core
-└── Types, protocols, utilities
+MIDI2Core (Foundation - no dependencies)
+    ↑
+    ├─ MIDI2Transport (CoreMIDI abstraction)
+    ├─ MIDI2CI (Capability Inquiry / Discovery)
+    ├─ MIDI2PE (Property Exchange)
+    └─ MIDI2Kit (High-Level API)
 ```
+
+### Module Details
+
+| Module | Purpose | Key Types |
+|--------|---------|-----------|
+| **MIDI2Core** | Foundation types, UMP messages, constants | `MUID`, `DeviceIdentity`, `UMPMessage`, `Mcoded7` |
+| **MIDI2Transport** | CoreMIDI integration with connection management | `CoreMIDITransport`, `MIDITransport`, `SysExAssembler` |
+| **MIDI2CI** | MIDI Capability Inquiry protocol (device discovery) | `CIManager`, `DiscoveredDevice`, `CIMessageParser` |
+| **MIDI2PE** | Property Exchange (GET/SET device properties) | `PEManager`, `PETransactionManager`, `PESubscriptionManager` |
+| **MIDI2Kit** | High-Level API - unified client for common use cases | `MIDI2Client`, `MIDI2Device`, `MIDI2ClientConfiguration` |
+
+**Actor-Based Concurrency**: All managers are `actor` types for thread-safe isolation. All data types are `Sendable`. Swift Concurrency (async/await) is used throughout.
+
+**Request ID Management**: PE supports max 128 concurrent requests (0-127) with automatic ID allocation, per-device inflight limiting, and request ID cooldown to prevent delayed response mismatches.
+
+## Testing
+
+MIDI2Kit includes comprehensive tests covering:
+
+- **Unit Tests**: 196+ tests for individual components
+- **Integration Tests**: End-to-end workflow tests including discovery, PE operations, error recovery
+- **Real Device Tests**: Verified with KORG Module Pro and BLE MIDI devices
+
+Run tests with:
+```bash
+swift test
+```
+
+## Security
+
+MIDI2Kit follows secure coding practices:
+
+- ✅ Swift 6 strict concurrency mode
+- ✅ Actor isolation for thread safety
+- ✅ Input validation (MUID, Mcoded7, PE requests)
+- ✅ Buffer size limits (DoS prevention)
+- ✅ Structured error handling with classification
+- ✅ Minimal external dependencies
+
+See [docs/security-audit-20260204.md](docs/security-audit-20260204.md) for detailed security audit report.
 
 ## License
 
-MIT License - see LICENSE file for details.
+MIT License - see [LICENSE](LICENSE) file for details.
 
 ## Contributing
 
 Contributions welcome! Please open an issue first to discuss proposed changes.
+
+## Additional Resources
+
+- **Migration Guide**: [docs/MigrationGuide.md](docs/MigrationGuide.md) - Migrate from low-level API to MIDI2Client
+- **MIDI-CI Ecosystem Analysis**: [docs/MIDI-CI-Ecosystem-Analysis.md](docs/MIDI-CI-Ecosystem-Analysis.md) - Comparison with other MIDI-CI implementations
+- **KORG Compatibility Notes**: [docs/KORG-Module-Pro-Limitations.md](docs/KORG-Module-Pro-Limitations.md) - Known issues and workarounds
+- **Code Review Reports**: [docs/code-review-*.md](docs/) - Detailed code quality reviews

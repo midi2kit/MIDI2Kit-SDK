@@ -9,6 +9,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+#### Code Quality & Robustness Improvements (2026-02-04)
+
+- **Integration Test Suite**: 5 comprehensive integration tests added
+  - Discovery to PE Get flow (end-to-end)
+  - Multiple devices queried simultaneously
+  - Timeout followed by retry succeeds
+  - Device loss during PE request returns error
+  - Request IDs are properly recycled after completion
+
+- **Request ID Lifecycle Management**: Enhanced request ID cooldown mechanism
+  - Prevents delayed response mismatch after timeout
+  - Default 2-second cooldown period before ID reuse
+  - `forceCooldownExpire()` and `forceExpireAllCooldowns()` control API
+  - Addresses issue identified in ktmidi #57
+
+- **MIDI-CI 1.1 Full Support**: Improved Discovery Reply parsing
+  - Accepts partial payloads (minimum 11 bytes for DeviceIdentity)
+  - `isPartialDiscovery` flag in `DiscoveredDevice` for diagnostics
+  - Better compatibility with KORG devices using MIDI-CI 1.1 format
+  - Addresses issue identified in ktmidi #102
+
+- **Security Enhancements**:
+  - Buffer size limits (1MB) added to `SysExAssembler` (DoS prevention)
+  - Debug print statements wrapped in `#if DEBUG` (prevents data leakage)
+
+### Changed
+
+- **CIManager**: Added `registerFromInquiry` configuration flag (default: `false`)
+  - When `false`, only devices responding with Discovery Reply (0x71) are registered
+  - Prevents false positives from macOS built-in MIDI-CI clients
+  - Eliminates PE timeouts caused by non-responding devices
+
+- **CoreMIDITransport**: Fixed MIDIPacketList handling using `unsafeSequence()`
+  - Resolves crash in packet callback
+
+### Fixed
+
+- **Force Cast Removal**: Replaced `as!` with `as?` + fallback in `MIDI2Client.swift`
+- **Print Statements**: Replaced debug `print()` with structured logger calls in `PEManager.swift` and `CIMessageParser.swift`
+- **Documentation**: Enhanced shutdown lifecycle documentation in `CoreMIDITransport.swift`
+
 #### Phase 1: Core Update (2026-01-30)
 - **Real Device Testing**: Verified PE operations with KORG Module Pro on iPhone
 - **FileMIDI2Logger**: File-based logging for automated testing
