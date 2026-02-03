@@ -61,6 +61,26 @@
 /// }
 /// ```
 ///
+/// ## zlib + Mcoded7 Encoding
+///
+/// For large payloads, combine zlib compression with Mcoded7:
+///
+/// ```swift
+/// // Compress and encode large JSON data
+/// if let encoded = ZlibMcoded7.encode(largeJSONData) {
+///     // Send with mutualEncoding = "Mcoded7+zlib"
+/// }
+///
+/// // Decode and decompress
+/// if let decoded = ZlibMcoded7.decode(receivedData) {
+///     // Process original data
+/// }
+///
+/// // Smart fallback - only compresses if beneficial
+/// let (encoded, wasCompressed) = ZlibMcoded7.encodeWithFallback(data)
+/// let encoding = wasCompressed ? "Mcoded7+zlib" : "Mcoded7"
+/// ```
+///
 /// ## Logging
 ///
 /// ```swift
@@ -75,6 +95,27 @@
 ///
 /// // Use with managers
 /// let transactionManager = PETransactionManager(logger: logger)
+/// ```
+///
+/// ## UMP⇔MIDI 1.0 Translation
+///
+/// ```swift
+/// // Convert MIDI 1.0 bytes to UMP
+/// let midi1Bytes: [UInt8] = [0x90, 0x3C, 0x64]  // Note On
+/// if let ump = UMPTranslator.fromMIDI1(midi1Bytes, group: 0) {
+///     // Use UMP message
+/// }
+///
+/// // Convert UMP to MIDI 1.0 bytes
+/// let noteOn = UMPMIDI1ChannelVoice.noteOn(group: 0, channel: 0, note: 60, velocity: 100)
+/// if let bytes = UMPTranslator.toMIDI1(noteOn) {
+///     // bytes = [0x90, 0x3C, 0x64]
+/// }
+///
+/// // Upgrade MIDI 1.0 to MIDI 2.0 with value scaling
+/// if let midi2 = UMPTranslator.fromMIDI1ToMIDI2(midi1Bytes, group: 0) {
+///     // velocity 100 -> 16-bit scaled value
+/// }
 /// ```
 ///
 /// ## Topics
@@ -93,8 +134,12 @@
 /// - ``UMPSystemRealTime``
 /// - ``UMPSystemCommon``
 ///
+/// ### Translation
+/// - ``UMPTranslator``
+///
 /// ### Encoding
 /// - ``Mcoded7``
+/// - ``ZlibMcoded7``
 ///
 /// ### Protocol Constants
 /// - ``MIDICIConstants``

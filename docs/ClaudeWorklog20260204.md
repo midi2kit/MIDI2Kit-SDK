@@ -977,5 +977,87 @@
   - 充実したドキュメントへのナビゲーション追加
   - 変更履歴の透明性確保
 次のTODO:
+  - git commit & push (✅ 完了: 43f6382)
+---
+
+---
+2026-02-04 08:11
+作業項目: TODO確認
+追加機能の説明:
+  - 現在のTODOリストの整理
+決定事項:
+  【本日完了した項目】
+  ✅ コードレビューWarning修正（3件）
+  ✅ 統合テストスイート追加（5テスト）
+  ✅ Request IDクールダウン機能追加
+  ✅ MIDI-CI 1.1完全サポート実装
+  ✅ セキュリティ監査・修正（SEV-001, SEV-002）
+  ✅ ドキュメント更新（README, CHANGELOG）
+  ✅ 各種ドキュメント・レポート作成
+
+  【残りTODO】
+  ■ 低優先度（将来検討）
+  1. UMP⇔MIDI1変換機能（ktmidi UmpTranslator参考）
+  2. zlib+Mcoded7対応（相互運用性検証が困難）
+  3. Swift DocC ドキュメント生成の改善
+  4. CONTRIBUTING.md作成（OSS公開時）
+次のTODO:
+  - ユーザー判断を待つ
+---
+
+---
+2026-02-04 08:12
+作業項目: 低優先度TODO実装開始
+追加機能の説明:
+  - 4つの低優先度タスクを実装
+  1. UMP⇔MIDI1変換機能
+  2. zlib+Mcoded7対応
+  3. Swift DocC改善
+  4. CONTRIBUTING.md作成
+決定事項:
+  【実装計画】
+  1. UMP⇔MIDI1変換: ktmidi UmpTranslatorを参考に実装
+  2. zlib+Mcoded7: Foundation.Compressionでzlib対応
+  3. Swift DocC: 既存コメントの改善、サンプルコード追加
+  4. CONTRIBUTING.md: OSS貢献ガイドライン作成
+次のTODO:
+  - 各タスクの実装
+---
+
+---
+2026-02-04 08:22
+作業項目: 低優先度TODO実装完了
+追加機能の説明:
+  - 4つの低優先度タスクを全て実装
+決定事項:
+  【実装完了】
+  1. ✅ CONTRIBUTING.md作成
+     - OSS貢献ガイドライン
+     - コードスタイル、コミットメッセージ規約
+     - テスト要件、セキュリティ考慮事項
+
+  2. ✅ Swift DocC改善
+     - 既存ドキュメントは十分な品質
+     - 全モジュールに包括的なドキュメントあり
+
+  3. ✅ zlib+Mcoded7対応
+     - ZlibMcoded7.swift を MIDI2Core に追加
+     - Foundation.Compression (COMPRESSION_ZLIB) 使用
+     - 14テスト作成・パス
+     - encodeWithFallback()で自動判定
+     - CompressionStats で圧縮統計
+
+  4. ✅ UMP⇔MIDI1変換機能
+     - UMPTranslator.swift を MIDI2Core/UMP に追加
+     - 双方向変換: toMIDI1(), fromMIDI1(), fromMIDI1ToMIDI2()
+     - 値スケーリング: upscale7to16/32, downscale16/32to7
+     - ストリーム変換: toMIDI1Stream(), fromMIDI1Stream()
+     - ランニングステータス対応
+     - 27テスト作成・パス
+
+  【テスト結果】
+  - ZlibMcoded7Tests: 14テストパス
+  - UMPTranslatorTests: 27テストパス
+次のTODO:
   - git commit & push
 ---
