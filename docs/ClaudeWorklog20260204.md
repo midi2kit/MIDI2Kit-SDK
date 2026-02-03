@@ -492,3 +492,62 @@
 次のTODO:
   - commit完了確認
 ---
+
+---
+2026-02-04 02:36
+作業項目: push完了
+追加機能の説明:
+  - リモートへpush
+決定事項:
+  ✅ 16c0433..3846138 main -> main
+次のTODO:
+  - 残りのTODO確認（統合テスト、Request ID管理改善等）
+---
+
+---
+2026-02-04 02:36
+作業項目: 統合テストスイート追加
+追加機能の説明:
+  - 既存ユニットテストの確認
+  - 統合テストの設計・実装
+決定事項:
+  【既存テスト（11ファイル）】
+  - CIManagerTests, CIMessageParserTests
+  - MUIDTests, Mcoded7Tests
+  - PEChunkAssemblerTests, PEManagerTests
+  - PENotifyAssemblyTests, PERequestIDManagerTests
+  - PETransactionManagerTests, SysExAssemblerTests
+  - UMPTests
+  
+  【統合テスト計画】
+  1. CIManager + PEManager連携テスト
+  2. Discovery → PE Get フロー
+  3. エラーリカバリーフロー
+次のTODO:
+  - 統合テスト実装
+---
+
+---
+2026-02-04 02:39
+作業項目: 統合テストスイート追加完了
+追加機能の説明:
+  - IntegrationTests.swift を作成
+  - 5つの統合テストを実装
+決定事項:
+  【作成したテスト】
+  1. ✅ Discovery to PE Get flow works end-to-end
+     - CIManager + PEManager連携フロー
+  2. ✅ Multiple devices can be queried simultaneously
+     - 複数デバイスへの並列PE GET
+  3. ✅ Timeout followed by retry succeeds
+     - タイムアウト → リトライ成功
+  4. ✅ Device loss during PE request returns error
+     - デバイス切断時のエラーハンドリング
+  5. ✅ Request IDs are properly recycled after completion
+     - Request ID再利用の確認
+  
+  【テスト結果】
+  ✅ 5 tests passed in 0.265 seconds
+次のTODO:
+  - commit & push
+---
