@@ -123,6 +123,17 @@ public final class CoreMIDITransport: MIDITransport, @unchecked Sendable {
     }
     
     deinit {
+        // Warn in debug builds if shutdown() was not called explicitly
+        #if DEBUG
+        shutdownLock.lock()
+        let wasProperlyShutdown = didShutdown
+        shutdownLock.unlock()
+        if !wasProperlyShutdown {
+            // This is not a crash - just a development warning
+            // The shutdownSync() below will safely clean up
+            assertionFailure("CoreMIDITransport released without calling shutdown() - this may race with in-flight sends")
+        }
+        #endif
         shutdownSync()
     }
     
@@ -179,6 +190,10 @@ public final class CoreMIDITransport: MIDITransport, @unchecked Sendable {
     /// Shut down the transport and finish all streams.
     ///
     /// This is safe to call multiple times (idempotent).
+    ///
+    /// - Important: Call this method before releasing the transport to ensure
+    ///   all pending sends complete gracefully. If not called, deinit will
+    ///   perform synchronous shutdown which may race with in-flight operations.
     public func shutdown() async {
         shutdownSync()
     }

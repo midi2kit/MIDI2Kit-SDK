@@ -393,7 +393,15 @@ public actor MIDI2Client {
                             duration: Date().timeIntervalSince(startTime),
                             errorMessage: error.localizedDescription
                         )
-                        throw MIDI2Error(from: error as! PEError, muid: muid)
+                        if let peError = error as? PEError {
+                            throw MIDI2Error(from: peError, muid: muid)
+                        } else {
+                            throw MIDI2Error.deviceNotResponding(
+                                muid: muid,
+                                resource: "DeviceInfo",
+                                timeout: configuration.peTimeout
+                            )
+                        }
                     }
                 }
             }

@@ -1002,17 +1002,19 @@ public actor PEManager {
             let subID2 = data[4]
             // PE Reply messages
             if subID2 == 0x35 || subID2 == 0x36 {
-                let hexDump = data.prefix(50).map { String(format: "%02X", $0) }.joined(separator: " ")
-                print("[PEManager] Received PE Reply (0x\(String(format: "%02X", subID2))) len=\(data.count)")
-                print("[PEManager]   Raw: \(hexDump)\(data.count > 50 ? "..." : "")")
-                
+                logger.debug(
+                    "PE Reply (0x\(String(format: "%02X", subID2))) len=\(data.count) raw=\(data.logPreview(limit: 50))",
+                    category: Self.logCategory
+                )
+
                 // Try to parse and log
                 if let parsed = CIMessageParser.parse(data) {
-                    print("[PEManager]   Parsed: src=\(parsed.sourceMUID) dst=\(parsed.destinationMUID)")
-                    print("[PEManager]   Our MUID: \(sourceMUID)")
-                    print("[PEManager]   MUID match: \(parsed.destinationMUID == sourceMUID)")
+                    logger.debug(
+                        "Parsed: src=\(MIDI2LogUtils.formatMUID(parsed.sourceMUID.value)) dst=\(MIDI2LogUtils.formatMUID(parsed.destinationMUID.value)) (ours=\(MIDI2LogUtils.formatMUID(sourceMUID.value))) match=\(parsed.destinationMUID == sourceMUID)",
+                        category: Self.logCategory
+                    )
                 } else {
-                    print("[PEManager]   PARSE FAILED!")
+                    logger.warning("PE Reply parse failed", category: Self.logCategory)
                 }
             }
         }
