@@ -16,20 +16,43 @@ import Foundation
 /// - Handles fragmented SysEx across packets
 /// - Handles multiple SysEx messages in single packet
 /// - Detects and discards corrupted/incomplete messages
+/// - **Buffer size limit** to prevent memory exhaustion (DoS protection)
+///
+/// ## Security
+///
+/// The `maxBufferSize` parameter limits how much data can be buffered for
+/// incomplete SysEx messages. This prevents malicious or buggy devices from
+/// exhausting memory by sending endless SysEx data without termination.
 public actor SysExAssembler {
-    
+
+    /// Default maximum buffer size (1 MB)
+    ///
+    /// MIDI-CI Property Exchange typically uses messages under 64KB.
+    /// 1 MB provides ample headroom while preventing excessive memory use.
+    public static let defaultMaxBufferSize: Int = 1_048_576
+
+    /// Maximum allowed buffer size for incomplete SysEx
+    public let maxBufferSize: Int
+
     /// Assembly buffer for incomplete SysEx
     private var buffer: [UInt8] = []
-    
+
+    /// Number of times buffer overflow occurred (for diagnostics)
+    private var overflowCount: Int = 0
+
     /// SysEx start byte
     private static let sysExStart: UInt8 = 0xF0
-    
+
     /// SysEx end byte
     private static let sysExEnd: UInt8 = 0xF7
-    
+
     // MARK: - Initialization
-    
-    public init() {}
+
+    /// Initialize with optional buffer size limit
+    /// - Parameter maxBufferSize: Maximum bytes to buffer (default: 1 MB)
+    public init(maxBufferSize: Int = defaultMaxBufferSize) {
+        self.maxBufferSize = max(1024, maxBufferSize) // Minimum 1KB
+    }
     
     // MARK: - Assembly
     
@@ -66,7 +89,13 @@ public actor SysExAssembler {
                     }
                 } else {
                     // No end marker - buffer for continuation
-                    buffer = Array(remaining)
+                    // Check buffer size limit to prevent DoS
+                    if remaining.count <= maxBufferSize {
+                        buffer = Array(remaining)
+                    } else {
+                        // Exceeds limit - discard and count overflow
+                        overflowCount += 1
+                    }
                     break
                 }
             }
@@ -100,8 +129,15 @@ public actor SysExAssembler {
                         break
                     }
                 } else {
-                    // Continue buffering
-                    buffer.append(contentsOf: remaining)
+                    // Continue buffering - check size limit
+                    let newSize = buffer.count + remaining.count
+                    if newSize <= maxBufferSize {
+                        buffer.append(contentsOf: remaining)
+                    } else {
+                        // Would exceed limit - discard buffer and count overflow
+                        buffer = []
+                        overflowCount += 1
+                    }
                     break
                 }
             }
@@ -133,5 +169,21 @@ public actor SysExAssembler {
     /// Size of currently buffered incomplete data
     public var bufferSize: Int {
         buffer.count
+    }
+
+    /// Number of times buffer overflow protection was triggered
+    ///
+    /// This counter increments when incoming data would exceed `maxBufferSize`.
+    /// A non-zero value may indicate:
+    /// - Malicious device sending oversized SysEx
+    /// - Buggy device not terminating SysEx properly
+    /// - `maxBufferSize` set too low for legitimate use
+    public var bufferOverflowCount: Int {
+        overflowCount
+    }
+
+    /// Reset the overflow counter
+    public func resetOverflowCount() {
+        overflowCount = 0
     }
 }

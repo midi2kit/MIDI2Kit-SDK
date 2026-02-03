@@ -194,32 +194,46 @@ public enum CIMessageParser {
     /// without numChunks/thisChunk/dataLength fields. We detect this by checking if the
     /// byte after headerSize looks like JSON (starts with '{').
     public static func parsePEReply(_ payload: [UInt8], ciVersion: UInt8 = 2) -> PEReplyPayload? {
+        #if DEBUG
         let payloadHex = payload.prefix(20).map { String(format: "%02X", $0) }.joined(separator: " ")
         print("[CIParser] parsePEReply: len=\(payload.count), first20: \(payloadHex)")
-        
+        #endif
+
         // Try CI 1.2 format first (most devices use this)
         if let result = parsePEReplyCI12(payload) {
+            #if DEBUG
             print("[CIParser]   -> CI12: reqID=\(result.requestID), chunk \(result.thisChunk)/\(result.numChunks), header=\(result.headerData.count)B, body=\(result.propertyData.count)B")
+            #endif
             return result
         }
+        #if DEBUG
         print("[CIParser]   -> CI12 FAILED")
-        
+        #endif
+
         // Try CI 1.1 format (with dataLength field)
         if let result = parsePEReplyCI11(payload) {
+            #if DEBUG
             print("[CIParser]   -> CI11: reqID=\(result.requestID), header=\(result.headerData.count)B, body=\(result.propertyData.count)B")
+            #endif
             return result
         }
+        #if DEBUG
         print("[CIParser]   -> CI11 FAILED")
-        
+        #endif
+
         // Fallback: KORG-style format (no numChunks/thisChunk/dataLength fields)
         // Format: requestID(1) + headerSize(2) + headerData(headerSize) + propertyData(rest)
         if let result = parsePEReplyKORG(payload) {
+            #if DEBUG
             print("[CIParser]   -> KORG: reqID=\(result.requestID), chunk \(result.thisChunk)/\(result.numChunks), header=\(result.headerData.count)B, body=\(result.propertyData.count)B")
+            #endif
             return result
         }
+        #if DEBUG
         print("[CIParser]   -> KORG FAILED")
-        
         print("[CIParser]   -> ALL FORMATS FAILED!")
+        #endif
+
         return nil
     }
     
