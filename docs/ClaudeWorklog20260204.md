@@ -632,3 +632,61 @@
 次のTODO:
   - commit & push
 ---
+
+---
+2026-02-04 02:45
+作業項目: MIDI-CI 1.1完全サポート検討
+追加機能の説明:
+  - 現在の実装を分析
+  - ktmidi issue #102 参考
+決定事項:
+  【現在の実装】
+  - CIMessageBuilder: ciVersion1_1使用（KORG互換）
+  - CIMessageParser: ciVersionを考慮してパース
+  - tolerateCIVersionMismatch設定あり
+  
+  【ktmidi issue #102 の問題】
+  - KORGデバイスがMIDI-CI 1.1形式で応答
+  - v1.1のDiscoveryReplyはサイズが仕様より小さい場合がある
+  - CIバージョン/メッセージサイズチェック削除で動作
+  
+  【改善案】
+  1. parseDiscoveryReplyのバリデーション緩和
+     - 最小11バイト（DeviceIdentityのみ）で受け入れ
+     - 不足フィールドにデフォルト値使用
+  2. 警告ログで問題を可視化
+  3. 診断情報に「受信したCIバージョン」追加
+次のTODO:
+  - parseDiscoveryReply改善実装
+---
+
+---
+2026-02-04 02:47
+作業項目: MIDI-CI 1.1完全サポート実装完了
+追加機能の説明:
+  - parseDiscoveryReplyのバリデーション緩和
+  - 不完全ペイロードの診断情報追加
+決定事項:
+  【実装内容】
+  1. CIMessageParser.parseDiscoveryReply改善
+     - 最小11バイト（DeviceIdentityのみ）で受け入れ
+     - 不足フィールドにデフォルト値使用
+     - isPartialPayloadフラグ追加
+  
+  2. DiscoveredDevice.isPartialDiscovery追加
+     - MIDI-CI 1.1デバイスの識別可能に
+     - 診断情報として利用可能
+  
+  3. CIManager更新
+     - 新しいフィールドを伝播
+  
+  【テスト結果】
+  ✅ CIManagerTests 7テストパス
+  ✅ ビルド成功
+  
+  【対応した問題】
+  - ktmidi issue #102: KORGデバイスのMIDI-CI 1.1形式対応
+  - 小さいDiscoveryReplyペイロードを正しく処理
+次のTODO:
+  - commit & push
+---

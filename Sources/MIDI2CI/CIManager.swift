@@ -455,7 +455,8 @@ public actor CIManager {
                     categorySupport: payload.categorySupport,
                     maxSysExSize: payload.maxSysExSize,
                     initiatorOutputPath: payload.initiatorOutputPath,
-                    functionBlock: payload.functionBlock
+                    functionBlock: payload.functionBlock,
+                    isPartialDiscovery: payload.isPartialPayload
                 )
 
                 let destination = await self.findDestination(for: sourceID)
@@ -499,7 +500,8 @@ public actor CIManager {
             categorySupport: payload.categorySupport,
             maxSysExSize: payload.maxSysExSize,
             initiatorOutputPath: payload.initiatorOutputPath,
-            functionBlock: payload.functionBlock
+            functionBlock: payload.functionBlock,
+            isPartialDiscovery: payload.isPartialPayload
         )
         
         // Resolve destination asynchronously via transport

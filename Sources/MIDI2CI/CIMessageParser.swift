@@ -63,7 +63,7 @@ public enum CIMessageParser {
     }
     
     // MARK: - Discovery Reply Parser
-    
+
     /// Discovery Reply payload structure
     public struct DiscoveryReplyPayload: Sendable {
         public let identity: DeviceIdentity
@@ -71,35 +71,69 @@ public enum CIMessageParser {
         public let maxSysExSize: UInt32
         public let initiatorOutputPath: UInt8
         public let functionBlock: UInt8
+
+        /// Indicates payload was smaller than MIDI-CI 1.2 spec (some fields used defaults)
+        ///
+        /// This is common with MIDI-CI 1.1 devices like KORG Module Pro.
+        /// When true, `categorySupport` and `maxSysExSize` may be default values.
+        public let isPartialPayload: Bool
     }
-    
-    /// Parse Discovery Reply payload
+
+    /// Parse Discovery Reply payload with MIDI-CI 1.1 tolerance
+    ///
+    /// This parser is lenient to support devices that send incomplete Discovery Reply
+    /// payloads. Some MIDI-CI 1.1 devices (e.g., KORG Keystage, Multipoly) send
+    /// payloads smaller than the CI 1.2 specification.
+    ///
+    /// ## Payload Structure
+    /// - Bytes 0-10: Device Identity (required)
+    /// - Byte 11: Category Support (optional, defaults to `.propertyExchange`)
+    /// - Bytes 12-15: Max SysEx Size (optional, defaults to 0)
+    /// - Byte 16: Initiator Output Path (optional, CI 1.2+)
+    /// - Byte 17: Function Block (optional, CI 1.2+)
+    ///
     /// - Parameter payload: Payload bytes (after destination MUID)
-    /// - Returns: Parsed discovery reply, or nil if invalid
+    /// - Returns: Parsed discovery reply, or nil if Device Identity is invalid
     public static func parseDiscoveryReply(_ payload: [UInt8]) -> DiscoveryReplyPayload? {
-        // Minimum: identity(11) + category(1) + maxSysEx(4) = 16 bytes
-        guard payload.count >= 16 else { return nil }
-        
+        // Minimum: identity(11) bytes - required for device identification
+        // MIDI-CI 1.1 devices may send only this much
+        guard payload.count >= 11 else { return nil }
+
         guard let identity = DeviceIdentity(from: payload, offset: 0) else { return nil }
-        
-        let categorySupport = CategorySupport(rawValue: payload[11])
-        
-        // Max SysEx size (4 x 7-bit bytes)
-        let maxSysExSize = UInt32(payload[12])
-            | (UInt32(payload[13]) << 7)
-            | (UInt32(payload[14]) << 14)
-            | (UInt32(payload[15]) << 21)
-        
+
+        // Category support (byte 11) - default to PE support if missing
+        let categorySupport: CategorySupport
+        if payload.count > 11 {
+            categorySupport = CategorySupport(rawValue: payload[11])
+        } else {
+            categorySupport = .propertyExchange
+        }
+
+        // Max SysEx size (bytes 12-15, 4 x 7-bit) - default to 0 (unlimited) if missing
+        let maxSysExSize: UInt32
+        if payload.count >= 16 {
+            maxSysExSize = UInt32(payload[12])
+                | (UInt32(payload[13]) << 7)
+                | (UInt32(payload[14]) << 14)
+                | (UInt32(payload[15]) << 21)
+        } else {
+            maxSysExSize = 0
+        }
+
         // Optional fields (CI 1.2+)
         let initiatorOutputPath = payload.count > 16 ? payload[16] : 0
         let functionBlock = payload.count > 17 ? payload[17] : 0
-        
+
+        // Mark as partial if less than CI 1.2 spec (16 bytes)
+        let isPartialPayload = payload.count < 16
+
         return DiscoveryReplyPayload(
             identity: identity,
             categorySupport: categorySupport,
             maxSysExSize: maxSysExSize,
             initiatorOutputPath: initiatorOutputPath,
-            functionBlock: functionBlock
+            functionBlock: functionBlock,
+            isPartialPayload: isPartialPayload
         )
     }
     

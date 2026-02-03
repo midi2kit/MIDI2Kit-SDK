@@ -10,37 +10,44 @@ import MIDI2Core
 
 /// A MIDI-CI device discovered via Discovery Inquiry
 public struct DiscoveredDevice: Sendable, Identifiable, Hashable {
-    
+
     /// Unique identifier (MUID)
     public var id: MUID { muid }
-    
+
     /// Device's MUID
     public let muid: MUID
-    
+
     /// Device identity information
     public let identity: DeviceIdentity
-    
+
     /// Supported MIDI-CI categories
     public let categorySupport: CategorySupport
-    
+
     /// Maximum SysEx message size (0 = unlimited)
     public let maxSysExSize: UInt32
-    
+
     /// Initiator output path ID (CI 1.2+)
     public let initiatorOutputPath: UInt8
-    
+
     /// Function block (CI 1.2+)
     public let functionBlock: UInt8
-    
+
+    /// Indicates Discovery Reply payload was smaller than MIDI-CI 1.2 spec
+    ///
+    /// This is common with MIDI-CI 1.1 devices like KORG Module Pro.
+    /// When true, some fields may have been set to default values.
+    public let isPartialDiscovery: Bool
+
     // MARK: - Initialization
-    
+
     public init(
         muid: MUID,
         identity: DeviceIdentity,
         categorySupport: CategorySupport,
         maxSysExSize: UInt32 = 0,
         initiatorOutputPath: UInt8 = 0,
-        functionBlock: UInt8 = 0
+        functionBlock: UInt8 = 0,
+        isPartialDiscovery: Bool = false
     ) {
         self.muid = muid
         self.identity = identity
@@ -48,6 +55,7 @@ public struct DiscoveredDevice: Sendable, Identifiable, Hashable {
         self.maxSysExSize = maxSysExSize
         self.initiatorOutputPath = initiatorOutputPath
         self.functionBlock = functionBlock
+        self.isPartialDiscovery = isPartialDiscovery
     }
     
     // MARK: - Convenience
