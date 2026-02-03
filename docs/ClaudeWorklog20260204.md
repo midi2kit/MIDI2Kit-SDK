@@ -230,3 +230,103 @@
 次のTODO:
   - 必要に応じてcommit
 ---
+
+---
+2026-02-04 02:12
+作業項目: midicci (C++) 追加調査
+追加機能の説明:
+  - https://github.com/atsushieno/midicci の調査
+  - ktmidiのC++移植版
+決定事項:
+  【midicci概要】
+  - C++実装のMIDI-CIツール/ライブラリ
+  - ktmidi-ciのC++移植
+  - トランスポート非依存設計
+  - 標準MIDI-CIプロパティ対応（AllCtrlList, ProgramList, State）
+
+  【ソースコード分析】
+  PropertyChunkManager.cpp:
+  - チャンク欠落時: 空のヘッダを返すだけ、再送要求なし
+  - タイムアウト: 期限切れチャンクを削除するだけ
+  - リトライ: ❌ 未実装
+  - エラーハンドリング: ほぼなし
+
+  ClientConnection.cpp:
+  - タイムアウト処理: ❌ 未実装
+  - リトライ機構: ❌ 未実装
+  - MIDI-CIバージョン処理: ❌ 未実装
+  - エラーハンドリング: スレッド安全性のみ
+
+  【MIDI2Kitとの比較】
+  | 機能 | MIDI2Kit | midicci |
+  |------|----------|---------|
+  | チャンク欠落対応 | ✅ リトライ | ❌ 空応答のみ |
+  | タイムアウト処理 | ✅ 設定可能 | ❌ 削除のみ |
+  | リトライ機構 | ✅ maxRetries | ❌ なし |
+  | エラーハンドリング | ✅ 構造化エラー | ❌ 最小限 |
+  | CIバージョン対応 | ✅ tolerateCI | ❌ なし |
+
+  【結論】
+  MIDI2Kitはmidiciより堅牢な実装を持つ
+次のTODO:
+  - ドキュメント更新
+  - commit
+---
+
+---
+2026-02-04 02:18
+作業項目: atsushieno.github.io ブログ調査
+追加機能の説明:
+  - MIDI 2.0/MIDI-CI関連ブログ記事の調査
+  - 開発知見の収集
+決定事項:
+  【調査した記事】
+  1. Understanding MIDI-CI tools (2024/01)
+  2. Building MIDI 2.0 Ecosystems on Android (2024/04)
+  3. ktmidi, a Kotlin MPP Library (2021/05)
+  4. AAP 2023 Year in Review (2024/01)
+  5. Modernizing MML for 2022 (2021/12)
+
+  【重要な知見】
+
+  ■ MIDI-CI相互運用性の課題
+  - zlib圧縮の相互運用性が未検証
+  - Process Inquiryで複数レスポンダー並行待機が技術的に不可能
+  - 各ツール間で完全な相互運用性なし
+
+  ■ Property Exchangeの問題点
+  - JSON形式はリアルタイム対応ではない
+  - エンコーディング3種類（ASCII, Mcoded7, zlib+Mcoded7）で複雑
+  - MIDI 2.0 WorkbenchのPEテストにブロッキング問題
+
+  ■ ツール別の制限
+  | ツール | 制限 |
+  |--------|------|
+  | JUCE Demo | Process Inquiry未対応、UI非直感的 |
+  | ktmidi-ci-tool | zlib実装がJVM/Androidのみ |
+  | MIDI 2.0 Workbench | PE機能に不具合 |
+  | Apple CoreMIDI | PE/Process Inquiry未対応 |
+
+  ■ UMP変換
+  - ktmidiの`UmpTranslator`でUMP⇔MIDI1双方向変換可能
+  - MIDI 1.0 DAWでもUMPデバイス利用可能
+
+  ■ MIDI 2.0ファイル形式
+  - SMF 2.0相当の標準形式がまだ存在しない
+  - DAWのMIDI 2.0インポート機能に影響
+
+  ■ 開発者への推奨事項
+  1. 段階的実装（Discovery→Profile→PE）
+  2. 早期から相互運用性テスト実施
+  3. MIDI-CI本仕様とCommon Rules両方の理解必要
+  4. 「MIDI-CIなしでもUMP対応可能」
+
+  【MIDI2Kitへの示唆】
+  - 相互運用性テストの重要性確認
+  - Apple CoreMIDIのPE未対応は制約要因
+  - JSON/リアルタイム性のトレードオフ考慮
+  - zlib+Mcoded7対応は優先度低（相互運用性検証困難）
+次のTODO:
+  - ドキュメント更新
+  - commit
+---
