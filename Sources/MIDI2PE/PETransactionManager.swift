@@ -135,7 +135,7 @@ public actor PETransactionManager {
     private var generation: UInt64 = 0
     
     /// Request ID manager
-    private var requestIDManager = PERequestIDManager()
+    private var requestIDManager: PERequestIDManager
     
     /// Active transactions by Request ID
     private var activeTransactions: [UInt8: PETransaction] = [:]
@@ -171,9 +171,11 @@ public actor PETransactionManager {
     ///   - logger: Logger instance (default: NullMIDI2Logger - silent)
     public init(
         maxInflightPerDevice: Int = 2,
+        requestIDCooldownPeriod: TimeInterval = 2.0,
         logger: any MIDI2Logger = NullMIDI2Logger()
     ) {
         self.maxInflightPerDevice = max(1, maxInflightPerDevice)
+        self.requestIDManager = PERequestIDManager(cooldownPeriod: requestIDCooldownPeriod)
         self.logger = logger
     }
     

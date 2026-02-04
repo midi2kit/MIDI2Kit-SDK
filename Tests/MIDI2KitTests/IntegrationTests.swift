@@ -84,11 +84,14 @@ struct IntegrationTests {
         }
         #expect(peRequests.count == 1)
 
+        // Extract request ID from sent message (index 14: after F0,7E,7F,0D,34,ver,srcMUID[4],dstMUID[4])
+        let requestID: UInt8 = peRequests.first.map { $0.data.count > 14 ? $0.data[14] : 0 } ?? 0
+
         // Simulate PE response
         let peReply = buildPEReply(
             sourceMUID: deviceMUID,
             destinationMUID: ciMUID,
-            requestID: 0,
+            requestID: requestID,
             header: "{\"status\":200}",
             body: "{\"name\":\"TestDevice\"}"
         )
@@ -322,22 +325,28 @@ struct IntegrationTests {
         // Request ID
         data.append(requestID)
 
-        // Header data (length as 2 bytes + data)
+        // CI 1.2 format: headerSize, numChunks, thisChunk, dataSize, then header, then body
         let headerBytes = Array(header.utf8)
+        let bodyBytes = Array(body.utf8)
+
+        // Header size (14-bit, 2 bytes)
         data.append(UInt8(headerBytes.count & 0x7F))
         data.append(UInt8((headerBytes.count >> 7) & 0x7F))
-        data.append(contentsOf: headerBytes)
 
-        // Chunk info: thisChunk=1, numChunks=1
+        // Chunk info: numChunks=1, thisChunk=1
         data.append(0x01) // numChunks LSB
         data.append(0x00) // numChunks MSB
         data.append(0x01) // thisChunk LSB
         data.append(0x00) // thisChunk MSB
 
-        // Body data (length as 2 bytes + data)
-        let bodyBytes = Array(body.utf8)
+        // Body data size (14-bit, 2 bytes)
         data.append(UInt8(bodyBytes.count & 0x7F))
         data.append(UInt8((bodyBytes.count >> 7) & 0x7F))
+
+        // Header data
+        data.append(contentsOf: headerBytes)
+
+        // Body data
         data.append(contentsOf: bodyBytes)
 
         // SysEx end

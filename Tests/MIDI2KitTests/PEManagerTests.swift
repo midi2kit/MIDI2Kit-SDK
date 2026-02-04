@@ -290,7 +290,8 @@ struct PEManagerTests {
         defer { Task { await transport.shutdown() } }
         let manager = PEManager(
             transport: transport,
-            sourceMUID: sourceMUID
+            sourceMUID: sourceMUID,
+            requestIDCooldownPeriod: 0  // Disable cooldown for test
         )
         
         await manager.startReceiving()
@@ -340,7 +341,8 @@ struct PEManagerTests {
         defer { Task { await transport.shutdown() } }
         let manager = PEManager(
             transport: transport,
-            sourceMUID: sourceMUID
+            sourceMUID: sourceMUID,
+            requestIDCooldownPeriod: 0  // Disable cooldown for test
         )
         
         await manager.startReceiving()
@@ -436,7 +438,8 @@ struct PEManagerTests {
         defer { Task { await transport.shutdown() } }
         let manager = PEManager(
             transport: transport,
-            sourceMUID: sourceMUID
+            sourceMUID: sourceMUID,
+            requestIDCooldownPeriod: 0  // Disable cooldown for test
         )
         
         await manager.startReceiving()

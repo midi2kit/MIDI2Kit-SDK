@@ -163,6 +163,9 @@ public actor PEManager {
     ///   - transport: MIDI transport for sending/receiving
     ///   - sourceMUID: Our MUID (for message filtering)
     ///   - maxInflightPerDevice: Maximum concurrent requests per device (default: 2)
+    ///   - requestIDCooldownPeriod: Cooldown period in seconds before reusing released Request IDs (default: 2.0).
+    ///     Set to `0` in tests to allow immediate ID reuse.
+    ///   - notifyAssemblyTimeout: Timeout for assembling multi-chunk notify messages (default: 2.0 seconds)
     ///   - destinationCacheTTL: Time-to-live for destination cache entries (default: 30 minutes)
     ///   - sendStrategy: PE send strategy (default: .broadcast for backward compatibility)
     ///   - logger: Optional logger (default: silent)
@@ -170,6 +173,7 @@ public actor PEManager {
         transport: any MIDITransport,
         sourceMUID: MUID,
         maxInflightPerDevice: Int = 2,
+        requestIDCooldownPeriod: TimeInterval = 2.0,
         notifyAssemblyTimeout: TimeInterval = 2.0,
         destinationCacheTTL: TimeInterval = 1800,
         sendStrategy: PESendStrategy = .broadcast,
@@ -183,6 +187,7 @@ public actor PEManager {
         self.notifyAssemblyManager = PENotifyAssemblyManager(timeout: notifyAssemblyTimeout, logger: logger)
         self.transactionManager = PETransactionManager(
             maxInflightPerDevice: maxInflightPerDevice,
+            requestIDCooldownPeriod: requestIDCooldownPeriod,
             logger: logger
         )
 

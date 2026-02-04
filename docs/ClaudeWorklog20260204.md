@@ -1375,3 +1375,61 @@
   - 必要に応じてcommit
   - 既存テスト失敗の調査（別タスク）
 ---
+
+---
+2026-02-04 09:14
+作業項目: テスト失敗の修正
+追加機能の説明:
+  - Request IDクールダウン機能追加によるテスト失敗の修正
+  - PETransactionManager/PEManagerにcooldownPeriod設定を追加
+決定事項:
+  【失敗原因】
+  - Request IDクールダウン機能により、解放されたIDがすぐに「Available」にならない
+  - テストは「Available IDs: 128」を期待するが、クールダウン中のIDは除外される
+  - IntegrationTestsのbuildPEReplyのフォーマットが間違っていた
+
+  【修正内容】
+  1. PETransactionManager.init に requestIDCooldownPeriod: TimeInterval 追加
+  2. PEManager.init に requestIDCooldownPeriod: TimeInterval 追加
+  3. テストで requestIDCooldownPeriod: 0 を使用（即座にID再利用可能）
+  4. PETransactionManagerTests: 全17箇所の初期化を修正
+  5. PEManagerTests: 3箇所の初期化を修正
+  6. IntegrationTests: buildPEReplyのCI 1.2フォーマットを修正
+
+  【テスト結果】
+  ✅ 311 tests in 29 suites passed
+次のTODO:
+  - commit & push
+---
+
+---
+2026-02-04 09:13
+作業項目: TODO確認
+追加機能の説明:
+  - 現在の状況と残りTODOの整理
+決定事項:
+  【本日完了した項目】
+  ✅ コードレビューWarning修正（3件）
+  ✅ 統合テストスイート追加（5テスト）
+  ✅ Request IDクールダウン機能追加
+  ✅ MIDI-CI 1.1完全サポート実装
+  ✅ セキュリティ監査・修正（SEV-001, SEV-002）
+  ✅ ドキュメント更新（README, CHANGELOG）
+  ✅ UMP⇔MIDI1変換機能（UMPTranslator.swift）
+  ✅ zlib+Mcoded7対応（ZlibMcoded7.swift）
+  ✅ CONTRIBUTING.md作成
+  ✅ Phase 1-4機能追加（Flex Data, PE Status, JSON Schema, Process Inquiry）
+
+  【残りTODO】
+  ■ 高優先度
+  1. 既存テスト失敗の修正
+     - PEManagerTests: 3テスト
+     - IntegrationTests: 1テスト
+  2. 変更のcommit & push
+
+  ■ 低優先度（将来検討）
+  3. 相互運用性テストスイートの設計
+  4. SMF 2.0 (CLIP) パーサー（MIDI2.0Workbench参考）
+次のTODO:
+  - 既存テスト失敗の調査・修正
+---

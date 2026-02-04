@@ -25,7 +25,7 @@ struct PETransactionManagerTests {
     
     @Test("Begin transaction acquires ID")
     func beginAcquiresID() async {
-        let manager = PETransactionManager()
+        let manager = PETransactionManager(requestIDCooldownPeriod: 0)
         let muid = MUID.random()
         
         let id = await manager.begin(resource: "DeviceInfo", destinationMUID: muid)
@@ -37,7 +37,7 @@ struct PETransactionManagerTests {
     
     @Test("Cancel releases ID")
     func cancelReleasesID() async {
-        let manager = PETransactionManager()
+        let manager = PETransactionManager(requestIDCooldownPeriod: 0)
         let muid = MUID.random()
         
         let id = await manager.begin(resource: "DeviceInfo", destinationMUID: muid)
@@ -51,7 +51,7 @@ struct PETransactionManagerTests {
     
     @Test("Cancel is idempotent")
     func cancelIsIdempotent() async {
-        let manager = PETransactionManager()
+        let manager = PETransactionManager(requestIDCooldownPeriod: 0)
         let muid = MUID.random()
         
         let id = await manager.begin(resource: "DeviceInfo", destinationMUID: muid)
@@ -68,7 +68,7 @@ struct PETransactionManagerTests {
     
     @Test("Cancel unknown ID is safe")
     func cancelUnknownIDIsSafe() async {
-        let manager = PETransactionManager()
+        let manager = PETransactionManager(requestIDCooldownPeriod: 0)
         
         // Canceling non-existent ID should not crash
         await manager.cancel(requestID: 99)
@@ -81,7 +81,7 @@ struct PETransactionManagerTests {
     
     @Test("Cancel all for device")
     func cancelAllForDevice() async {
-        let manager = PETransactionManager()
+        let manager = PETransactionManager(requestIDCooldownPeriod: 0)
         let device1 = MUID.random()
         let device2 = MUID.random()
         
@@ -103,7 +103,7 @@ struct PETransactionManagerTests {
     @Test("Cancel all")
     func cancelAll() async {
         // Use higher inflight limit for this test
-        let manager = PETransactionManager(maxInflightPerDevice: 10)
+        let manager = PETransactionManager(maxInflightPerDevice: 10, requestIDCooldownPeriod: 0)
         let muid = MUID.random()
         
         for i in 0..<10 {
@@ -124,7 +124,7 @@ struct PETransactionManagerTests {
     @Test("Exhaustion returns nil")
     func exhaustionReturnsNil() async {
         // Use high inflight limit so we can exhaust all 128 IDs
-        let manager = PETransactionManager(maxInflightPerDevice: 128)
+        let manager = PETransactionManager(maxInflightPerDevice: 128, requestIDCooldownPeriod: 0)
         let muid = MUID.random()
         
         // Exhaust all 128 IDs
@@ -142,7 +142,7 @@ struct PETransactionManagerTests {
     @Test("Near exhaustion warning threshold")
     func nearExhaustionWarning() async {
         // Use high inflight limit for this test
-        let manager = PETransactionManager(maxInflightPerDevice: 128)
+        let manager = PETransactionManager(maxInflightPerDevice: 128, requestIDCooldownPeriod: 0)
         let muid = MUID.random()
         
         // Use 120 IDs (leaving 8)
@@ -157,7 +157,7 @@ struct PETransactionManagerTests {
     @Test("Not near exhaustion with sufficient IDs")
     func notNearExhaustion() async {
         // Use high inflight limit for this test
-        let manager = PETransactionManager(maxInflightPerDevice: 128)
+        let manager = PETransactionManager(maxInflightPerDevice: 128, requestIDCooldownPeriod: 0)
         let muid = MUID.random()
         
         // Use 100 IDs (leaving 28)
@@ -173,7 +173,7 @@ struct PETransactionManagerTests {
     
     @Test("Multiple transactions same resource get unique IDs")
     func multipleTransactionsSameResource() async {
-        let manager = PETransactionManager()
+        let manager = PETransactionManager(requestIDCooldownPeriod: 0)
         let muid = MUID.random()
         
         let id1 = await manager.begin(resource: "ChCtrlList", destinationMUID: muid)
@@ -189,7 +189,7 @@ struct PETransactionManagerTests {
     
     @Test("Single chunk completes immediately")
     func singleChunkCompletesImmediately() async {
-        let manager = PETransactionManager()
+        let manager = PETransactionManager(requestIDCooldownPeriod: 0)
         let muid = MUID.random()
         
         let id = await manager.begin(resource: "ProgramList", destinationMUID: muid)
@@ -213,7 +213,7 @@ struct PETransactionManagerTests {
     
     @Test("Multi-chunk assembly")
     func multiChunkAssembly() async {
-        let manager = PETransactionManager()
+        let manager = PETransactionManager(requestIDCooldownPeriod: 0)
         let muid = MUID.random()
         
         let id = await manager.begin(resource: "LargeResource", destinationMUID: muid)
@@ -268,7 +268,7 @@ struct PETransactionManagerTests {
     
     @Test("Chunk for unknown request ID returns unknownRequestID")
     func chunkForUnknownRequestID() async {
-        let manager = PETransactionManager()
+        let manager = PETransactionManager(requestIDCooldownPeriod: 0)
         
         let result = await manager.processChunk(
             requestID: 99,
@@ -287,7 +287,7 @@ struct PETransactionManagerTests {
     
     @Test("Chunk after cancel returns unknownRequestID")
     func chunkAfterCancel() async {
-        let manager = PETransactionManager()
+        let manager = PETransactionManager(requestIDCooldownPeriod: 0)
         let muid = MUID.random()
         
         let id = await manager.begin(resource: "Test", destinationMUID: muid)
@@ -314,7 +314,7 @@ struct PETransactionManagerTests {
     
     @Test("Transaction query returns transaction info")
     func transactionQuery() async {
-        let manager = PETransactionManager()
+        let manager = PETransactionManager(requestIDCooldownPeriod: 0)
         let muid = MUID.random()
         
         let id = await manager.begin(resource: "DeviceInfo", destinationMUID: muid, timeout: 5.0)
@@ -331,7 +331,7 @@ struct PETransactionManagerTests {
     
     @Test("Transaction query returns nil for unknown ID")
     func transactionQueryUnknownID() async {
-        let manager = PETransactionManager()
+        let manager = PETransactionManager(requestIDCooldownPeriod: 0)
         
         let transaction = await manager.transaction(for: 99)
         #expect(transaction == nil)
@@ -339,7 +339,7 @@ struct PETransactionManagerTests {
     
     @Test("hasTransaction returns correct value")
     func hasTransaction() async {
-        let manager = PETransactionManager()
+        let manager = PETransactionManager(requestIDCooldownPeriod: 0)
         let muid = MUID.random()
         
         let id = await manager.begin(resource: "Test", destinationMUID: muid)
@@ -357,7 +357,7 @@ struct PETransactionManagerTests {
     
     @Test("Diagnostics output")
     func diagnosticsOutput() async {
-        let manager = PETransactionManager()
+        let manager = PETransactionManager(requestIDCooldownPeriod: 0)
         let muid = MUID.random()
         
         _ = await manager.begin(resource: "DeviceInfo", destinationMUID: muid)
@@ -374,7 +374,7 @@ struct PETransactionManagerTests {
     @Test("Diagnostics shows near exhaustion warning")
     func diagnosticsShowsExhaustionWarning() async {
         // Use high inflight limit for this test
-        let manager = PETransactionManager(maxInflightPerDevice: 128)
+        let manager = PETransactionManager(maxInflightPerDevice: 128, requestIDCooldownPeriod: 0)
         let muid = MUID.random()
         
         // Use 125 IDs (leaving 3)
@@ -391,7 +391,7 @@ struct PETransactionManagerTests {
     
     @Test("Request IDs can be reused after cancel")
     func requestIDReuseAfterCancel() async {
-        let manager = PETransactionManager()
+        let manager = PETransactionManager(requestIDCooldownPeriod: 0)
         let muid = MUID.random()
         
         // Get an ID
@@ -412,7 +412,7 @@ struct PETransactionManagerTests {
     
     @Test("Request ID released after chunk complete")
     func requestIDReleasedAfterChunkComplete() async {
-        let manager = PETransactionManager()
+        let manager = PETransactionManager(requestIDCooldownPeriod: 0)
         let muid = MUID.random()
         
         let id = await manager.begin(resource: "Test", destinationMUID: muid)
@@ -463,28 +463,28 @@ struct InflightLimitingTests {
     
     @Test("Default maxInflightPerDevice is 2")
     func defaultMaxInflight() async {
-        let manager = PETransactionManager()
+        let manager = PETransactionManager(requestIDCooldownPeriod: 0)
         #expect(manager.maxInflightPerDevice == 2)
     }
     
     @Test("Custom maxInflightPerDevice is respected")
     func customMaxInflight() async {
-        let manager = PETransactionManager(maxInflightPerDevice: 4)
+        let manager = PETransactionManager(maxInflightPerDevice: 4, requestIDCooldownPeriod: 0)
         #expect(manager.maxInflightPerDevice == 4)
     }
     
     @Test("MaxInflightPerDevice minimum is 1")
     func maxInflightMinimum() async {
-        let manager = PETransactionManager(maxInflightPerDevice: 0)
+        let manager = PETransactionManager(maxInflightPerDevice: 0, requestIDCooldownPeriod: 0)
         #expect(manager.maxInflightPerDevice == 1)
         
-        let manager2 = PETransactionManager(maxInflightPerDevice: -5)
+        let manager2 = PETransactionManager(maxInflightPerDevice: -5, requestIDCooldownPeriod: 0)
         #expect(manager2.maxInflightPerDevice == 1)
     }
     
     @Test("Inflight count tracks active transactions")
     func inflightCountTracksActive() async {
-        let manager = PETransactionManager(maxInflightPerDevice: 4)
+        let manager = PETransactionManager(maxInflightPerDevice: 4, requestIDCooldownPeriod: 0)
         let muid = MUID.random()
         
         #expect(await manager.inflightCount(for: muid) == 0)
@@ -504,7 +504,7 @@ struct InflightLimitingTests {
     
     @Test("Different devices have independent inflight counts")
     func independentInflightCounts() async {
-        let manager = PETransactionManager(maxInflightPerDevice: 2)
+        let manager = PETransactionManager(maxInflightPerDevice: 2, requestIDCooldownPeriod: 0)
         let device1 = MUID.random()
         let device2 = MUID.random()
         
@@ -524,7 +524,7 @@ struct InflightLimitingTests {
     
     @Test("Cancel all for device clears inflight state")
     func cancelAllClearsInflightState() async {
-        let manager = PETransactionManager(maxInflightPerDevice: 4)
+        let manager = PETransactionManager(maxInflightPerDevice: 4, requestIDCooldownPeriod: 0)
         let muid = MUID.random()
         
         _ = await manager.begin(resource: "Test1", destinationMUID: muid)
@@ -541,7 +541,7 @@ struct InflightLimitingTests {
     
     @Test("Diagnostics shows device states")
     func diagnosticsShowsDeviceStates() async {
-        let manager = PETransactionManager(maxInflightPerDevice: 3)
+        let manager = PETransactionManager(maxInflightPerDevice: 3, requestIDCooldownPeriod: 0)
         let muid = MUID.random()
         
         _ = await manager.begin(resource: "Test", destinationMUID: muid)
@@ -556,7 +556,7 @@ struct InflightLimitingTests {
     
     @Test("Waiter queued when at capacity and resumed on cancel")
     func waiterQueuedAndResumed() async {
-        let manager = PETransactionManager(maxInflightPerDevice: 1)
+        let manager = PETransactionManager(maxInflightPerDevice: 1, requestIDCooldownPeriod: 0)
         let muid = MUID.random()
         
         // Use the only slot
