@@ -2314,3 +2314,50 @@
 次のTODO:
   - 完了
 ---
+
+---
+2026-02-04 14:35
+作業項目: 個別モジュールXCFramework作成
+追加機能の説明:
+  - 5モジュールを個別のXCFrameworkとして作成
+  - GitHub Releasesにアップロード
+決定事項:
+  【作成完了】
+  ✅ MIDI2Core.xcframework (1.4MB)
+  ✅ MIDI2Transport.xcframework (1.9MB)
+  ✅ MIDI2CI.xcframework (2.7MB)
+  ✅ MIDI2PE.xcframework (6.4MB)
+  ✅ MIDI2Client.xcframework (7.4MB)
+
+  【GitHub Releasesアップロード済み】
+  https://github.com/hakaru/MIDI2Kit/releases/tag/v1.0.0
+
+  【利用者向けPackage.swift】
+  .binaryTarget(
+      name: "MIDI2Core",
+      url: "https://github.com/hakaru/MIDI2Kit/releases/download/v1.0.0/MIDI2Core.xcframework.zip",
+      checksum: "b64fc8d4e54e33cba15b1f8de422346df50f52b760122adf48cb2b01e9ac0df6"
+  ),
+  .binaryTarget(
+      name: "MIDI2Transport",
+      url: "https://github.com/hakaru/MIDI2Kit/releases/download/v1.0.0/MIDI2Transport.xcframework.zip",
+      checksum: "ec7523155aa3d7ec49610c8c49a4ddf8216c319e141c0f651a3f3b006b4a785c"
+  ),
+  .binaryTarget(
+      name: "MIDI2CI",
+      url: "https://github.com/hakaru/MIDI2Kit/releases/download/v1.0.0/MIDI2CI.xcframework.zip",
+      checksum: "9617b641c4417664ea41dfdcdbf9bbf91550b524de2e2205224589ee42ab74cd"
+  ),
+  .binaryTarget(
+      name: "MIDI2PE",
+      url: "https://github.com/hakaru/MIDI2Kit/releases/download/v1.0.0/MIDI2PE.xcframework.zip",
+      checksum: "1a8869fa6bfa6b29cd4265b03b1337d9de12b33c2aab18e72bc8de37cceb4e33"
+  ),
+  .binaryTarget(
+      name: "MIDI2Client",
+      url: "https://github.com/hakaru/MIDI2Kit/releases/download/v1.0.0/MIDI2Client.xcframework.zip",
+      checksum: "f74c8a2719fe7243f00d9af519b9e9837490dde75e51a47d5fafb6abc7ab7b1e"
+  )
+次のTODO:
+  - 完了
+---

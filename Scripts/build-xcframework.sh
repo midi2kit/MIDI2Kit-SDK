@@ -1,108 +1,134 @@
 #!/bin/bash
 #
 # build-xcframework.sh
-# Builds XCFramework for MIDI2Kit
+# Builds XCFrameworks for MIDI2Kit modules
+#
+# Usage:
+#   ./Scripts/build-xcframework.sh          # Build all modules
+#   ./Scripts/build-xcframework.sh MIDI2Core # Build single module
 #
 
 set -e
 
-SCHEME="MIDI2KitDynamic"
-OUTPUT_NAME="MIDI2Kit"
+# All modules to build
+ALL_MODULES=("MIDI2Core" "MIDI2Transport" "MIDI2CI" "MIDI2PE" "MIDI2Client")
+
+# If a specific module is requested
+if [ -n "$1" ]; then
+    MODULES=("$1")
+else
+    MODULES=("${ALL_MODULES[@]}")
+fi
+
 BUILD_DIR="$(pwd)/build"
 OUTPUT_DIR="$(pwd)/dist"
 
 echo "🧹 Cleaning..."
-rm -rf "$BUILD_DIR" "$OUTPUT_DIR"
+rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR" "$OUTPUT_DIR"
 
-echo ""
-echo "📱 Building iOS (Release)..."
-xcodebuild build \
-    -scheme "$SCHEME" \
-    -configuration Release \
-    -destination "generic/platform=iOS" \
-    -derivedDataPath "$BUILD_DIR/ios" \
-    BUILD_LIBRARY_FOR_DISTRIBUTION=YES \
-    SKIP_INSTALL=NO \
-    -quiet 2>&1 | grep -E "error:|BUILD" || true
+# Function to build a single module
+build_module() {
+    local MODULE=$1
+    local SCHEME="${MODULE}Dynamic"
 
-echo "📱 Building iOS Simulator (Release)..."
-xcodebuild build \
-    -scheme "$SCHEME" \
-    -configuration Release \
-    -destination "generic/platform=iOS Simulator" \
-    -derivedDataPath "$BUILD_DIR/ios-sim" \
-    BUILD_LIBRARY_FOR_DISTRIBUTION=YES \
-    SKIP_INSTALL=NO \
-    -quiet 2>&1 | grep -E "error:|BUILD" || true
-
-echo "💻 Building macOS (Release)..."
-xcodebuild build \
-    -scheme "$SCHEME" \
-    -configuration Release \
-    -destination "generic/platform=macOS" \
-    -derivedDataPath "$BUILD_DIR/macos" \
-    BUILD_LIBRARY_FOR_DISTRIBUTION=YES \
-    SKIP_INSTALL=NO \
-    -quiet 2>&1 | grep -E "error:|BUILD" || true
-
-echo ""
-echo "🔍 Finding frameworks..."
-
-# Find the built frameworks (they're named MIDI2KitDynamic.framework in PackageFrameworks)
-IOS_FW=$(find "$BUILD_DIR/ios" -path "*Release-iphoneos*PackageFrameworks*" -name "${SCHEME}.framework" -type d 2>/dev/null | head -1)
-IOS_SIM_FW=$(find "$BUILD_DIR/ios-sim" -path "*Release-iphonesimulator*PackageFrameworks*" -name "${SCHEME}.framework" -type d 2>/dev/null | head -1)
-MACOS_FW=$(find "$BUILD_DIR/macos" -path "*Release*PackageFrameworks*" -name "${SCHEME}.framework" -type d 2>/dev/null | head -1)
-
-# Fallback to Debug if Release not found
-[ -z "$IOS_FW" ] && IOS_FW=$(find "$BUILD_DIR/ios" -path "*Debug-iphoneos*PackageFrameworks*" -name "${SCHEME}.framework" -type d 2>/dev/null | head -1)
-[ -z "$IOS_SIM_FW" ] && IOS_SIM_FW=$(find "$BUILD_DIR/ios-sim" -path "*Debug-iphonesimulator*PackageFrameworks*" -name "${SCHEME}.framework" -type d 2>/dev/null | head -1)
-[ -z "$MACOS_FW" ] && MACOS_FW=$(find "$BUILD_DIR/macos" -path "*Debug*PackageFrameworks*" -name "${SCHEME}.framework" -type d 2>/dev/null | head -1)
-
-echo "iOS: $IOS_FW"
-echo "iOS Sim: $IOS_SIM_FW"
-echo "macOS: $MACOS_FW"
-
-# Build XCFramework
-ARGS=""
-[ -n "$IOS_FW" ] && [ -d "$IOS_FW" ] && ARGS="$ARGS -framework $IOS_FW"
-[ -n "$IOS_SIM_FW" ] && [ -d "$IOS_SIM_FW" ] && ARGS="$ARGS -framework $IOS_SIM_FW"
-[ -n "$MACOS_FW" ] && [ -d "$MACOS_FW" ] && ARGS="$ARGS -framework $MACOS_FW"
-
-if [ -n "$ARGS" ]; then
     echo ""
-    echo "📦 Creating XCFramework..."
-    xcodebuild -create-xcframework $ARGS -output "$OUTPUT_DIR/${SCHEME}.xcframework"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "📦 Building $MODULE"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-    # Rename to MIDI2Kit if needed
-    if [ "$SCHEME" != "$OUTPUT_NAME" ]; then
-        mv "$OUTPUT_DIR/${SCHEME}.xcframework" "$OUTPUT_DIR/${OUTPUT_NAME}.xcframework"
+    local MODULE_BUILD="$BUILD_DIR/$MODULE"
+    mkdir -p "$MODULE_BUILD"
+
+    echo "  📱 iOS..."
+    xcodebuild build \
+        -scheme "$SCHEME" \
+        -configuration Release \
+        -destination "generic/platform=iOS" \
+        -derivedDataPath "$MODULE_BUILD/ios" \
+        BUILD_LIBRARY_FOR_DISTRIBUTION=YES \
+        SKIP_INSTALL=NO \
+        -quiet 2>&1 | grep -E "^error:" || true
+
+    echo "  📱 iOS Simulator..."
+    xcodebuild build \
+        -scheme "$SCHEME" \
+        -configuration Release \
+        -destination "generic/platform=iOS Simulator" \
+        -derivedDataPath "$MODULE_BUILD/ios-sim" \
+        BUILD_LIBRARY_FOR_DISTRIBUTION=YES \
+        SKIP_INSTALL=NO \
+        -quiet 2>&1 | grep -E "^error:" || true
+
+    echo "  💻 macOS..."
+    xcodebuild build \
+        -scheme "$SCHEME" \
+        -configuration Release \
+        -destination "generic/platform=macOS" \
+        -derivedDataPath "$MODULE_BUILD/macos" \
+        BUILD_LIBRARY_FOR_DISTRIBUTION=YES \
+        SKIP_INSTALL=NO \
+        -quiet 2>&1 | grep -E "^error:" || true
+
+    # Find frameworks
+    local IOS_FW=$(find "$MODULE_BUILD/ios" -path "*Release-iphoneos*PackageFrameworks*" -name "${SCHEME}.framework" -type d 2>/dev/null | head -1)
+    local IOS_SIM_FW=$(find "$MODULE_BUILD/ios-sim" -path "*Release-iphonesimulator*PackageFrameworks*" -name "${SCHEME}.framework" -type d 2>/dev/null | head -1)
+    local MACOS_FW=$(find "$MODULE_BUILD/macos" -path "*Release*PackageFrameworks*" -name "${SCHEME}.framework" -type d 2>/dev/null | head -1)
+
+    # Fallback to Debug
+    [ -z "$IOS_FW" ] && IOS_FW=$(find "$MODULE_BUILD/ios" -path "*Debug-iphoneos*PackageFrameworks*" -name "${SCHEME}.framework" -type d 2>/dev/null | head -1)
+    [ -z "$IOS_SIM_FW" ] && IOS_SIM_FW=$(find "$MODULE_BUILD/ios-sim" -path "*Debug-iphonesimulator*PackageFrameworks*" -name "${SCHEME}.framework" -type d 2>/dev/null | head -1)
+    [ -z "$MACOS_FW" ] && MACOS_FW=$(find "$MODULE_BUILD/macos" -path "*Debug*PackageFrameworks*" -name "${SCHEME}.framework" -type d 2>/dev/null | head -1)
+
+    # Build XCFramework
+    local ARGS=""
+    [ -n "$IOS_FW" ] && [ -d "$IOS_FW" ] && ARGS="$ARGS -framework $IOS_FW"
+    [ -n "$IOS_SIM_FW" ] && [ -d "$IOS_SIM_FW" ] && ARGS="$ARGS -framework $IOS_SIM_FW"
+    [ -n "$MACOS_FW" ] && [ -d "$MACOS_FW" ] && ARGS="$ARGS -framework $MACOS_FW"
+
+    if [ -n "$ARGS" ]; then
+        echo "  📦 Creating XCFramework..."
+        xcodebuild -create-xcframework $ARGS -output "$OUTPUT_DIR/${MODULE}.xcframework" 2>/dev/null
+
+        echo "  🗜️ Creating ZIP..."
+        cd "$OUTPUT_DIR"
+        zip -r -q "${MODULE}.xcframework.zip" "${MODULE}.xcframework"
+        cd - > /dev/null
+
+        local CHECKSUM=$(swift package compute-checksum "$OUTPUT_DIR/${MODULE}.xcframework.zip")
+
+        echo "  ✅ $MODULE complete"
+        echo "     Checksum: $CHECKSUM"
+    else
+        echo "  ❌ $MODULE failed - no frameworks found"
     fi
+}
 
-    echo "🗜️ Creating ZIP..."
-    cd "$OUTPUT_DIR"
-    zip -r -q "${OUTPUT_NAME}.xcframework.zip" "${OUTPUT_NAME}.xcframework"
+# Build each module
+for MODULE in "${MODULES[@]}"; do
+    build_module "$MODULE"
+done
 
-    CHECKSUM=$(swift package compute-checksum "${OUTPUT_NAME}.xcframework.zip")
-
-    echo ""
-    echo "✅ Success!"
-    echo ""
-    echo "📍 XCFramework: $OUTPUT_DIR/${OUTPUT_NAME}.xcframework"
-    echo "📦 ZIP: $OUTPUT_DIR/${OUTPUT_NAME}.xcframework.zip"
-    echo "🔐 Checksum: $CHECKSUM"
-    echo ""
-    echo "📝 To distribute, add to Package.swift:"
-    echo ""
-    echo ".binaryTarget("
-    echo "    name: \"${OUTPUT_NAME}\","
-    echo "    url: \"https://your-server.com/${OUTPUT_NAME}.xcframework.zip\","
-    echo "    checksum: \"$CHECKSUM\""
-    echo ")"
-else
-    echo ""
-    echo "❌ No frameworks found."
-    echo ""
-    echo "Build artifacts:"
-    find "$BUILD_DIR" -name "*.framework" -type d 2>/dev/null | head -10
-fi
+echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "✅ Build Complete!"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
+echo "📍 Output: $OUTPUT_DIR/"
+echo ""
+ls -lh "$OUTPUT_DIR"/*.xcframework.zip 2>/dev/null || echo "No ZIP files created"
+echo ""
+echo "📝 Checksums for Package.swift:"
+echo ""
+for zip in "$OUTPUT_DIR"/*.xcframework.zip; do
+    if [ -f "$zip" ]; then
+        NAME=$(basename "$zip" .xcframework.zip)
+        CHECKSUM=$(swift package compute-checksum "$zip")
+        echo ".binaryTarget("
+        echo "    name: \"$NAME\","
+        echo "    url: \"https://github.com/hakaru/MIDI2Kit/releases/download/v1.0.0/$NAME.xcframework.zip\","
+        echo "    checksum: \"$CHECKSUM\""
+        echo "),"
+        echo ""
+    fi
+done

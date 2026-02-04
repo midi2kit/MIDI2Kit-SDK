@@ -18,12 +18,6 @@ let package = Package(
             name: "MIDI2Kit",
             targets: ["MIDI2Kit"]
         ),
-        // Dynamic library for XCFramework distribution
-        .library(
-            name: "MIDI2KitDynamic",
-            type: .dynamic,
-            targets: ["MIDI2Kit"]
-        ),
         // Individual modules for selective import
         .library(
             name: "MIDI2Core",
@@ -40,6 +34,33 @@ let package = Package(
         .library(
             name: "MIDI2Transport",
             targets: ["MIDI2Transport"]
+        ),
+
+        // MARK: - Dynamic libraries for XCFramework distribution
+        .library(
+            name: "MIDI2CoreDynamic",
+            type: .dynamic,
+            targets: ["MIDI2Core"]
+        ),
+        .library(
+            name: "MIDI2TransportDynamic",
+            type: .dynamic,
+            targets: ["MIDI2Transport"]
+        ),
+        .library(
+            name: "MIDI2CIDynamic",
+            type: .dynamic,
+            targets: ["MIDI2CI"]
+        ),
+        .library(
+            name: "MIDI2PEDynamic",
+            type: .dynamic,
+            targets: ["MIDI2PE"]
+        ),
+        .library(
+            name: "MIDI2ClientDynamic",
+            type: .dynamic,
+            targets: ["MIDI2Kit"]
         ),
         // Example executable for real device testing
         .executable(
