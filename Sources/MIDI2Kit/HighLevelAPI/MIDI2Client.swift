@@ -350,75 +350,17 @@ public actor MIDI2Client {
             return cached
         }
 
-        let startTime = Date()
-        let destination = try await resolveDestination(for: muid)
-        let handle = PEDeviceHandle(muid: muid, destination: destination)
-
-        do {
-            let info = try await peManager.getDeviceInfo(from: handle)
-            // Cache the result
-            deviceInfoCache[muid] = info
-            recordTrace(
-                operation: .getDeviceInfo,
-                muid: muid,
-                result: .success,
-                destination: destination,
-                duration: Date().timeIntervalSince(startTime)
-            )
-            return info
-        } catch let error as PEError {
-            // Try fallback on timeout
-            if case .timeout = error {
-                if let nextDest = await destinationResolver.getNextCandidate(after: destination, for: muid) {
-                    let retryHandle = PEDeviceHandle(muid: muid, destination: nextDest)
-                    do {
-                        let result = try await peManager.getDeviceInfo(from: retryHandle)
-                        // Cache successful destination and result
-                        await destinationResolver.cacheDestination(nextDest, for: muid)
-                        deviceInfoCache[muid] = result
-                        recordTrace(
-                            operation: .getDeviceInfo,
-                            muid: muid,
-                            result: .success,
-                            destination: nextDest,
-                            duration: Date().timeIntervalSince(startTime)
-                        )
-                        return result
-                    } catch {
-                        recordTrace(
-                            operation: .getDeviceInfo,
-                            muid: muid,
-                            result: .timeout,
-                            destination: nextDest,
-                            duration: Date().timeIntervalSince(startTime),
-                            errorMessage: error.localizedDescription
-                        )
-                        if let peError = error as? PEError {
-                            throw MIDI2Error(from: peError, muid: muid)
-                        } else {
-                            throw MIDI2Error.deviceNotResponding(
-                                muid: muid,
-                                resource: "DeviceInfo",
-                                timeout: configuration.peTimeout
-                            )
-                        }
-                    }
-                }
-            }
-            let resultType: CommunicationTrace.Result = {
-                if case .timeout = error { return .timeout }
-                return .error
-            }()
-            recordTrace(
-                operation: .getDeviceInfo,
-                muid: muid,
-                result: resultType,
-                destination: destination,
-                duration: Date().timeIntervalSince(startTime),
-                errorMessage: error.localizedDescription
-            )
-            throw MIDI2Error(from: error, muid: muid)
+        let info = try await executeWithDestinationFallback(
+            muid: muid,
+            operation: .getDeviceInfo,
+            resource: "DeviceInfo"
+        ) { [peManager] handle in
+            try await peManager.getDeviceInfo(from: handle)
         }
+
+        // Cache the result
+        deviceInfoCache[muid] = info
+        return info
     }
     
     /// Get cached DeviceInfo without making a network request
@@ -561,76 +503,19 @@ public actor MIDI2Client {
         from muid: MUID,
         timeout: Duration? = nil
     ) async throws -> PEResponse {
-        guard isRunning else { throw MIDI2Error.clientNotRunning }
-
-        let startTime = Date()
-        let destination = try await resolveDestination(for: muid)
-        let handle = PEDeviceHandle(muid: muid, destination: destination)
-
-        do {
-            let result = try await peManager.get(
+        try await executeWithDestinationFallback(
+            muid: muid,
+            operation: .getProperty,
+            resource: resource
+        ) { [peManager, configuration] handle in
+            try await peManager.get(
                 resource,
                 from: handle,
                 timeout: timeout ?? configuration.peTimeout
             )
-            recordTrace(
-                operation: .getProperty,
-                muid: muid,
-                resource: resource,
-                result: .success,
-                destination: destination,
-                duration: Date().timeIntervalSince(startTime)
-            )
-            return result
-        } catch let error as PEError {
-            // Try fallback on timeout
-            if case .timeout = error {
-                if let nextDest = await destinationResolver.getNextCandidate(after: destination, for: muid) {
-                    MIDI2Logger.pe.midi2Debug("Get '\(resource)' timeout, trying fallback destination")
-                    let retryHandle = PEDeviceHandle(muid: muid, destination: nextDest)
-                    do {
-                        let result = try await peManager.get(resource, from: retryHandle, timeout: timeout ?? configuration.peTimeout)
-                        await destinationResolver.cacheDestination(nextDest, for: muid)
-                        recordTrace(
-                            operation: .getProperty,
-                            muid: muid,
-                            resource: resource,
-                            result: .success,
-                            destination: nextDest,
-                            duration: Date().timeIntervalSince(startTime)
-                        )
-                        return result
-                    } catch {
-                        recordTrace(
-                            operation: .getProperty,
-                            muid: muid,
-                            resource: resource,
-                            result: .timeout,
-                            destination: nextDest,
-                            duration: Date().timeIntervalSince(startTime),
-                            errorMessage: error.localizedDescription
-                        )
-                        throw MIDI2Error(from: error as? PEError ?? .timeout(resource: resource), muid: muid)
-                    }
-                }
-            }
-            let resultType: CommunicationTrace.Result = {
-                if case .timeout = error { return .timeout }
-                return .error
-            }()
-            recordTrace(
-                operation: .getProperty,
-                muid: muid,
-                resource: resource,
-                result: resultType,
-                destination: destination,
-                duration: Date().timeIntervalSince(startTime),
-                errorMessage: error.localizedDescription
-            )
-            throw MIDI2Error(from: error, muid: muid)
         }
     }
-    
+
     /// Get a channel-specific property
     public func get(
         _ resource: String,
@@ -638,37 +523,20 @@ public actor MIDI2Client {
         from muid: MUID,
         timeout: Duration? = nil
     ) async throws -> PEResponse {
-        guard isRunning else { throw MIDI2Error.clientNotRunning }
-
-        let destination = try await resolveDestination(for: muid)
-        let handle = PEDeviceHandle(muid: muid, destination: destination)
-
-        do {
-            return try await peManager.get(
+        try await executeWithDestinationFallback(
+            muid: muid,
+            operation: .getProperty,
+            resource: resource
+        ) { [peManager, configuration] handle in
+            try await peManager.get(
                 resource,
                 channel: channel,
                 from: handle,
                 timeout: timeout ?? configuration.peTimeout
             )
-        } catch let error as PEError {
-            // Try fallback on timeout
-            if case .timeout = error {
-                if let nextDest = await destinationResolver.getNextCandidate(after: destination, for: muid) {
-                    MIDI2Logger.pe.midi2Debug("Get '\(resource)' (channel \(channel)) timeout, trying fallback destination")
-                    let retryHandle = PEDeviceHandle(muid: muid, destination: nextDest)
-                    do {
-                        let result = try await peManager.get(resource, channel: channel, from: retryHandle, timeout: timeout ?? configuration.peTimeout)
-                        await destinationResolver.cacheDestination(nextDest, for: muid)
-                        return result
-                    } catch {
-                        throw MIDI2Error(from: error as? PEError ?? .timeout(resource: resource), muid: muid)
-                    }
-                }
-            }
-            throw MIDI2Error(from: error, muid: muid)
         }
     }
-    
+
     /// Set a property on a device
     ///
     /// - Parameters:
@@ -684,77 +552,20 @@ public actor MIDI2Client {
         to muid: MUID,
         timeout: Duration? = nil
     ) async throws -> PEResponse {
-        guard isRunning else { throw MIDI2Error.clientNotRunning }
-
-        let startTime = Date()
-        let destination = try await resolveDestination(for: muid)
-        let handle = PEDeviceHandle(muid: muid, destination: destination)
-
-        do {
-            let result = try await peManager.set(
+        try await executeWithDestinationFallback(
+            muid: muid,
+            operation: .setProperty,
+            resource: resource
+        ) { [peManager, configuration] handle in
+            try await peManager.set(
                 resource,
                 data: data,
                 to: handle,
                 timeout: timeout ?? configuration.peTimeout
             )
-            recordTrace(
-                operation: .setProperty,
-                muid: muid,
-                resource: resource,
-                result: .success,
-                destination: destination,
-                duration: Date().timeIntervalSince(startTime)
-            )
-            return result
-        } catch let error as PEError {
-            // Try fallback on timeout
-            if case .timeout = error {
-                if let nextDest = await destinationResolver.getNextCandidate(after: destination, for: muid) {
-                    MIDI2Logger.pe.midi2Debug("Set '\(resource)' timeout, trying fallback destination")
-                    let retryHandle = PEDeviceHandle(muid: muid, destination: nextDest)
-                    do {
-                        let result = try await peManager.set(resource, data: data, to: retryHandle, timeout: timeout ?? configuration.peTimeout)
-                        await destinationResolver.cacheDestination(nextDest, for: muid)
-                        recordTrace(
-                            operation: .setProperty,
-                            muid: muid,
-                            resource: resource,
-                            result: .success,
-                            destination: nextDest,
-                            duration: Date().timeIntervalSince(startTime)
-                        )
-                        return result
-                    } catch {
-                        recordTrace(
-                            operation: .setProperty,
-                            muid: muid,
-                            resource: resource,
-                            result: .timeout,
-                            destination: nextDest,
-                            duration: Date().timeIntervalSince(startTime),
-                            errorMessage: error.localizedDescription
-                        )
-                        throw MIDI2Error(from: error as? PEError ?? .timeout(resource: resource), muid: muid)
-                    }
-                }
-            }
-            let resultType: CommunicationTrace.Result = {
-                if case .timeout = error { return .timeout }
-                return .error
-            }()
-            recordTrace(
-                operation: .setProperty,
-                muid: muid,
-                resource: resource,
-                result: resultType,
-                destination: destination,
-                duration: Date().timeIntervalSince(startTime),
-                errorMessage: error.localizedDescription
-            )
-            throw MIDI2Error(from: error, muid: muid)
         }
     }
-    
+
     // MARK: - Diagnostics
     
     /// Last destination resolution diagnostics
@@ -954,8 +765,105 @@ public actor MIDI2Client {
         }
     }
     
+    // MARK: - Private: Operation Execution with Fallback
+
+    /// Execute an operation with automatic destination fallback on timeout
+    ///
+    /// This method centralizes the common pattern of:
+    /// 1. Resolving destination for a device
+    /// 2. Executing an operation
+    /// 3. On timeout, trying the next destination candidate
+    /// 4. Recording traces for diagnostics
+    ///
+    /// - Parameters:
+    ///   - muid: Target device MUID
+    ///   - operation: Operation type for tracing
+    ///   - resource: Optional resource name for tracing
+    ///   - execute: The operation to execute, receives a PEDeviceHandle
+    /// - Returns: The operation result
+    /// - Throws: MIDI2Error on failure
+    private func executeWithDestinationFallback<T>(
+        muid: MUID,
+        operation: CommunicationTrace.Operation,
+        resource: String? = nil,
+        execute: @escaping (PEDeviceHandle) async throws -> T
+    ) async throws -> T {
+        guard isRunning else { throw MIDI2Error.clientNotRunning }
+
+        let startTime = Date()
+        let destination = try await resolveDestination(for: muid)
+        let handle = PEDeviceHandle(muid: muid, destination: destination)
+
+        do {
+            let result = try await execute(handle)
+            recordTrace(
+                operation: operation,
+                muid: muid,
+                resource: resource,
+                result: .success,
+                destination: destination,
+                duration: Date().timeIntervalSince(startTime)
+            )
+            return result
+        } catch let error as PEError {
+            // Try fallback on timeout
+            if case .timeout = error {
+                if let nextDest = await destinationResolver.getNextCandidate(after: destination, for: muid) {
+                    MIDI2Logger.pe.midi2Debug("\(operation) timeout, trying fallback destination")
+                    let retryHandle = PEDeviceHandle(muid: muid, destination: nextDest)
+                    do {
+                        let result = try await execute(retryHandle)
+                        await destinationResolver.cacheDestination(nextDest, for: muid)
+                        recordTrace(
+                            operation: operation,
+                            muid: muid,
+                            resource: resource,
+                            result: .success,
+                            destination: nextDest,
+                            duration: Date().timeIntervalSince(startTime)
+                        )
+                        return result
+                    } catch {
+                        recordTrace(
+                            operation: operation,
+                            muid: muid,
+                            resource: resource,
+                            result: .timeout,
+                            destination: nextDest,
+                            duration: Date().timeIntervalSince(startTime),
+                            errorMessage: error.localizedDescription
+                        )
+                        if let peError = error as? PEError {
+                            throw MIDI2Error(from: peError, muid: muid)
+                        } else {
+                            throw MIDI2Error.deviceNotResponding(
+                                muid: muid,
+                                resource: resource,
+                                timeout: configuration.peTimeout
+                            )
+                        }
+                    }
+                }
+            }
+            let resultType: CommunicationTrace.Result = {
+                if case .timeout = error { return .timeout }
+                return .error
+            }()
+            recordTrace(
+                operation: operation,
+                muid: muid,
+                resource: resource,
+                result: resultType,
+                destination: destination,
+                duration: Date().timeIntervalSince(startTime),
+                errorMessage: error.localizedDescription
+            )
+            throw MIDI2Error(from: error, muid: muid)
+        }
+    }
+
     // MARK: - Private: Destination Resolution
-    
+
     private func resolveDestination(for muid: MUID) async throws -> MIDIDestinationID {
         // First check if device exists
         guard devices[muid] != nil else {

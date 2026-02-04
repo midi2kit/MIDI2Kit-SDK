@@ -37,14 +37,15 @@ struct IntegrationTests {
         let peManager = PEManager(
             transport: transport,
             sourceMUID: ciMUID,
+            requestIDCooldownPeriod: 0,
             sendStrategy: .single
         )
 
-        // Start both managers
-        try await ciManager.start()
-        await peManager.startReceiving()
+        // Start PE manager in external dispatch mode (we'll manually forward messages)
+        // Note: Don't call startReceiving() - we use handleReceivedExternal instead
+        await peManager.resetForExternalDispatch()
 
-        // Simulate device discovery
+        // Simulate device discovery - dispatch directly to CIManager
         let deviceMUID = MUID(rawValue: 0x01234567)!
         let discoveryReply = CIMessageBuilder.discoveryReply(
             sourceMUID: deviceMUID,
@@ -58,7 +59,8 @@ struct IntegrationTests {
             categorySupport: .propertyExchange
         )
 
-        await transport.simulateReceive(discoveryReply, from: sourceID)
+        // Dispatch discovery reply directly to CIManager
+        await ciManager.handleReceivedExternal(MIDIReceivedData(data: discoveryReply, sourceID: sourceID))
         try await Task.sleep(for: .milliseconds(100))
 
         // Verify device discovered
@@ -87,7 +89,7 @@ struct IntegrationTests {
         // Extract request ID from sent message (index 14: after F0,7E,7F,0D,34,ver,srcMUID[4],dstMUID[4])
         let requestID: UInt8 = peRequests.first.map { $0.data.count > 14 ? $0.data[14] : 0 } ?? 0
 
-        // Simulate PE response
+        // Simulate PE response - dispatch directly to PEManager
         let peReply = buildPEReply(
             sourceMUID: deviceMUID,
             destinationMUID: ciMUID,
@@ -95,14 +97,13 @@ struct IntegrationTests {
             header: "{\"status\":200}",
             body: "{\"name\":\"TestDevice\"}"
         )
-        await transport.simulateReceive(peReply, from: sourceID)
+        await peManager.handleReceivedExternal(peReply)
 
         // Wait for response processing
         let response = try await peTask.value
         #expect(response.status == 200)
 
         // Cleanup
-        await peManager.stopReceiving()
         await ciManager.stop()
     }
 
@@ -119,6 +120,7 @@ struct IntegrationTests {
         let peManager = PEManager(
             transport: transport,
             sourceMUID: sourceMUID,
+            requestIDCooldownPeriod: 0,
             sendStrategy: .single
         )
 
@@ -179,6 +181,7 @@ struct IntegrationTests {
         let peManager = PEManager(
             transport: transport,
             sourceMUID: sourceMUID,
+            requestIDCooldownPeriod: 0,
             sendStrategy: .single
         )
 
@@ -241,13 +244,14 @@ struct IntegrationTests {
         let peManager = PEManager(
             transport: transport,
             sourceMUID: sourceMUID,
+            requestIDCooldownPeriod: 0,
             sendStrategy: .single
         )
 
-        try await ciManager.start()
-        await peManager.startReceiving()
+        // Start PE manager in external dispatch mode
+        await peManager.resetForExternalDispatch()
 
-        // Register device
+        // Register device - dispatch directly to CIManager
         let discoveryReply = CIMessageBuilder.discoveryReply(
             sourceMUID: deviceMUID,
             destinationMUID: ciManager.muid,
@@ -259,7 +263,7 @@ struct IntegrationTests {
             ),
             categorySupport: .propertyExchange
         )
-        await transport.simulateReceive(discoveryReply, from: sourceID)
+        await ciManager.handleReceivedExternal(MIDIReceivedData(data: discoveryReply, sourceID: sourceID))
         try await Task.sleep(for: .milliseconds(50))
 
         let handle = PEDeviceHandle(muid: deviceMUID, destination: destinationID, name: "UnstableDevice")
@@ -269,12 +273,12 @@ struct IntegrationTests {
             try await peManager.get("DeviceInfo", from: handle, timeout: .milliseconds(200))
         }
 
-        // Simulate device sending InvalidateMUID (device going offline)
+        // Simulate device sending InvalidateMUID (device going offline) - dispatch to CIManager
         let invalidate = CIMessageBuilder.invalidateMUID(
             sourceMUID: deviceMUID,
             targetMUID: deviceMUID
         )
-        await transport.simulateReceive(invalidate, from: sourceID)
+        await ciManager.handleReceivedExternal(MIDIReceivedData(data: invalidate, sourceID: sourceID))
 
         // Request should timeout since no response comes
         do {
@@ -284,7 +288,6 @@ struct IntegrationTests {
             #expect(error is PEError)
         }
 
-        await peManager.stopReceiving()
         await ciManager.stop()
     }
 
@@ -376,6 +379,7 @@ struct RequestIDPoolIntegrationTests {
         let peManager = PEManager(
             transport: transport,
             sourceMUID: sourceMUID,
+            requestIDCooldownPeriod: 0,
             sendStrategy: .single
         )
 
