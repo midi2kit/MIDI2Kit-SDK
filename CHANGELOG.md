@@ -9,6 +9,70 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+#### SET Operations Extension (2026-02-04)
+
+**Phase 1: Payload Validation Layer**
+- **PEPayloadValidator Protocol**: Pre-SET validation interface for catching errors before device transmission
+  - `PEPayloadValidationError`: Comprehensive validation error types (invalidJSON, schemaViolation, payloadTooLarge, etc.)
+  - `PEPayloadValidatorRegistry` (actor): Thread-safe validator registration system
+  - `PESchemaBasedValidator`: JSONSchema-based validation with schema caching
+  - `PEBuiltinValidators`: Pre-configured validators for DeviceInfo, ResourceList, ChannelList, and common resources
+  - `PEError.payloadValidationFailed`: New error case for validation failures
+
+**Phase 2: Batch SET API**
+- **PESetItem**: Type-safe SET item structure
+  - Factory methods: `json(resource:value:channel:)`, `dictionary(resource:_:channel:)`
+  - Support for channel-specific resources
+- **PEBatchSetOptions**: Batch operation strategies
+  - `.default`: Parallel execution with first error (default)
+  - `.strict`: Parallel execution, abort all on any error
+  - `.fast`: Parallel execution, continue on errors
+  - `.serial`: Sequential execution
+- **PEBatchSetResponse**: Structured batch result with per-item success/failure tracking
+- **PEManager.batchSet()**: Execute multiple SET operations concurrently
+- **PEManager.batchSetChannels()**: Channel-specific batch SET with automatic channel routing
+
+**Phase 3: SET Chain/Pipeline**
+- **PEPipeline<T>**: Fluent builder for GET → Transform → SET workflows
+  - Read operations: `get(resource:channel:)`, `getJSON(_:as:channel:)`
+  - Transform: `transform(_:)`, `map(_:)` for value modification
+  - Write operations: `set(resource:)`, `setJSON(resource:)`
+  - Conditional: `where(_:)`, `whereOr(_:)` for conditional execution
+  - Execution: `execute()` to run the pipeline
+- **PEConditionalSet<T>**: Read-modify-write with conditional updates
+  - `PEConditionalResult<T>`: Typed result (updated/skipped/failed)
+  - Optimized for scenarios where SET depends on current value (e.g., increment, toggle)
+
+**Testing**
+- Added 53 new tests (372 total):
+  - `PEPayloadValidatorTests.swift`: 18 tests for validation layer
+  - `PEBatchSetTests.swift`: 19 tests for batch operations
+  - `PEPipelineTests.swift`: 16 tests for pipeline and conditional SET
+
+**Examples**
+
+```swift
+// Payload validation
+let validator = PESchemaBasedValidator(schema: mySchema)
+try await validatorRegistry.register(validator, for: "Volume")
+try await peManager.set("Volume", data: volumeData, to: device) // Validates before sending
+
+// Batch SET
+let items = [
+    try PESetItem.json(resource: "Volume", value: VolumeInfo(level: 80)),
+    try PESetItem.json(resource: "Pan", value: PanInfo(position: 0))
+]
+let result = try await peManager.batchSet(items, to: device, options: .strict)
+
+// Pipeline
+let result = try await PEPipeline(manager: peManager, device: device)
+    .getJSON("ProgramName", as: ProgramName.self)
+    .map { $0.name.uppercased() }
+    .transform { ProgramName(name: $0) }
+    .setJSON("ProgramName")
+    .execute()
+```
+
 #### Code Quality & Robustness Improvements (2026-02-04)
 
 **Refactoring Phase A-D (2026-02-04)**: Major code organization and quality improvements
