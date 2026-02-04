@@ -140,8 +140,196 @@ extension PEManager {
         return PEBatchResponse(results: results)
     }
     
+    // MARK: - Batch SET
+
+    /// Set multiple resources in parallel
+    ///
+    /// This method executes multiple SET requests concurrently, respecting
+    /// the `maxConcurrency` limit to avoid overwhelming the device.
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// let items = [
+    ///     try PESetItem.json(resource: "Volume", value: ["level": 100]),
+    ///     try PESetItem.json(resource: "Pan", value: ["position": 64]),
+    ///     try PESetItem.json(resource: "Reverb", value: ["amount": 50])
+    /// ]
+    ///
+    /// let response = await peManager.batchSet(items, to: device)
+    ///
+    /// if response.allSucceeded {
+    ///     print("All \(response.successCount) settings applied")
+    /// } else {
+    ///     for (resource, error) in response.failures {
+    ///         print("\(resource) failed: \(error)")
+    ///     }
+    /// }
+    /// ```
+    ///
+    /// - Parameters:
+    ///   - items: Array of SET items
+    ///   - device: Target device handle
+    ///   - options: Batch execution options
+    /// - Returns: Batch response with results for each resource
+    public func batchSet(
+        _ items: [PESetItem],
+        to device: PEDeviceHandle,
+        options: PEBatchSetOptions = .default
+    ) async -> PEBatchSetResponse {
+        var results: [String: PEBatchResult] = [:]
+
+        // Validate payloads if requested
+        if options.validatePayloads, let registry = payloadValidatorRegistry {
+            for item in items {
+                do {
+                    try await registry.validate(item.data, for: item.resource)
+                } catch let validationError as PEPayloadValidationError {
+                    results[item.resource] = .failure(PEError.payloadValidationFailed(validationError))
+                    if options.stopOnFirstFailure {
+                        return PEBatchSetResponse(results: results)
+                    }
+                } catch {
+                    // Unexpected error during validation - wrap in a generic validation error
+                    results[item.resource] = .failure(PEError.payloadValidationFailed(
+                        .customValidation("Validation threw unexpected error: \(error)")
+                    ))
+                    if options.stopOnFirstFailure {
+                        return PEBatchSetResponse(results: results)
+                    }
+                }
+            }
+            // If validation failed for any and we're continuing, filter out failed items
+            let validItems = items.filter { results[$0.resource] == nil }
+            if validItems.isEmpty {
+                return PEBatchSetResponse(results: results)
+            }
+        }
+
+        // Filter to items not already failed in validation
+        let itemsToProcess = items.filter { results[$0.resource] == nil }
+
+        // Execute with concurrency control
+        let semaphore = BatchSemaphore(maxConcurrency: options.maxConcurrency)
+
+        await withTaskGroup(of: (String, PEBatchResult).self) { group in
+            for item in itemsToProcess {
+                group.addTask { [self] in
+                    await semaphore.wait()
+                    defer { Task { await semaphore.signal() } }
+
+                    do {
+                        let response: PEResponse
+                        if let channel = item.channel {
+                            response = try await self.set(
+                                item.resource,
+                                data: item.data,
+                                channel: channel,
+                                to: device,
+                                timeout: options.timeout
+                            )
+                        } else {
+                            response = try await self.set(
+                                item.resource,
+                                data: item.data,
+                                to: device,
+                                timeout: options.timeout
+                            )
+                        }
+                        return (item.resource, .success(response))
+                    } catch {
+                        return (item.resource, .failure(error))
+                    }
+                }
+            }
+
+            for await (resource, result) in group {
+                results[resource] = result
+
+                // Check if we should stop on failure
+                if options.stopOnFirstFailure, case .failure = result {
+                    group.cancelAll()
+                    break
+                }
+            }
+        }
+
+        return PEBatchSetResponse(results: results)
+    }
+
+    /// Set multiple resources in parallel (MUID-only)
+    ///
+    /// Requires `destinationResolver` to be configured.
+    public func batchSet(
+        _ items: [PESetItem],
+        to muid: MUID,
+        options: PEBatchSetOptions = .default
+    ) async throws -> PEBatchSetResponse {
+        let device = try await resolveDeviceInternal(muid)
+        return await batchSet(items, to: device, options: options)
+    }
+
+    /// Set multiple channel-specific values in parallel
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// // Set volume to 100 on channels 0-7
+    /// let volumeData = try JSONEncoder().encode(["level": 100])
+    /// let response = await peManager.batchSetChannels(
+    ///     "Volume",
+    ///     data: volumeData,
+    ///     channels: Array(0..<8),
+    ///     to: device
+    /// )
+    /// ```
+    public func batchSetChannels(
+        _ resource: String,
+        data: Data,
+        channels: [Int],
+        to device: PEDeviceHandle,
+        options: PEBatchSetOptions = .default
+    ) async -> PEBatchSetResponse {
+        var results: [String: PEBatchResult] = [:]
+        let semaphore = BatchSemaphore(maxConcurrency: options.maxConcurrency)
+
+        await withTaskGroup(of: (String, PEBatchResult).self) { group in
+            for channel in channels {
+                let key = "\(resource)[\(channel)]"
+                group.addTask { [self] in
+                    await semaphore.wait()
+                    defer { Task { await semaphore.signal() } }
+
+                    do {
+                        let response = try await self.set(
+                            resource,
+                            data: data,
+                            channel: channel,
+                            to: device,
+                            timeout: options.timeout
+                        )
+                        return (key, .success(response))
+                    } catch {
+                        return (key, .failure(error))
+                    }
+                }
+            }
+
+            for await (key, result) in group {
+                results[key] = result
+
+                if options.stopOnFirstFailure, case .failure = result {
+                    group.cancelAll()
+                    break
+                }
+            }
+        }
+
+        return PEBatchSetResponse(results: results)
+    }
+
     // MARK: - Private
-    
+
     /// Internal device resolver (avoiding duplicate code)
     private func resolveDeviceInternal(_ muid: MUID) async throws -> PEDeviceHandle {
         guard let resolver = destinationResolver else {

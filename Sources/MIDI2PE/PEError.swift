@@ -8,6 +8,9 @@
 import Foundation
 import MIDI2Core
 
+// Forward declaration for validation error (defined in Validation/PEPayloadValidator.swift)
+// Note: PEPayloadValidationError is defined in MIDI2PE/Validation/PEPayloadValidator.swift
+
 // MARK: - PE Error
 
 /// Property Exchange errors
@@ -44,6 +47,13 @@ public enum PEError: Error, Sendable {
     /// Contains detailed information about why the request was rejected.
     /// Check `details.isTransient` to determine if retry might succeed.
     case nak(PENAKDetails)
+
+    /// Payload validation failed before sending SET request
+    ///
+    /// This error is thrown when payload validation is enabled and the
+    /// payload fails validation before being sent to the device.
+    /// This prevents sending invalid data to MIDI devices.
+    case payloadValidationFailed(PEPayloadValidationError)
 }
 
 // MARK: - PEError Description
@@ -74,6 +84,8 @@ extension PEError: CustomStringConvertible {
             return "Validation failed: \(error)"
         case .nak(let details):
             return details.description
+        case .payloadValidationFailed(let error):
+            return "Payload validation failed: \(error)"
         }
     }
 }
@@ -108,7 +120,7 @@ extension PEError {
             return details.isTransient
         case .transportError:
             return true
-        case .cancelled, .requestIDExhausted, .validationFailed, .deviceNotFound, .noDestination:
+        case .cancelled, .requestIDExhausted, .validationFailed, .deviceNotFound, .noDestination, .payloadValidationFailed:
             return false
         case .deviceError(let status, _):
             // 5xx errors are typically server-side and may be transient
@@ -123,7 +135,7 @@ extension PEError {
     /// Whether this is a client-side error (invalid request, validation failure)
     public var isClientError: Bool {
         switch self {
-        case .validationFailed, .noDestination, .deviceNotFound:
+        case .validationFailed, .noDestination, .deviceNotFound, .payloadValidationFailed:
             return true
         case .deviceError(let status, _):
             return status >= 400 && status < 500

@@ -91,7 +91,32 @@ public actor PEManager {
     ///
     /// Used by `.fallback` and `.learned` strategies.
     public let destinationCache: DestinationCache
-    
+
+    // MARK: - Payload Validation
+
+    /// Payload validator registry for pre-SET validation
+    ///
+    /// When set, payloads are validated before being sent to the device.
+    /// This helps catch errors early and prevents sending invalid data.
+    ///
+    /// ## Setup
+    /// ```swift
+    /// let registry = PEPayloadValidatorRegistry()
+    /// await registry.register(MyValidator())
+    /// peManager.payloadValidatorRegistry = registry
+    /// ```
+    ///
+    /// ## Disable Validation
+    /// Set to `nil` to skip payload validation (default behavior).
+    public var payloadValidatorRegistry: PEPayloadValidatorRegistry?
+
+    /// Set the payload validator registry
+    ///
+    /// Actor-isolated setter for use from async contexts.
+    public func setPayloadValidatorRegistry(_ registry: PEPayloadValidatorRegistry?) {
+        self.payloadValidatorRegistry = registry
+    }
+
     // MARK: - Receive State
     
     /// Task that processes incoming MIDI data
@@ -391,13 +416,22 @@ public actor PEManager {
     /// let response = try await peManager.send(request)
     /// ```
     public func send(_ request: PERequest) async throws -> PEResponse {
-        // Validate request
+        // Validate request structure
         do {
             try request.validate()
         } catch let error as PERequestError {
             throw PEError.validationFailed(error)
         }
-        
+
+        // Validate payload for SET operations
+        if request.operation == .set, let body = request.body, let registry = payloadValidatorRegistry {
+            do {
+                try await registry.validate(body, for: request.resource)
+            } catch let error as PEPayloadValidationError {
+                throw PEError.payloadValidationFailed(error)
+            }
+        }
+
         logger.debug(
             "\(request.operation.rawValue) \(request.resource) \(request.device.debugDescription)",
             category: Self.logCategory
