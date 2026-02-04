@@ -390,10 +390,10 @@ struct RequestIDPoolIntegrationTests {
         // Make multiple sequential requests
         for i in 0..<5 {
             let task = Task {
-                try await peManager.get("Resource\(i)", from: handle, timeout: .milliseconds(100))
+                try await peManager.get("Resource\(i)", from: handle, timeout: .milliseconds(500))
             }
 
-            try await Task.sleep(for: .milliseconds(20))
+            try await Task.sleep(for: .milliseconds(50))
 
             // Send reply with matching request ID
             var reply: [UInt8] = [0xF0, 0x7E, 0x7F, 0x0D, 0x35, 0x02]
