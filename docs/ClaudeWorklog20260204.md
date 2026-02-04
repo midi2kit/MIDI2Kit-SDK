@@ -1632,3 +1632,35 @@
 次のTODO:
   - コミット＆プッシュ
 ---
+
+---
+2026-02-04 09:51
+作業項目: R-003 PEManager handleReceived 分割
+追加機能の説明:
+  - PEManager.handleReceived (~150行) を小さなメソッドに分割
+  - 各メッセージタイプ別のハンドラへ抽出
+決定事項:
+  【Phase A進捗】
+  ✅ R-002: MIDI2Client タイムアウト+リトライ統合 (完了)
+  🔄 R-003: PEManager handleReceived 分割 (実行中)
+  ⏳ R-001: CIMessageParser 3フォーマット分離 (未着手)
+
+  【R-003完了】
+  handleReceived を以下に分割:
+  - handleNotify() - マルチチャンクNotify処理
+  - handlePEReply() - GET/SET応答処理
+  - handleChunkResult() - チャンク処理結果ハンドリング
+  - logPEReplyParseFailure() - パース失敗ログ
+  (handleNAK, handleComplete, handleChunkTimeout は既存)
+
+  【テスト結果】
+  ✅ 311 tests in 29 suites passed
+
+  【リファクタリング効果】
+  - handleReceived: 130行 → 30行（ディスパッチのみ）
+  - 各ハンドラが独立してテスト可能に
+  - 責任が明確に分離
+次のTODO:
+  - コミット＆プッシュ
+  - R-001の実装（任意）
+---

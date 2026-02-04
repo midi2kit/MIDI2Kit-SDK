@@ -1036,95 +1036,94 @@ public actor PEManager {
             }
             return
         }
-        
+
         // Try Subscribe Reply
         if let subscribeReply = CIMessageParser.parseFullSubscribeReply(data) {
             if subscribeReply.destinationMUID == sourceMUID {
-                // Delegate to subscriptionHandler (Phase 5-1)
                 await subscriptionHandler?.handleSubscribeReply(subscribeReply)
             }
             return
         }
-        
+
         // Try Notify
         if let notify = CIMessageParser.parseFullNotify(data) {
             if notify.destinationMUID == sourceMUID {
-                // Notify may be multi-chunk. For multi-chunk, the subscribeId/resource
-                // may only exist in chunk 1, so we must assemble before dispatch.
-                if notify.numChunks <= 1 {
-                    // Delegate to subscriptionHandler (Phase 5-1)
-                    await subscriptionHandler?.handleNotify(notify)
-                } else {
-                    let result = await notifyAssemblyManager.processChunk(
-                        sourceMUID: notify.sourceMUID,
-                        requestID: notify.requestID,
-                        thisChunk: notify.thisChunk,
-                        numChunks: notify.numChunks,
-                        headerData: notify.headerData,
-                        propertyData: notify.propertyData
-                    )
+                await handleNotify(notify)
+            }
+            return
+        }
 
-                    switch result {
-                    case .complete(let header, let body):
-                        let info = parseNotifyHeaderInfo(header)
-                        // Delegate to subscriptionHandler (Phase 5-1)
-                        await subscriptionHandler?.handleNotifyParts(
-                            sourceMUID: notify.sourceMUID,
-                            subscribeId: info.subscribeId,
-                            resource: info.resource,
-                            headerData: header,
-                            propertyData: body
-                        )
-                    case .incomplete:
-                        break
-                    case .timeout(let id, let received, let expected, _):
-                        logger.warning(
-                            "Notify chunk timeout [\(id)]: \(received)/\(expected) chunks",
-                            category: Self.logCategory
-                        )
-                    case .unknownRequestID(let id):
-                        logger.debug(
-                            "Ignoring notify for unknown [\(id)]",
-                            category: Self.logCategory
-                        )
-                    }
-                }
-            }
-            return
-        }
-        
         // Try PE Reply (GET/SET response)
-        guard let reply = CIMessageParser.parseFullPEReply(data) else {
-            // Debug: log why parsing failed for PE-like messages
-            if data.count > 4 && data[4] == 0x35 {
-                // Dump payload bytes for debugging
-                let payloadStart = min(14, data.count - 1)
-                let payloadPreview = data.count > payloadStart ? Array(data[payloadStart..<min(payloadStart + 20, data.count)]) : []
-                let hexPreview = payloadPreview.map { String(format: "%02X", $0) }.joined(separator: " ")
-                logger.debug(
-                    "parseFullPEReply failed for 0x35: len=\(data.count), payload[14..]: \(hexPreview)",
-                    category: Self.logCategory
-                )
-            }
+        if let reply = CIMessageParser.parseFullPEReply(data) {
+            await handlePEReply(reply, rawData: data)
+        } else {
+            logPEReplyParseFailure(data)
+        }
+    }
+
+    // MARK: - Private: Message Handlers
+
+    /// Handle multi-chunk Notify messages
+    private func handleNotify(_ notify: CIMessageParser.FullNotify) async {
+        // Notify may be multi-chunk. For multi-chunk, the subscribeId/resource
+        // may only exist in chunk 1, so we must assemble before dispatch.
+        if notify.numChunks <= 1 {
+            await subscriptionHandler?.handleNotify(notify)
             return
         }
-        
-        // Debug: log MUID mismatch
-        if reply.destinationMUID != sourceMUID {
+
+        let result = await notifyAssemblyManager.processChunk(
+            sourceMUID: notify.sourceMUID,
+            requestID: notify.requestID,
+            thisChunk: notify.thisChunk,
+            numChunks: notify.numChunks,
+            headerData: notify.headerData,
+            propertyData: notify.propertyData
+        )
+
+        switch result {
+        case .complete(let header, let body):
+            let info = parseNotifyHeaderInfo(header)
+            await subscriptionHandler?.handleNotifyParts(
+                sourceMUID: notify.sourceMUID,
+                subscribeId: info.subscribeId,
+                resource: info.resource,
+                headerData: header,
+                propertyData: body
+            )
+        case .incomplete:
+            break
+        case .timeout(let id, let received, let expected, _):
+            logger.warning(
+                "Notify chunk timeout [\(id)]: \(received)/\(expected) chunks",
+                category: Self.logCategory
+            )
+        case .unknownRequestID(let id):
+            logger.debug(
+                "Ignoring notify for unknown [\(id)]",
+                category: Self.logCategory
+            )
+        }
+    }
+
+    /// Handle PE Reply (GET/SET response)
+    private func handlePEReply(_ reply: CIMessageParser.FullPEReply, rawData: [UInt8]) async {
+        // Verify MUID
+        guard reply.destinationMUID == sourceMUID else {
             logger.debug(
                 "PE Reply MUID mismatch: dest=\(reply.destinationMUID) ours=\(sourceMUID)",
                 category: Self.logCategory
             )
             return
         }
-        
+
         let requestID = reply.requestID
-        
+
         logger.debug(
             "Received [\(requestID)] chunk \(reply.thisChunk)/\(reply.numChunks)",
             category: Self.logCategory
         )
-        
+
         // Process chunk through transaction manager
         let result = await transactionManager.processChunk(
             requestID: requestID,
@@ -1133,33 +1132,53 @@ public actor PEManager {
             headerData: reply.headerData,
             propertyData: reply.propertyData
         )
-        
+
         logger.debug(
             "processChunk result for [\(requestID)]: \(String(describing: result))",
             category: Self.logCategory
         )
-        
+
+        handleChunkResult(result, requestID: requestID)
+    }
+
+    /// Handle chunk processing result
+    private func handleChunkResult(_ result: PEChunkResult, requestID: UInt8) {
         switch result {
         case .complete(let header, let body):
             handleComplete(requestID: requestID, header: header, body: body)
-            
+
         case .incomplete:
             // Waiting for more chunks
             break
-            
+
         case .timeout(let id, let received, let expected, _):
             logger.warning(
                 "Chunk timeout [\(id)]: \(received)/\(expected) chunks",
                 category: Self.logCategory
             )
             handleChunkTimeout(requestID: id)
-            
+
         case .unknownRequestID(let id):
             logger.debug(
                 "Ignoring reply for unknown [\(id)]",
                 category: Self.logCategory
             )
         }
+    }
+
+    /// Log PE Reply parse failure for debugging
+    private func logPEReplyParseFailure(_ data: [UInt8]) {
+        guard data.count > 4 && data[4] == 0x35 else { return }
+
+        let payloadStart = min(14, data.count - 1)
+        let payloadPreview = data.count > payloadStart
+            ? Array(data[payloadStart..<min(payloadStart + 20, data.count)])
+            : []
+        let hexPreview = payloadPreview.map { String(format: "%02X", $0) }.joined(separator: " ")
+        logger.debug(
+            "parseFullPEReply failed for 0x35: len=\(data.count), payload[14..]: \(hexPreview)",
+            category: Self.logCategory
+        )
     }
     
     private func handleComplete(requestID: UInt8, header: Data, body: Data) {
