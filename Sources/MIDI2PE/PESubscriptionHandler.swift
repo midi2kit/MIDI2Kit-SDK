@@ -512,7 +512,6 @@ internal actor PESubscriptionHandler {
     /// Start a notification stream
     /// - Returns: AsyncStream of notifications
     func startNotificationStream() -> AsyncStream<PENotification> {
-        // TODO: Phase 4 - Implement notification stream creation
         let oldContinuation = notificationContinuation
         notificationContinuation = nil
         oldContinuation?.finish()
@@ -544,7 +543,6 @@ internal actor PESubscriptionHandler {
         _ requestID: UInt8,
         _ continuation: CheckedContinuation<PESubscribeResponse, Error>
     ) {
-        // TODO: Phase 2 - Implement state management
         pendingSubscribeContinuations[requestID] = continuation
     }
 
@@ -552,8 +550,7 @@ internal actor PESubscriptionHandler {
     /// - Parameter requestID: Request ID
     /// - Returns: The continuation if found
     func removePendingContinuation(_ requestID: UInt8) -> CheckedContinuation<PESubscribeResponse, Error>? {
-        // TODO: Phase 2 - Implement state management
-        return pendingSubscribeContinuations.removeValue(forKey: requestID)
+        pendingSubscribeContinuations.removeValue(forKey: requestID)
     }
 
     /// Add an active subscription
@@ -561,7 +558,6 @@ internal actor PESubscriptionHandler {
     ///   - subscribeId: Subscription ID
     ///   - subscription: Subscription to store
     func addActiveSubscription(_ subscribeId: String, _ subscription: PESubscription) {
-        // TODO: Phase 2 - Implement state management
         activeSubscriptions[subscribeId] = subscription
     }
 
@@ -569,7 +565,6 @@ internal actor PESubscriptionHandler {
     /// - Parameter subscribeId: Subscription ID
     /// - Returns: The subscription if found
     func removeActiveSubscription(_ subscribeId: String) -> PESubscription? {
-        // TODO: Phase 2 - Implement state management
-        return activeSubscriptions.removeValue(forKey: subscribeId)
+        activeSubscriptions.removeValue(forKey: subscribeId)
     }
 }

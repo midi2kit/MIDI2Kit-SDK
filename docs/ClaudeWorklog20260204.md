@@ -1743,6 +1743,78 @@
 
   【テスト結果】
   ✅ 319 tests in 30 suites passed
+
+  【コミット完了】
+  ✅ 981613f refactor: R-006 PETypes split into 7 focused files
+  ✅ プッシュ完了
+次のTODO:
+  - Phase B完了
+---
+
+---
+2026-02-04 10:09
+作業項目: リファクタリング完了状況確認
+追加機能の説明:
+  - Phase A, B の完了確認
+  - 残りTODOの整理
+決定事項:
+  【完了したリファクタリング】
+  ✅ Phase A (高優先度)
+    - R-001: CIMessageParser format parsers testable
+    - R-002: MIDI2Client timeout+retry consolidation
+    - R-003: PEManager handleReceived split
+
+  ✅ Phase B (中優先度)
+    - R-006: PETypes split into 7 files
+    - R-004, R-005, R-007: スキップ（既に整理済み/リスク高）
+
+  【残りTODO（低優先度）】
+  - Phase C: TODO削除、Mcoded7最適化
+  - Phase D: イベント型安全化、テストパラメトライズ
+  - 相互運用性テストスイートの設計
+  - SMF 2.0 (CLIP) パーサー
+次のTODO:
+  - ユーザー判断を待つ
+---
+
+---
+2026-02-04 10:10
+作業項目: Phase C, D リファクタリング実行
+追加機能の説明:
+  【Phase C】
+  - R-008: PESubscriptionHandlerのTODO削除
+  - R-009: Mcoded7のパフォーマンス最適化
+
+  【Phase D】
+  - R-010: MIDI2Clientのイベント配信の型安全化
+  - R-011: 統合テストのパラメトライズ化
+  - R-012: JSON Schema検証の活用強化
+決定事項:
+  【実装結果】
+  | ID | 対象 | 判断 | 理由 |
+  |----|------|------|------|
+  | R-008 | TODO削除 | ✅実装 | 5つのTODOコメント削除（実装済みだった） |
+  | R-009 | Mcoded7最適化 | ⏭スキップ | 既にreserveCapacity等で最適化済み |
+  | R-010 | イベント型安全化 | ✅実装 | 型安全なイベント抽出・フィルタリング追加 |
+  | R-011 | テストパラメトライズ | ⏭スキップ | 各テストが異なるシナリオ、効果限定的 |
+  | R-012 | Schema検証強化 | ⏭スキップ | パフォーマンス影響の可能性 |
+
+  【R-008実装】
+  PESubscriptionHandler.swiftから5つのTODOコメントを削除:
+  - startNotificationStream(): 実装済み
+  - addPendingContinuation(): 実装済み
+  - removePendingContinuation(): 実装済み
+  - addActiveSubscription(): 実装済み
+  - removeActiveSubscription(): 実装済み
+
+  【R-010実装】
+  MIDI2ClientEvent.swiftに型安全な拡張を追加:
+  - イベント抽出プロパティ: discoveredDevice, lostDeviceMUID, etc.
+  - イベント分類プロパティ: isDeviceLifecycleEvent, isClientStateEvent
+  - AsyncStream拡張: deviceDiscovered(), deviceLost(), notifications(), etc.
+
+  【テスト結果】
+  ✅ 319 tests in 30 suites passed
 次のTODO:
   - コミット＆プッシュ
 ---
