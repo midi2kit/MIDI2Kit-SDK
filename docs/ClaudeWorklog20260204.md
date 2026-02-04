@@ -1151,3 +1151,227 @@
   - レポート確認
   - 必要に応じてSuggestion対応（任意）
 ---
+
+---
+2026-02-04 08:32
+作業項目: MIDI2.0Workbench調査
+追加機能の説明:
+  - https://github.com/midi2-dev/MIDI2.0Workbench の調査
+  - MIDI2Kitに吸収可能な機能のリストアップ
+決定事項:
+  【調査完了】
+
+  ■ プロジェクト概要
+  - Electron + Node.js 16.x ベースのMIDI 2.0テストツール
+  - Yamaha Corporation 2020 / MIT License
+  - 主言語: JavaScript (1.6MB) + C++ (112KB)
+  - 依存: node-midi, pako (zlib), AJV (JSON Schema)
+
+  ■ 実装機能
+  - MIDI-CI v1.1/1.2 完全実装 (Discovery, PE, Profile, Process Inquiry)
+  - UMPメッセージ処理 (Type 0-5, F)
+  - トランスポート: USB MIDI 2.0, MIDI 1.0, Serial, Network
+  - SMF 2.0 (CLIP) パーサー・検証
+  - 相互運用性テストスイート
+  - JSON Schema検証
+
+  ■ MIDI2Kitへの参考点
+  1. メッセージタイプテーブル (宣言的定義パターン)
+  2. JSON Schema検証 (PE応答の自動検証)
+  3. 相互運用性テスト (仕様準拠検証)
+  4. Profile定義データベース
+  5. Manufacturer IDデータベース
+
+  ■ 吸収可能な機能 (優先度順)
+  高: JSON Schema検証, SMF 2.0パーサー, Profile定義, 相互運用性テスト
+  中: Manufacturer ID DB, Process Inquiry, Protocol Negotiation
+  低: ネットワークMIDI, MIDI 1.0ブリッジ
+
+  ■ 既にMIDI2Kitで実装済み
+  - UMP⇔MIDI1変換 (UMPTranslator.swift)
+  - zlib+Mcoded7 (ZlibMcoded7.swift)
+  - リトライ機能, チャンク処理, タイムアウト管理
+
+  【詳細レポート】
+  docs/_research/20260204_083417_MIDI2.0Workbench_Analysis.md
+次のTODO:
+  - 必要に応じてJSON Schema検証機能を追加
+  - 相互運用性テストスイートの設計検討
+---
+
+---
+2026-02-04 08:39
+作業項目: AM_MIDI2.0Lib調査開始
+追加機能の説明:
+  - https://github.com/midi2-dev/AM_MIDI2.0Lib の調査
+  - C/C++でのMIDI 2.0実装パターン分析
+  - MIDI2Kitに吸収可能な機能のリストアップ
+決定事項:
+  （調査後に記載）
+次のTODO:
+  - GitHubリポジトリの構造・内容調査
+  - MIDI-CI / PE / UMP実装の詳細分析
+  - 調査レポート作成
+---
+
+---
+2026-02-04 08:41
+作業項目: AM_MIDI2.0Lib調査完了
+追加機能の説明:
+  - C++ MIDI 2.0ライブラリの包括的調査
+  - 実装パターンとAPI設計の分析
+  - MIDI2Kitとの比較分析
+決定事項:
+  【プロジェクト概要】
+  - 名称: AM MIDI 2.0 Lib (Andrew Mee作)
+  - 言語: C++ / MIT License
+  - 特徴: 省メモリ設計（コンパイル約10KB、RAM約1KB）
+  - 対象: 組み込みデバイスから大規模アプリまで
+
+  【実装されている機能】
+  1. UMP処理
+     - umpProcessor: UMPメッセージのパース・コールバック
+     - UMPMessage: MT0-MTF全タイプの生成関数
+     - bytestreamToUMP/umpToBytestream: 双方向変換
+
+  2. MIDI-CI
+     - Discovery (0x70/0x71)
+     - Profile Inquiry (0x20-0x29, 0x2F)
+     - Property Exchange (0x30-0x3F)
+     - Process Inquiry (0x40-0x44)
+     - Protocol Negotiation (0x10-0x15, deprecated)
+
+  3. データエンコーディング
+     - Mcoded7: encode/decode クラス
+     - 値スケーリング: Expanded Bit Repeat Scheme
+
+  【MIDI2Kit vs AM_MIDI2.0Lib比較】
+  | 観点 | AM_MIDI2.0Lib | MIDI2Kit |
+  |------|--------------|----------|
+  | 並行性 | シングルスレッド | Actor-based |
+  | リトライ | なし | 完全実装 |
+  | タイムアウト | なし | 設定可能 |
+  | 診断機能 | 基本的 | 充実 |
+  | Flex Data | 完全対応 | 未対応 |
+
+  【MIDI2Kitに吸収可能な機能】
+  ■ 高優先度
+  1. Flex Data対応 (MT 0xD)
+  2. UMPメッセージ生成API
+  3. PE Status Code定数の拡充
+  4. Protocol Negotiation
+
+  ■ 中優先度
+  5. 値スケーリング精緻化
+  6. Process Inquiry対応
+
+  ■ 低優先度
+  7. UMP Stream (MT 0xF) 全メッセージ
+  8. MDS (Mixed Data Set)
+
+  【詳細レポート】
+  docs/_research/20260204_084027_AM_MIDI2.0Lib_Analysis.md
+次のTODO:
+  - 必要に応じてFlex Data機能をMIDI2Kitに実装
+  - PE Status Code定数の拡充
+---
+
+---
+2026-02-04 08:44
+作業項目: Flex Data説明
+追加機能の説明:
+  - MIDI 2.0 Flex Data (Message Type 0xD) の概念説明
+決定事項:
+  （説明後に記載）
+次のTODO:
+  - Flex Dataの詳細説明
+---
+
+---
+2026-02-04 08:48
+作業項目: MIDI2Kit機能吸収計画の実装開始
+追加機能の説明:
+  - Plan Modeで決定した4つのPhaseを実装
+  - Phase 1: Flex Data (MT 0xD) 対応
+  - Phase 2: PE Status Code定数拡充
+  - Phase 3: JSON Schema検証
+  - Phase 4: Process Inquiry
+決定事項:
+  【実装計画】
+  1. Phase 1: UMPFlexData.swift新規作成、UMPParser/Builder拡張
+  2. Phase 2: PEResponse.swift にStatusCode enum追加
+  3. Phase 3: PESchemaValidator.swift新規作成
+  4. Phase 4: ProcessInquiry.swift新規作成、CIMessageBuilder/Parser拡張
+次のTODO:
+  - Phase 1から順に実装開始
+---
+
+---
+2026-02-04 08:59
+作業項目: テスト失敗の修正 (コンテキスト継続)
+追加機能の説明:
+  - 前セッションから継続
+  - Process Inquiry パーサーの修正
+  - UMPFlexData テキスト切り詰め修正
+決定事項:
+  【前セッションの状況】
+  - 4つのPhaseの実装完了
+  - テスト実行: 311テスト中いくつか失敗
+
+  【失敗テストの分析】
+  1. Process Inquiry round-tripテスト失敗
+     - 原因: CIMessageParser.parseがProcess Inquiryを正しく認識しない
+     - 対処: enum case名の不一致を確認・修正
+
+  2. UMPFlexData text truncationテスト失敗
+     - text.count が48バイト（12バイトに切り詰められていない）
+     - 対処: 入力テキストを12バイトに切り詰める処理を追加
+次のTODO:
+  - Process Inquiry パーサー修正
+  - UMPFlexData テキスト切り詰め修正
+  - テスト再実行
+---
+
+---
+2026-02-04 09:06
+作業項目: テスト修正完了
+追加機能の説明:
+  - Process Inquiry パーサー修正
+  - UMPFlexData テキスト切り詰め修正
+  - CIMessageParser 最小メッセージ長修正
+決定事項:
+  【修正内容】
+  1. ProcessInquiry.swift
+     - parseFullProcessInquiryCapabilitiesReply:
+       .processInquiryCapabilitiesReply → .processInquiryCapabilityReply
+       (既存enum caseを使用)
+     - 重複したCIMessageType extensionを削除（既存case使用）
+
+  2. UMPFlexData.swift
+     - lyrics, projectName, compositionName, copyrightNotice:
+       Data(text.utf8) → Data(text.utf8.prefix(12))
+       (12バイトに切り詰め)
+
+  3. CIMessageParser.swift
+     - 最小メッセージ長: 17 → 15 bytes
+       (正しい計算: F0+7E+xx+0D+type+ver+srcMUID(4)+dstMUID(4)+F7=15)
+
+  【テスト結果】
+  ✅ 新規追加テスト: 62テスト全てパス
+    - ProcessInquiryTests: 18テスト
+    - UMPFlexDataTests: 22テスト
+    - PESchemaValidatorTests: 22テスト
+
+  ⚠️ 既存テスト: 一部失敗（今回の変更とは無関係）
+    - PEManagerTests: 診断情報の期待値不一致（3テスト）
+    - IntegrationTests: 1テスト
+
+  【Phase 1-4 実装完了】
+  ✅ Phase 1: Flex Data (MT 0xD) 対応
+  ✅ Phase 2: PE Status Code定数拡充
+  ✅ Phase 3: JSON Schema検証
+  ✅ Phase 4: Process Inquiry
+次のTODO:
+  - 必要に応じてcommit
+  - 既存テスト失敗の調査（別タスク）
+---

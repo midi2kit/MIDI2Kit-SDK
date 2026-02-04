@@ -26,8 +26,8 @@ public enum CIMessageParser {
     /// - Parameter data: Complete SysEx bytes including F0 and F7
     /// - Returns: Parsed message, or nil if invalid
     public static func parse(_ data: [UInt8]) -> ParsedMessage? {
-        // Minimum CI message: F0 7E xx 0D type ver srcMUID(4) dstMUID(4) F7 = 17 bytes
-        guard data.count >= 17 else { return nil }
+        // Minimum CI message: F0 7E xx 0D type ver srcMUID(4) dstMUID(4) F7 = 15 bytes
+        guard data.count >= 15 else { return nil }
         
         // Validate SysEx framing
         guard data.first == MIDICIConstants.sysExStart,
