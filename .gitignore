@@ -41,3 +41,7 @@ playground.xcworkspace
 .idea/
 *.swp
 *~
+
+# XCFramework build output
+build/
+dist/

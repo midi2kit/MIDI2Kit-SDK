@@ -18,6 +18,12 @@ let package = Package(
             name: "MIDI2Kit",
             targets: ["MIDI2Kit"]
         ),
+        // Dynamic library for XCFramework distribution
+        .library(
+            name: "MIDI2KitDynamic",
+            type: .dynamic,
+            targets: ["MIDI2Kit"]
+        ),
         // Individual modules for selective import
         .library(
             name: "MIDI2Core",
