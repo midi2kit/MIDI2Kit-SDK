@@ -80,6 +80,82 @@ build_module() {
     [ -z "$IOS_SIM_FW" ] && IOS_SIM_FW=$(find "$MODULE_BUILD/ios-sim" -path "*Debug-iphonesimulator*PackageFrameworks*" -name "${SCHEME}.framework" -type d 2>/dev/null | head -1)
     [ -z "$MACOS_FW" ] && MACOS_FW=$(find "$MODULE_BUILD/macos" -path "*Debug*PackageFrameworks*" -name "${SCHEME}.framework" -type d 2>/dev/null | head -1)
 
+    # Rename frameworks from ${SCHEME}.framework to ${MODULE}.framework
+    echo "  🔄 Renaming frameworks..."
+
+    # Cross-platform sed in-place edit
+    sed_inplace() {
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            sed -i '' "$@"
+        else
+            sed -i "$@"
+        fi
+    }
+
+    # PlistBuddy helper with Set/Add fallback
+    plist_set() {
+        local KEY=$1
+        local VALUE=$2
+        local PLIST=$3
+        /usr/libexec/PlistBuddy -c "Set :${KEY} ${VALUE}" "$PLIST" 2>/dev/null || \
+        /usr/libexec/PlistBuddy -c "Add :${KEY} string ${VALUE}" "$PLIST" 2>/dev/null || \
+        echo "    ⚠️ Warning: Failed to set ${KEY} in Info.plist"
+    }
+
+    rename_framework() {
+        local FW_PATH=$1
+        if [ -z "$FW_PATH" ] || [ ! -d "$FW_PATH" ]; then
+            return 0
+        fi
+
+        local FW_DIR=$(dirname "$FW_PATH")
+        local NEW_FW_PATH="$FW_DIR/${MODULE}.framework"
+
+        # Rename framework directory
+        if ! mv "$FW_PATH" "$NEW_FW_PATH" 2>/dev/null; then
+            echo "    ❌ Error: Failed to rename framework directory"
+            return 1
+        fi
+
+        # Update modulemap (if exists)
+        local MODULEMAP="$NEW_FW_PATH/Modules/module.modulemap"
+        if [ -f "$MODULEMAP" ]; then
+            sed_inplace "s/framework module ${SCHEME}/framework module ${MODULE}/g; s/${SCHEME}.h/${MODULE}.h/g" "$MODULEMAP"
+        fi
+
+        # Rename umbrella header (if exists)
+        local OLD_HEADER="$NEW_FW_PATH/Headers/${SCHEME}.h"
+        local NEW_HEADER="$NEW_FW_PATH/Headers/${MODULE}.h"
+        if [ -f "$OLD_HEADER" ]; then
+            if ! mv "$OLD_HEADER" "$NEW_HEADER" 2>/dev/null; then
+                echo "    ⚠️ Warning: Failed to rename umbrella header"
+            fi
+        fi
+
+        # Update Info.plist bundle name
+        local PLIST="$NEW_FW_PATH/Info.plist"
+        if [ -f "$PLIST" ]; then
+            plist_set "CFBundleName" "${MODULE}" "$PLIST"
+            plist_set "CFBundleExecutable" "${MODULE}" "$PLIST"
+        fi
+
+        # Rename binary (if exists)
+        local OLD_BINARY="$NEW_FW_PATH/${SCHEME}"
+        local NEW_BINARY="$NEW_FW_PATH/${MODULE}"
+        if [ -f "$OLD_BINARY" ]; then
+            if ! mv "$OLD_BINARY" "$NEW_BINARY" 2>/dev/null; then
+                echo "    ❌ Error: Failed to rename binary"
+                return 1
+            fi
+        fi
+
+        echo "$NEW_FW_PATH"
+    }
+
+    IOS_FW=$(rename_framework "$IOS_FW")
+    IOS_SIM_FW=$(rename_framework "$IOS_SIM_FW")
+    MACOS_FW=$(rename_framework "$MACOS_FW")
+
     # Build XCFramework
     local ARGS=""
     [ -n "$IOS_FW" ] && [ -d "$IOS_FW" ] && ARGS="$ARGS -framework $IOS_FW"

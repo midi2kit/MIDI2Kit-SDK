@@ -2361,3 +2361,239 @@
 次のTODO:
   - 完了
 ---
+
+---
+2026-02-04 16:09
+作業項目: MIDI2Kit-SDK修正提案ドキュメントの確認
+追加機能の説明:
+  - MIDI2Explorer側で作成されたMIDI2Kit-SDK修正提案の確認
+  - SPM binaryTarget問題の分析
+決定事項:
+  【ドキュメント内容】
+  docs/MIDI2Kit-SDK-FixProposal.md (MIDI2Explorer)
+
+  【3つの問題】
+  1. XCFrameworkがローカルパス参照（.xcframeworkディレクトリが必要）
+  2. ZIPファイルの自動解凍が行われない（path:形式ではZIP非対応）
+  3. モジュール名の不一致（MIDI2Core → MIDI2CoreDynamic）
+
+  【提案された解決策】
+  A. URLベースのbinaryTarget（推奨）
+     - GitHub Releasesにアップロード
+     - checksumを使用
+
+  B. XCFrameworkを直接リポジトリに配置
+     - ZIPではなく解凍済みを配置
+     - Git LFS推奨
+
+  C. モジュール名の統一
+     - ビルド時にPRODUCT_MODULE_NAME設定
+
+  【現在の回避策】
+  - 手動ZIP解凍
+  - ローカル依存関係使用
+次のTODO:
+  - なし（MIDI2Kit-SDKは外部プロジェクトのため、ここでは対応しない）
+---
+
+---
+2026-02-04 16:14
+作業項目: モジュール名統一ガイドの確認
+追加機能の説明:
+  - MIDI2Kit-SDK/docs/ModuleNameUnification.md の内容を確認
+決定事項:
+  【ドキュメントの内容】
+  XCFrameworkのモジュール名不一致問題に対する解決方法ガイド
+
+  【現状の問題】
+  | SPMプロダクト名 | 現在のモジュール名 | 期待されるモジュール名 |
+  |----------------|-------------------|---------------------|
+  | MIDI2Core      | MIDI2CoreDynamic  | MIDI2Core           |
+  | MIDI2Client    | MIDI2ClientDynamic| MIDI2Client         |
+  | MIDI2Transport | MIDI2TransportDynamic | MIDI2Transport  |
+  | MIDI2CI        | MIDI2CIDynamic    | MIDI2CI             |
+  | MIDI2PE        | MIDI2PEDynamic    | MIDI2PE             |
+
+  ユーザーは `import MIDI2CoreDynamic` と書く必要がある（不便）
+
+  【3つの解決方法】
+  1. PRODUCT_MODULE_NAME をビルド設定で変更（推奨）
+     - xcconfig: PRODUCT_MODULE_NAME = MIDI2Core
+  2. ターゲット名自体を変更
+     - MIDI2CoreDynamic → MIDI2Core にリネーム
+  3. カスタムmodulemap（複雑・非推奨）
+
+  【互換性に関する提案】
+  - メジャーバージョンアップ（v2.0.0）として告知を推奨
+  - Breaking changeとして明記
+
+  【XCFramework再ビルド手順（概要）】
+  1. 全フレームワークを再ビルド（PRODUCT_MODULE_NAME設定付き）
+  2. 各xcframework.zipのチェックサム計算
+  3. Package.swift更新
+  4. GitHub Release作成（v1.1.0 or v2.0.0）
+  5. ZIPファイルをリリースアセットにアップロード
+次のTODO:
+  - ユーザー判断を待つ（モジュール名統一を実施するかどうか）
+---
+
+---
+2026-02-04 16:16
+作業項目: モジュール名統一の実装
+追加機能の説明:
+  - build-xcframework.sh を修正してモジュール名を統一
+  - PRODUCT_MODULE_NAME を設定
+  - フレームワークをリネーム（MIDI2CoreDynamic → MIDI2Core）
+  - XCFramework を再ビルド
+決定事項:
+  【修正内容】
+  1. xcodebuild に PRODUCT_MODULE_NAME=$MODULE を追加
+  2. ビルド後にフレームワークをリネーム
+  3. modulemap 内のモジュール名も更新
+  4. 全モジュールを再ビルド
+  5. 新しいチェックサムを計算
+  6. GitHub Release を更新
+次のTODO:
+  - スクリプト修正
+  - ビルド実行
+  - GitHub Release更新
+---
+
+---
+2026-02-04 16:39
+作業項目: モジュール名統一完了
+追加機能の説明:
+  - build-xcframework.sh を修正
+  - フレームワークをリネーム（MIDI2CoreDynamic → MIDI2Core）
+  - XCFramework を再ビルド
+  - GitHub Release v1.0.0 のアセットを更新
+決定事項:
+  【実装内容】
+  1. build-xcframework.sh に rename_framework 関数を追加
+     - フレームワークディレクトリをリネーム
+     - modulemap 内のモジュール名を更新
+     - umbrella header をリネーム
+     - Info.plist を更新
+     - バイナリをリネーム
+
+  2. 全5モジュールを再ビルド
+     ✅ MIDI2Core.xcframework
+     ✅ MIDI2Transport.xcframework
+     ✅ MIDI2CI.xcframework
+     ✅ MIDI2PE.xcframework
+     ✅ MIDI2Client.xcframework
+
+  3. インポートテスト成功
+     - `import MIDI2Core` が正しく機能することを確認
+
+  4. GitHub Release v1.0.0 更新
+     - 古いアセットを削除
+     - 新しいアセットをアップロード
+
+  【新しいチェックサム】
+  - MIDI2Core: 7b76f7edeef1c41a7c6aa735cb282bb546dca2db3ad24e0e5fc0130938abbbab
+  - MIDI2Transport: afd5ad21554a1b3b9748c625da6fd01ed513d0205d65aaab747b6db815b028da
+  - MIDI2CI: 189ea49be7f942e9ab3c9281d74c60f25088a8349c2e00b7c6d99cd31e11b2ba
+  - MIDI2PE: 50fd6cd028df4da69fd7a5afa6e2f2540ff7f5861310d0032d8200599b052f40
+  - MIDI2Client: d505f6e9985f43f6ec03c9b27aa2f512c008e65deb2eb58053a9b587b077da7c
+
+  【Breaking Change】
+  - インポート文が変更: `import MIDI2CoreDynamic` → `import MIDI2Core`
+  - 公開前なので問題なし
+次のTODO:
+  - MIDI2Kit-SDK の Package.swift を新しいチェックサムで更新
+  - 完了
+---
+
+---
+2026-02-04 16:40
+作業項目: コードレビュー実施
+追加機能の説明:
+  - build-xcframework.sh の変更をレビュー
+  - モジュール名統一の実装品質を確認
+決定事項:
+  （レビュー後に記載）
+次のTODO:
+  - code-reviewerエージェント実行
+---
+---
+2026-02-04 16:40
+作業項目: build-xcframework.sh コードレビュー実施
+追加機能の説明:
+  - rename_framework 関数の実装品質を確認
+  - シェルスクリプトのベストプラクティス準拠をチェック
+  - エラーハンドリング、エッジケース対応を評価
+決定事項:
+  （レビュー完了後に記載）
+次のTODO:
+  - レビューレポート作成
+  - 改善提案の検討
+---
+
+---
+2026-02-04 16:42
+作業項目: build-xcframework.sh コードレビュー完了
+追加機能の説明:
+  - rename_framework 関数の品質評価を実施
+  - 2件の Warning、3件の Suggestion、2件の Nitpick を検出
+決定事項:
+  【レビュー結果】
+  - 総合評価: ⭐⭐⭐⭐ 4.0/5
+  - 基本実装は正しく機能している
+  - エラーハンドリングとポータビリティに改善余地あり
+  
+  【主な指摘事項】
+  🟡 Warning:
+    1. rename_framework 関数のエラーハンドリング不足
+    2. sed が macOS 専用構文（Linux 非対応）
+  
+  🔵 Suggestion:
+    1. PlistBuddy の Set/Add フォールバック
+    2. フレームワークパス検証強化
+    3. mv 操作のアトミック性（ロールバック対応）
+  
+  💡 Nitpick:
+    1. sed 操作を1回にまとめる
+    2. 関数名を rename_framework_module に変更
+  
+  【良かった点】
+  ✅ 全体構造が明確で責任分離が適切
+  ✅ set -e によるフェイルファスト
+  ✅ Release → Debug フォールバック機構
+  ✅ ユーザーフレンドリーな出力（絵文字、チェックサム）
+  ✅ 柔軟な実行オプション
+次のTODO:
+  - レビュー結果をユーザーに報告
+  - 必要に応じて改善提案を適用
+---
+
+---
+2026-02-04 16:43
+作業項目: コードレビュー指摘事項の修正
+追加機能の説明:
+  - rename_framework 関数のエラーハンドリング追加
+  - sed の macOS/Linux 互換性対応
+  - PlistBuddy の Set/Add フォールバック
+決定事項:
+  【修正内容】
+  1. sed_inplace ヘルパー関数を追加
+     - macOS: sed -i ''
+     - Linux: sed -i
+     - OSTYPE で自動判定
+
+  2. plist_set ヘルパー関数を追加
+     - Set 失敗時に Add にフォールバック
+     - 両方失敗時に警告メッセージ出力
+
+  3. rename_framework 関数のエラーハンドリング強化
+     - 入力検証（空パス、存在しないディレクトリ）
+     - mv 失敗時のエラーメッセージ
+     - 各操作の成功/失敗を適切にハンドリング
+     - sed 操作を1回にまとめて効率化
+
+  【テスト結果】
+  ✅ MIDI2Core テストビルド成功
+  ✅ XCFramework 正常生成
+次のTODO:
+  - 完了
+---
