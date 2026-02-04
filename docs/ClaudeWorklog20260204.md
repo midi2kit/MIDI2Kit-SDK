@@ -1699,3 +1699,50 @@
 次のTODO:
   - コミット＆プッシュ
 ---
+
+---
+2026-02-04 10:03
+作業項目: Phase Aリファクタリング状況確認
+追加機能の説明:
+  - R-001, R-002, R-003 のコミット状況確認
+決定事項:
+  【Phase A完了確認】
+  ✅ R-001: f51e6d1 refactor: R-001 CIMessageParser format parsers testable
+  ✅ R-002: 8150237 refactor: R-002 MIDI2Client timeout+retry consolidation
+  ✅ R-003: 31ed58d refactor: R-003 PEManager handleReceived split
+
+  すべてコミット＆プッシュ済み。
+次のTODO:
+  - 残りの作業確認
+---
+
+---
+2026-02-04 10:04
+作業項目: Phase Bリファクタリング実行
+追加機能の説明:
+  - R-006: PETypes分割（16型 → 7ファイル）
+  - R-004, R-005, R-007: 評価後スキップ
+決定事項:
+  【Phase B評価結果】
+  | ID | 対象 | 判断 | 理由 |
+  |----|------|------|------|
+  | R-006 | PETypes分割 | ✅実装 | 効果高、921行を7ファイルに |
+  | R-004 | DestinationResolver | ⏭スキップ | 既にメソッド分離済み |
+  | R-005 | CoreMIDITransport | ⏭スキップ | 低レベル処理、リスク高 |
+  | R-007 | UMPFlexData | ⏭スキップ | 既にヘルパー抽出済み |
+
+  【R-006実装完了】
+  PETypes.swift (921行) を以下に分割:
+  - Types/PERequest.swift - PEDeviceHandle, PEOperation, PERequest, PERequestError
+  - Types/PEDeviceInfo.swift - PEDeviceInfo
+  - Types/PEControllerTypes.swift - PEControllerDef, PEProgramDef
+  - Types/PEHeaderTypes.swift - PEStatus, PEHeader
+  - Types/PENAKTypes.swift - NAKStatusCode, NAKDetailCode, PENAKDetails
+  - Types/PEChannelInfo.swift - PEChannelInfo
+  - Types/PESubscriptionTypes.swift - PENotification, PESubscription, PESubscribeResponse
+
+  【テスト結果】
+  ✅ 319 tests in 30 suites passed
+次のTODO:
+  - コミット＆プッシュ
+---
