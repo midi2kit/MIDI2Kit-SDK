@@ -2294,3 +2294,23 @@
 次のTODO:
   - 配布先の決定（GitHub Releases, 自サーバー等）
 ---
+
+---
+2026-02-04 14:16
+作業項目: GitHub Releaseへアップロード
+追加機能の説明:
+  - XCFrameworkをGitHub Releasesにアップロード
+決定事項:
+  【Release作成完了】
+  ✅ https://github.com/hakaru/MIDI2Kit/releases/tag/v1.0.0
+  ✅ MIDI2Kit.xcframework.zip 添付済み
+
+  【利用者向けPackage.swift】
+  .binaryTarget(
+      name: "MIDI2Kit",
+      url: "https://github.com/hakaru/MIDI2Kit/releases/download/v1.0.0/MIDI2Kit.xcframework.zip",
+      checksum: "f157f8dac1636aa1c5d218c5d48f0d4adf5b2d6202e6b47d3ef0348e799c5baa"
+  )
+次のTODO:
+  - 完了
+---
