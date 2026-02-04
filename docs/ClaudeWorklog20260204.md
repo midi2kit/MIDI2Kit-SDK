@@ -2597,3 +2597,43 @@
 次のTODO:
   - 完了
 ---
+
+---
+2026-02-04 17:18
+作業項目: MIDI2Kit-SDK リポジトリセットアップ
+追加機能の説明:
+  - https://github.com/midi2kit/MIDI2Kit-SDK に XCFramework を配置
+  - Package.swift 作成（新しいURL用）
+  - README.md 作成
+決定事項:
+  【完了】
+  ✅ リポジトリクローン
+  ✅ Package.swift 作成
+  ✅ README.md 作成
+  ✅ LICENSE 作成
+  ✅ コミット・プッシュ (105be11)
+  ✅ タグ v1.0.0 作成
+  ✅ GitHub Release 作成
+  ✅ XCFramework 5モジュールアップロード
+
+  【リポジトリ】
+  https://github.com/midi2kit/MIDI2Kit-SDK
+
+  【リリース】
+  https://github.com/midi2kit/MIDI2Kit-SDK/releases/tag/v1.0.0
+
+  【チェックサム】
+  - MIDI2Core: 59828b41c7d52d1dec514f5b49b1a8eea6a2c67aa6b5cb30fdb770bd98da337b
+  - MIDI2Transport: c0de62a466e2eed03890e77655ed6991488220d24864aeeb4d0605de2e3239e2
+  - MIDI2CI: 5baa401e7a745ce8e95f590bfcd8bf376e3c641c7320b3d897ccddfefa14fc0e
+  - MIDI2PE: f1941becf2261478359dcc09d4d5e851f3caaabdd39387d261aaa2ba7562c71d
+  - MIDI2Client: f6e99fa8538ad15d914d6a19dc24fe35a2b5f1e9f3853a01cfa743e4d5698760
+
+  【使用方法】
+  Package.swift:
+  .package(url: "https://github.com/midi2kit/MIDI2Kit-SDK.git", from: "1.0.0")
+
+  import MIDI2Client  // または個別モジュール
+次のTODO:
+  - 完了
+---
