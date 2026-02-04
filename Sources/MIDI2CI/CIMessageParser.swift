@@ -237,13 +237,15 @@ public enum CIMessageParser {
         return nil
     }
     
+    // MARK: - PE Reply Format Parsers
+
     /// Parse PE Reply in CI 1.2 format (with numChunks/thisChunk fields)
     ///
     /// KORG devices send chunks with varying dataSize values. For subsequent chunks (2, 3, etc.),
     /// the dataSize may not match the actual payload length. We handle this by:
     /// 1. First trying to parse with exact dataSize (standard CI12)
     /// 2. If that fails, fall back to using remaining payload as propertyData
-    private static func parsePEReplyCI12(_ payload: [UInt8]) -> PEReplyPayload? {
+    static func parsePEReplyCI12(_ payload: [UInt8]) -> PEReplyPayload? {
         // Minimum: requestID(1) + headerSize(2) + numChunks(2) + thisChunk(2) + dataSize(2) = 9 bytes
         guard payload.count >= 9 else { return nil }
         
@@ -302,11 +304,11 @@ public enum CIMessageParser {
     }
     
     /// Parse PE Reply in CI 1.1 format (no numChunks/thisChunk fields, but has dataLength)
-    /// 
+    ///
     /// IMPORTANT: This format is ONLY valid for single-chunk responses where headerSize > 0.
     /// Multi-chunk responses (chunk 2, 3, etc.) have headerSize=0 and should be parsed with CI12 format.
     /// If headerSize=0, this is likely a subsequent chunk in CI12 format, not a CI11 single-chunk response.
-    private static func parsePEReplyCI11(_ payload: [UInt8]) -> PEReplyPayload? {
+    static func parsePEReplyCI11(_ payload: [UInt8]) -> PEReplyPayload? {
         // Minimum: requestID(1) + headerSize(2) + dataSize(2) = 5 bytes
         guard payload.count >= 5 else { return nil }
         
@@ -343,7 +345,7 @@ public enum CIMessageParser {
     /// Parse PE Reply in KORG-style format
     /// KORG format: requestID(1) + headerSize(2) + headerData(headerSize) + numChunks(2) + thisChunk(2) + dataSize(2) + propertyData(dataSize)
     /// Note: chunk fields come AFTER headerData, unlike standard CI 1.2 format
-    private static func parsePEReplyKORG(_ payload: [UInt8]) -> PEReplyPayload? {
+    static func parsePEReplyKORG(_ payload: [UInt8]) -> PEReplyPayload? {
         // Minimum: requestID(1) + headerSize(2) + at least 1 byte header = 4 bytes
         guard payload.count >= 4 else { return nil }
         

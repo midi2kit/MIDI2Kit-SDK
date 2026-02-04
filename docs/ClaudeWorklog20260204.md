@@ -1664,3 +1664,38 @@
   - コミット＆プッシュ
   - R-001の実装（任意）
 ---
+
+---
+2026-02-04 09:54
+作業項目: R-001 CIMessageParser 3フォーマット分離
+追加機能の説明:
+  - CIMessageParser.swift の PE Reply パース処理を分離
+  - CI 1.2, CI 1.1, KORG の3フォーマット別パーサー抽出
+決定事項:
+  【Phase A進捗】
+  ✅ R-002: MIDI2Client タイムアウト+リトライ統合
+  ✅ R-003: PEManager handleReceived 分割
+  🔄 R-001: CIMessageParser 3フォーマット分離 (実行中)
+
+  【R-001完了（軽量版）】
+  既存の3フォーマットパーサーは既に分離済みのため、以下を実施:
+
+  1. パーサーを internal 化（テスト可能に）
+     - parsePEReplyCI12() - CI 1.2標準フォーマット
+     - parsePEReplyCI11() - CI 1.1フォーマット
+     - parsePEReplyKORG() - KORGフォーマット（フォールバック）
+
+  2. フォーマット別パーサーテスト追加
+     - PEReplyFormatParserTests スイート新規作成
+     - 8つのテストケース追加
+
+  【テスト結果】
+  ✅ 319 tests in 30 suites passed (+8テスト, +1スイート)
+
+  【判断理由】
+  - 既存コードは既に十分に構造化されていた
+  - Strategy Patternでの完全分離は過剰
+  - テスト可能性の向上で主目的を達成
+次のTODO:
+  - コミット＆プッシュ
+---

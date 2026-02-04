@@ -783,3 +783,185 @@ struct CIMessageParserTests {
         }
     }
 }
+
+// MARK: - PE Reply Format Parser Tests
+
+@Suite("PE Reply Format Parser Tests")
+struct PEReplyFormatParserTests {
+
+    // MARK: - CI 1.2 Format Tests
+
+    @Test("parsePEReplyCI12 with valid single chunk")
+    func ci12SingleChunk() {
+        // CI 1.2 format: requestID(1) + headerSize(2) + numChunks(2) + thisChunk(2) + dataSize(2) + header + data
+        let header = Array("{\"status\":200}".utf8)
+        let body = Array("{}".utf8)
+
+        var payload: [UInt8] = []
+        payload.append(0x05) // requestID
+        payload.append(UInt8(header.count & 0x7F)) // headerSize LSB
+        payload.append(UInt8((header.count >> 7) & 0x7F)) // headerSize MSB
+        payload.append(0x01) // numChunks LSB
+        payload.append(0x00) // numChunks MSB
+        payload.append(0x01) // thisChunk LSB
+        payload.append(0x00) // thisChunk MSB
+        payload.append(UInt8(body.count & 0x7F)) // dataSize LSB
+        payload.append(UInt8((body.count >> 7) & 0x7F)) // dataSize MSB
+        payload.append(contentsOf: header)
+        payload.append(contentsOf: body)
+
+        let result = CIMessageParser.parsePEReplyCI12(payload)
+
+        #expect(result != nil)
+        #expect(result?.requestID == 0x05)
+        #expect(result?.numChunks == 1)
+        #expect(result?.thisChunk == 1)
+        #expect(result?.headerData.count == header.count)
+        #expect(result?.propertyData.count == body.count)
+    }
+
+    @Test("parsePEReplyCI12 with multi-chunk (chunk 2)")
+    func ci12MultiChunk() {
+        // Chunk 2: headerSize=0, only body data
+        let body = Array("more data".utf8)
+
+        var payload: [UInt8] = []
+        payload.append(0x05) // requestID
+        payload.append(0x00) // headerSize = 0
+        payload.append(0x00)
+        payload.append(0x03) // numChunks = 3
+        payload.append(0x00)
+        payload.append(0x02) // thisChunk = 2
+        payload.append(0x00)
+        payload.append(UInt8(body.count & 0x7F)) // dataSize
+        payload.append(0x00)
+        payload.append(contentsOf: body)
+
+        let result = CIMessageParser.parsePEReplyCI12(payload)
+
+        #expect(result != nil)
+        #expect(result?.requestID == 0x05)
+        #expect(result?.numChunks == 3)
+        #expect(result?.thisChunk == 2)
+        #expect(result?.headerData.count == 0)
+        #expect(result?.propertyData.count == body.count)
+    }
+
+    @Test("parsePEReplyCI12 too short")
+    func ci12TooShort() {
+        let payload: [UInt8] = [0x05, 0x0E, 0x00, 0x01] // Only 4 bytes, need 9
+        let result = CIMessageParser.parsePEReplyCI12(payload)
+        #expect(result == nil)
+    }
+
+    // MARK: - CI 1.1 Format Tests
+
+    @Test("parsePEReplyCI11 with valid payload")
+    func ci11Valid() {
+        // CI 1.1 format: requestID(1) + headerSize(2) + dataSize(2) + header + data
+        let header = Array("{\"status\":200}".utf8)
+        let body = Array("{}".utf8)
+
+        var payload: [UInt8] = []
+        payload.append(0x03) // requestID
+        payload.append(UInt8(header.count & 0x7F)) // headerSize LSB
+        payload.append(UInt8((header.count >> 7) & 0x7F)) // headerSize MSB
+        payload.append(UInt8(body.count & 0x7F)) // dataSize LSB
+        payload.append(UInt8((body.count >> 7) & 0x7F)) // dataSize MSB
+        payload.append(contentsOf: header)
+        payload.append(contentsOf: body)
+
+        let result = CIMessageParser.parsePEReplyCI11(payload)
+
+        #expect(result != nil)
+        #expect(result?.requestID == 0x03)
+        #expect(result?.numChunks == 1) // CI11 always single chunk
+        #expect(result?.thisChunk == 1)
+        #expect(result?.headerData.count == header.count)
+        #expect(result?.propertyData.count == body.count)
+    }
+
+    @Test("parsePEReplyCI11 rejects headerSize=0")
+    func ci11RejectsZeroHeader() {
+        // headerSize=0 indicates CI12 multi-chunk, not CI11
+        var payload: [UInt8] = []
+        payload.append(0x03) // requestID
+        payload.append(0x00) // headerSize = 0
+        payload.append(0x00)
+        payload.append(0x02) // dataSize = 2
+        payload.append(0x00)
+        payload.append(contentsOf: [0x7B, 0x7D]) // "{}"
+
+        let result = CIMessageParser.parsePEReplyCI11(payload)
+
+        #expect(result == nil) // Should reject headerSize=0
+    }
+
+    // MARK: - KORG Format Tests
+
+    @Test("parsePEReplyKORG with valid payload")
+    func korgValid() {
+        // KORG format: requestID(1) + headerSize(2) + header + numChunks(2) + thisChunk(2) + dataSize(2) + data
+        let header = Array("{\"status\":200}".utf8)
+        let body = Array("{}".utf8)
+
+        var payload: [UInt8] = []
+        payload.append(0x07) // requestID
+        payload.append(UInt8(header.count & 0x7F)) // headerSize LSB
+        payload.append(UInt8((header.count >> 7) & 0x7F)) // headerSize MSB
+        payload.append(contentsOf: header) // header comes first in KORG
+        payload.append(0x01) // numChunks LSB
+        payload.append(0x00) // numChunks MSB
+        payload.append(0x01) // thisChunk LSB
+        payload.append(0x00) // thisChunk MSB
+        payload.append(UInt8(body.count & 0x7F)) // dataSize LSB
+        payload.append(UInt8((body.count >> 7) & 0x7F)) // dataSize MSB
+        payload.append(contentsOf: body)
+
+        let result = CIMessageParser.parsePEReplyKORG(payload)
+
+        #expect(result != nil)
+        #expect(result?.requestID == 0x07)
+        #expect(result?.numChunks == 1)
+        #expect(result?.thisChunk == 1)
+        #expect(result?.headerData.count == header.count)
+        #expect(result?.propertyData.count == body.count)
+    }
+
+    @Test("parsePEReplyKORG requires JSON header (starts with '{')")
+    func korgRequiresJsonHeader() {
+        // KORG parser requires header to start with '{' (0x7B)
+        var payload: [UInt8] = []
+        payload.append(0x07) // requestID
+        payload.append(0x05) // headerSize = 5
+        payload.append(0x00)
+        payload.append(contentsOf: Array("hello".utf8)) // Not JSON
+
+        let result = CIMessageParser.parsePEReplyKORG(payload)
+
+        #expect(result == nil) // Should reject non-JSON header
+    }
+
+    @Test("parsePEReplyKORG fallback without chunk fields")
+    func korgFallbackNoChunks() {
+        // KORG format without chunk fields: just header + remaining as body
+        let header = Array("{\"status\":200}".utf8)
+        let body = Array("{}".utf8)
+
+        var payload: [UInt8] = []
+        payload.append(0x09) // requestID
+        payload.append(UInt8(header.count & 0x7F)) // headerSize LSB
+        payload.append(0x00)
+        payload.append(contentsOf: header)
+        payload.append(contentsOf: body) // No chunk fields, just body
+
+        let result = CIMessageParser.parsePEReplyKORG(payload)
+
+        #expect(result != nil)
+        #expect(result?.requestID == 0x09)
+        #expect(result?.numChunks == 1) // Defaults to 1
+        #expect(result?.thisChunk == 1) // Defaults to 1
+        #expect(result?.headerData.count == header.count)
+        #expect(result?.propertyData.count == body.count)
+    }
+}
