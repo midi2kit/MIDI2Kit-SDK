@@ -2110,3 +2110,25 @@
   - コミット作成
   - Warning/Suggestionの対応（オプション）
 ---
+
+---
+2026-02-04 11:13
+作業項目: CI失敗修正
+追加機能の説明:
+  GitHub Actions CI (build, build-ios) が失敗
+  エラー: MIDI2Client.swift:798, 815
+  原因: executeWithDestinationFallback<T> に Sendable 制約がない
+決定事項:
+  【原因分析】
+  - Swift 6 strict concurrency checking
+  - ジェネリック型 T が actor 境界を越える際に Sendable 制約が必要
+  - R-002リファクタリングで導入されたメソッドの問題
+  
+  【修正内容】
+  - T: Sendable 制約を追加
+  - execute クロージャに @Sendable を追加
+次のTODO:
+  - 修正適用
+  - テスト実行
+  - コミット・プッシュ
+---

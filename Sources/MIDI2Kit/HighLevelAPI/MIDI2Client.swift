@@ -782,11 +782,11 @@ public actor MIDI2Client {
     ///   - execute: The operation to execute, receives a PEDeviceHandle
     /// - Returns: The operation result
     /// - Throws: MIDI2Error on failure
-    private func executeWithDestinationFallback<T>(
+    private func executeWithDestinationFallback<T: Sendable>(
         muid: MUID,
         operation: CommunicationTrace.Operation,
         resource: String? = nil,
-        execute: @escaping (PEDeviceHandle) async throws -> T
+        execute: @Sendable @escaping (PEDeviceHandle) async throws -> T
     ) async throws -> T {
         guard isRunning else { throw MIDI2Error.clientNotRunning }
 
