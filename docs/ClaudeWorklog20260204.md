@@ -2263,3 +2263,34 @@
 次のTODO:
   - タグ作成実行
 ---
+
+---
+2026-02-04 14:02
+作業項目: XCFramework作成
+追加機能の説明:
+  - ソース非公開でバイナリ配布するためのXCFramework作成
+  - iOS/iOS Simulator/macOS対応
+決定事項:
+  【作成完了】
+  ✅ XCFramework: dist/MIDI2Kit.xcframework (15MB)
+  ✅ ZIP: dist/MIDI2Kit.xcframework.zip (8.4MB)
+  ✅ Checksum: f157f8dac1636aa1c5d218c5d48f0d4adf5b2d6202e6b47d3ef0348e799c5baa
+
+  【対応プラットフォーム】
+  - ios-arm64 (iOS Device)
+  - ios-arm64_x86_64-simulator (iOS Simulator)
+  - macos-arm64_x86_64 (macOS)
+
+  【作成物】
+  - Scripts/build-xcframework.sh (ビルドスクリプト)
+  - Package.swift に MIDI2KitDynamic 追加
+
+  【配布用Package.swift例】
+  .binaryTarget(
+      name: "MIDI2Kit",
+      url: "https://your-server.com/MIDI2Kit.xcframework.zip",
+      checksum: "f157f8dac1636aa1c5d218c5d48f0d4adf5b2d6202e6b47d3ef0348e799c5baa"
+  )
+次のTODO:
+  - 配布先の決定（GitHub Releases, 自サーバー等）
+---
