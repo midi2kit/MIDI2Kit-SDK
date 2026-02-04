@@ -2748,3 +2748,123 @@
 次のTODO:
   - 完了
 ---
+
+---
+2026-02-04 18:16
+作業項目: MIDI2Kit-SDK XCFramework問題レポートの確認
+追加機能の説明:
+  - MIDI2Explorer側で作成されたMIDI2Kit-SDK-SwiftModule-Issue.mdの確認
+  - XCFrameworkにSwiftモジュールファイルが含まれていない問題の分析
+決定事項:
+  【問題概要】
+  MIDI2Kit-SDK v1.0.0のXCFrameworkにSwiftモジュールファイルが欠落しているため、
+  Swiftプロジェクトからimportできない。
+
+  【欠落しているファイル】
+  - Modules/ ディレクトリ
+  - *.swiftmodule
+  - *.swiftinterface
+  - module.modulemap
+  - Headers/ (optional)
+
+  【原因】
+  XCFrameworkビルド時に BUILD_LIBRARY_FOR_DISTRIBUTION = YES が設定されていない可能性
+
+  【現在のXCFramework構造】
+  MIDI2Client.xcframework/
+  ├── Info.plist
+  ├── ios-arm64/
+  │   └── MIDI2Client.framework/
+  │       ├── Info.plist
+  │       └── MIDI2Client          ← バイナリのみ
+
+  【必要な構造】
+  MIDI2Client.xcframework/
+  └── ios-arm64/
+      └── MIDI2Client.framework/
+          ├── MIDI2Client
+          ├── Modules/             ← 必須
+          │   ├── module.modulemap
+          │   └── MIDI2Client.swiftmodule/
+          │       ├── *.swiftinterface  ← 必須
+          │       └── *.swiftmodule
+
+  【解決策】
+  1. build-xcframework.sh に BUILD_LIBRARY_FOR_DISTRIBUTION=YES を追加
+  2. XCFrameworkを再ビルド
+  3. チェックサムを再計算
+  4. GitHub Releaseを更新
+次のTODO:
+  - build-xcframework.sh を修正
+  - XCFramework 再ビルド
+  - GitHub Release 更新
+---
+
+---
+2026-02-04 18:49
+作業項目: XCFramework Swiftモジュール問題の修正完了
+追加機能の説明:
+  - build-xcframework.sh を大幅に修正
+  - swiftmoduleファイルをフレームワークにコピーする処理を追加
+  - MIDI2ClientDynamic の特殊ケース（ターゲット名 = MIDI2Kit）に対応
+決定事項:
+  【問題の原因】
+  SPMのダイナミックライブラリターゲットでは、BUILD_LIBRARY_FOR_DISTRIBUTION=YES を
+  設定しても、フレームワーク自体にはModules/ディレクトリが含まれない。
+  swiftmoduleファイルはフレームワークの外側（Build/Products/Release-*/*.swiftmodule/）
+  に生成される。
+
+  【解決策】
+  1. xcodebuild build でフレームワークとswiftmoduleを生成
+  2. swiftmoduleディレクトリの内容をフレームワーク内のModules/にコピー
+  3. module.modulemapとumbrella headerを生成
+  4. フレームワーク名をリネーム（MIDI2CoreDynamic → MIDI2Core）
+  5. バイナリ名とInfo.plistを更新
+
+  【修正したスクリプト】
+  Scripts/build-xcframework.sh:
+  - /tmp/midi2kit-build を使用（iCloud同期問題を回避）
+  - add_modules_to_framework() 関数を追加
+  - rename_framework_dir() 関数を追加
+  - TARGET_NAME 変数を追加（MIDI2Client用の特殊ケース対応）
+
+  【新しいチェックサム】
+  - MIDI2Core: 1d4c2129df647ad5ac1347326d5cf81c36335ba6e92847d1415be79a3b1bcdc8
+  - MIDI2Transport: 4a8d22d0400bf3bf766b1f70c3fd27f4df860fa4550dfad33e5f79d13971da45
+  - MIDI2CI: 083b2a44ce98f2ae49a443b7375a87fdb50e2e7d5474191eb06eeb740d8112ad
+  - MIDI2PE: 39d1982e1f07a4cde986355cc6f4f0cebdaad350bd82e9f615f1f01a963227f7
+  - MIDI2Client: af3a58ecf2be11786651e3ba7f98808cfe4d855b19b4920934b30d687ded8f2b
+
+  【XCFramework構造（修正後）】
+  MIDI2Core.xcframework/
+  └── ios-arm64/
+      └── MIDI2Core.framework/
+          ├── MIDI2Core (バイナリ)
+          ├── Info.plist
+          ├── Headers/
+          │   └── MIDI2Core.h
+          └── Modules/
+              ├── module.modulemap
+              └── MIDI2Core.swiftmodule/
+                  ├── arm64-apple-ios.swiftinterface  ← 必須
+                  ├── arm64-apple-ios.swiftmodule
+                  ├── arm64-apple-ios.swiftdoc
+                  └── arm64-apple-ios.abi.json
+次のTODO:
+  - 変更をコミット
+  - MIDI2Kit-SDKリポジトリの更新
+  - GitHub Releaseの更新
+---
+
+---
+2026-02-05 04:07
+作業項目: XCFramework修正のデプロイ
+追加機能の説明:
+  1. MIDI2Kit: build-xcframework.sh の変更をコミット
+  2. MIDI2Kit-SDK: Package.swift を新しいチェックサムで更新
+  3. GitHub Release: 新しいXCFrameworkをアップロード
+決定事項:
+  （作業完了後に記載）
+次のTODO:
+  - 各タスクを実行
+---

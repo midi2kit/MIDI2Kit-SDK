@@ -1,11 +1,14 @@
 #!/bin/bash
 #
 # build-xcframework.sh
-# Builds XCFrameworks for MIDI2Kit modules
+# Builds XCFrameworks for MIDI2Kit modules with Swift module support
 #
 # Usage:
 #   ./Scripts/build-xcframework.sh          # Build all modules
 #   ./Scripts/build-xcframework.sh MIDI2Core # Build single module
+#
+# Note: SPM with BUILD_LIBRARY_FOR_DISTRIBUTION=YES generates frameworks
+# with complete Modules/ directory containing swiftmodule and swiftinterface
 #
 
 set -e
@@ -20,7 +23,8 @@ else
     MODULES=("${ALL_MODULES[@]}")
 fi
 
-BUILD_DIR="$(pwd)/build"
+# Use /tmp to avoid iCloud sync issues
+BUILD_DIR="/tmp/midi2kit-build"
 OUTPUT_DIR="$(pwd)/dist"
 
 echo "🧹 Cleaning..."
@@ -31,6 +35,11 @@ mkdir -p "$BUILD_DIR" "$OUTPUT_DIR"
 build_module() {
     local MODULE=$1
     local SCHEME="${MODULE}Dynamic"
+    # Special case: MIDI2ClientDynamic target is MIDI2Kit, not MIDI2Client
+    local TARGET_NAME="${MODULE}"
+    if [ "$MODULE" = "MIDI2Client" ]; then
+        TARGET_NAME="MIDI2Kit"
+    fi
 
     echo ""
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -40,7 +49,8 @@ build_module() {
     local MODULE_BUILD="$BUILD_DIR/$MODULE"
     mkdir -p "$MODULE_BUILD"
 
-    echo "  📱 iOS..."
+    # Build for iOS Device
+    echo "  📱 iOS Device..."
     xcodebuild build \
         -scheme "$SCHEME" \
         -configuration Release \
@@ -50,6 +60,7 @@ build_module() {
         SKIP_INSTALL=NO \
         -quiet 2>&1 | grep -E "^error:" || true
 
+    # Build for iOS Simulator
     echo "  📱 iOS Simulator..."
     xcodebuild build \
         -scheme "$SCHEME" \
@@ -60,6 +71,7 @@ build_module() {
         SKIP_INSTALL=NO \
         -quiet 2>&1 | grep -E "^error:" || true
 
+    # Build for macOS
     echo "  💻 macOS..."
     xcodebuild build \
         -scheme "$SCHEME" \
@@ -70,91 +82,105 @@ build_module() {
         SKIP_INSTALL=NO \
         -quiet 2>&1 | grep -E "^error:" || true
 
-    # Find frameworks
+    # Find frameworks - SPM generates SCHEME.framework (e.g., MIDI2CoreDynamic.framework)
     local IOS_FW=$(find "$MODULE_BUILD/ios" -path "*Release-iphoneos*PackageFrameworks*" -name "${SCHEME}.framework" -type d 2>/dev/null | head -1)
     local IOS_SIM_FW=$(find "$MODULE_BUILD/ios-sim" -path "*Release-iphonesimulator*PackageFrameworks*" -name "${SCHEME}.framework" -type d 2>/dev/null | head -1)
     local MACOS_FW=$(find "$MODULE_BUILD/macos" -path "*Release*PackageFrameworks*" -name "${SCHEME}.framework" -type d 2>/dev/null | head -1)
 
-    # Fallback to Debug
-    [ -z "$IOS_FW" ] && IOS_FW=$(find "$MODULE_BUILD/ios" -path "*Debug-iphoneos*PackageFrameworks*" -name "${SCHEME}.framework" -type d 2>/dev/null | head -1)
-    [ -z "$IOS_SIM_FW" ] && IOS_SIM_FW=$(find "$MODULE_BUILD/ios-sim" -path "*Debug-iphonesimulator*PackageFrameworks*" -name "${SCHEME}.framework" -type d 2>/dev/null | head -1)
-    [ -z "$MACOS_FW" ] && MACOS_FW=$(find "$MODULE_BUILD/macos" -path "*Debug*PackageFrameworks*" -name "${SCHEME}.framework" -type d 2>/dev/null | head -1)
+    # Find swiftmodule directories (generated alongside but not inside the framework)
+    # Use TARGET_NAME because the swiftmodule is named after the target, not the module
+    local IOS_SWIFTMODULE=$(find "$MODULE_BUILD/ios" -path "*Release-iphoneos*" -name "${TARGET_NAME}.swiftmodule" -type d 2>/dev/null | grep "Build/Products" | head -1)
+    local IOS_SIM_SWIFTMODULE=$(find "$MODULE_BUILD/ios-sim" -path "*Release-iphonesimulator*" -name "${TARGET_NAME}.swiftmodule" -type d 2>/dev/null | grep "Build/Products" | head -1)
+    local MACOS_SWIFTMODULE=$(find "$MODULE_BUILD/macos" -path "*Release*" -name "${TARGET_NAME}.swiftmodule" -type d 2>/dev/null | grep "Build/Products" | head -1)
 
-    # Rename frameworks from ${SCHEME}.framework to ${MODULE}.framework
-    echo "  🔄 Renaming frameworks..."
+    # Debug output
+    echo "  🔍 Found frameworks:"
+    [ -n "$IOS_FW" ] && echo "    📱 iOS: $IOS_FW" || echo "    📱 iOS: NOT FOUND"
+    [ -n "$IOS_SIM_FW" ] && echo "    📱 iOS Sim: $IOS_SIM_FW" || echo "    📱 iOS Sim: NOT FOUND"
+    [ -n "$MACOS_FW" ] && echo "    💻 macOS: $MACOS_FW" || echo "    💻 macOS: NOT FOUND"
 
-    # Cross-platform sed in-place edit
-    sed_inplace() {
-        if [[ "$OSTYPE" == "darwin"* ]]; then
-            sed -i '' "$@"
-        else
-            sed -i "$@"
-        fi
-    }
+    # Add Modules directory to frameworks
+    echo "  📋 Adding Swift modules..."
+    add_modules_to_framework() {
+        local FW=$1
+        local SWIFTMODULE=$2
 
-    # PlistBuddy helper with Set/Add fallback
-    plist_set() {
-        local KEY=$1
-        local VALUE=$2
-        local PLIST=$3
-        /usr/libexec/PlistBuddy -c "Set :${KEY} ${VALUE}" "$PLIST" 2>/dev/null || \
-        /usr/libexec/PlistBuddy -c "Add :${KEY} string ${VALUE}" "$PLIST" 2>/dev/null || \
-        echo "    ⚠️ Warning: Failed to set ${KEY} in Info.plist"
-    }
-
-    rename_framework() {
-        local FW_PATH=$1
-        if [ -z "$FW_PATH" ] || [ ! -d "$FW_PATH" ]; then
+        if [ -z "$FW" ] || [ ! -d "$FW" ]; then
             return 0
         fi
 
-        local FW_DIR=$(dirname "$FW_PATH")
-        local NEW_FW_PATH="$FW_DIR/${MODULE}.framework"
+        # Create Modules directory
+        mkdir -p "$FW/Modules/${MODULE}.swiftmodule"
 
-        # Rename framework directory
-        if ! mv "$FW_PATH" "$NEW_FW_PATH" 2>/dev/null; then
-            echo "    ❌ Error: Failed to rename framework directory"
-            return 1
+        # Copy swiftmodule files
+        if [ -n "$SWIFTMODULE" ] && [ -d "$SWIFTMODULE" ]; then
+            cp -R "$SWIFTMODULE"/* "$FW/Modules/${MODULE}.swiftmodule/" 2>/dev/null || true
         fi
 
-        # Update modulemap (if exists)
-        local MODULEMAP="$NEW_FW_PATH/Modules/module.modulemap"
-        if [ -f "$MODULEMAP" ]; then
-            sed_inplace "s/framework module ${SCHEME}/framework module ${MODULE}/g; s/${SCHEME}.h/${MODULE}.h/g" "$MODULEMAP"
+        # Create module.modulemap
+        cat > "$FW/Modules/module.modulemap" << MODULEMAP
+framework module ${MODULE} {
+    header "${MODULE}.h"
+    export *
+}
+MODULEMAP
+
+        # Create umbrella header
+        mkdir -p "$FW/Headers"
+        cat > "$FW/Headers/${MODULE}.h" << HEADER
+// ${MODULE} umbrella header
+// Auto-generated for XCFramework distribution
+HEADER
+
+        # Rename binary if needed
+        if [ -f "$FW/${SCHEME}" ] && [ ! -f "$FW/${MODULE}" ]; then
+            mv "$FW/${SCHEME}" "$FW/${MODULE}"
         fi
 
-        # Rename umbrella header (if exists)
-        local OLD_HEADER="$NEW_FW_PATH/Headers/${SCHEME}.h"
-        local NEW_HEADER="$NEW_FW_PATH/Headers/${MODULE}.h"
-        if [ -f "$OLD_HEADER" ]; then
-            if ! mv "$OLD_HEADER" "$NEW_HEADER" 2>/dev/null; then
-                echo "    ⚠️ Warning: Failed to rename umbrella header"
-            fi
+        # Update Info.plist
+        if [ -f "$FW/Info.plist" ]; then
+            /usr/libexec/PlistBuddy -c "Set :CFBundleExecutable ${MODULE}" "$FW/Info.plist" 2>/dev/null || true
+            /usr/libexec/PlistBuddy -c "Set :CFBundleName ${MODULE}" "$FW/Info.plist" 2>/dev/null || true
         fi
-
-        # Update Info.plist bundle name
-        local PLIST="$NEW_FW_PATH/Info.plist"
-        if [ -f "$PLIST" ]; then
-            plist_set "CFBundleName" "${MODULE}" "$PLIST"
-            plist_set "CFBundleExecutable" "${MODULE}" "$PLIST"
-        fi
-
-        # Rename binary (if exists)
-        local OLD_BINARY="$NEW_FW_PATH/${SCHEME}"
-        local NEW_BINARY="$NEW_FW_PATH/${MODULE}"
-        if [ -f "$OLD_BINARY" ]; then
-            if ! mv "$OLD_BINARY" "$NEW_BINARY" 2>/dev/null; then
-                echo "    ❌ Error: Failed to rename binary"
-                return 1
-            fi
-        fi
-
-        echo "$NEW_FW_PATH"
     }
 
-    IOS_FW=$(rename_framework "$IOS_FW")
-    IOS_SIM_FW=$(rename_framework "$IOS_SIM_FW")
-    MACOS_FW=$(rename_framework "$MACOS_FW")
+    add_modules_to_framework "$IOS_FW" "$IOS_SWIFTMODULE"
+    add_modules_to_framework "$IOS_SIM_FW" "$IOS_SIM_SWIFTMODULE"
+    add_modules_to_framework "$MACOS_FW" "$MACOS_SWIFTMODULE"
+
+    # Rename framework directories
+    echo "  🔄 Renaming frameworks..."
+    rename_framework_dir() {
+        local OLD_FW=$1
+        if [ -z "$OLD_FW" ] || [ ! -d "$OLD_FW" ]; then
+            return
+        fi
+        local FW_DIR=$(dirname "$OLD_FW")
+        local NEW_FW="$FW_DIR/${MODULE}.framework"
+        if [ "$OLD_FW" != "$NEW_FW" ]; then
+            mv "$OLD_FW" "$NEW_FW" 2>/dev/null || true
+            echo "$NEW_FW"
+        else
+            echo "$OLD_FW"
+        fi
+    }
+
+    IOS_FW=$(rename_framework_dir "$IOS_FW")
+    IOS_SIM_FW=$(rename_framework_dir "$IOS_SIM_FW")
+    MACOS_FW=$(rename_framework_dir "$MACOS_FW")
+
+    # Verify Modules directory
+    echo "  🔍 Verifying Modules..."
+    for FW in "$IOS_FW" "$IOS_SIM_FW" "$MACOS_FW"; do
+        if [ -n "$FW" ] && [ -d "$FW" ]; then
+            if [ -d "$FW/Modules" ]; then
+                local SWIFTMODULE_COUNT=$(find "$FW/Modules" -name "*.swiftinterface" 2>/dev/null | wc -l | tr -d ' ')
+                echo "    ✅ $(basename $(dirname $(dirname $FW))): Modules/ (${SWIFTMODULE_COUNT} swiftinterface files)"
+            else
+                echo "    ⚠️ $(basename $(dirname $(dirname $FW))): Modules/ MISSING"
+            fi
+        fi
+    done
 
     # Build XCFramework
     local ARGS=""
@@ -164,9 +190,11 @@ build_module() {
 
     if [ -n "$ARGS" ]; then
         echo "  📦 Creating XCFramework..."
+        rm -rf "$OUTPUT_DIR/${MODULE}.xcframework"
         xcodebuild -create-xcframework $ARGS -output "$OUTPUT_DIR/${MODULE}.xcframework" 2>/dev/null
 
         echo "  🗜️ Creating ZIP..."
+        rm -f "$OUTPUT_DIR/${MODULE}.xcframework.zip"
         cd "$OUTPUT_DIR"
         zip -r -q "${MODULE}.xcframework.zip" "${MODULE}.xcframework"
         cd - > /dev/null
@@ -177,6 +205,7 @@ build_module() {
         echo "     Checksum: $CHECKSUM"
     else
         echo "  ❌ $MODULE failed - no frameworks found"
+        echo "     Please verify the scheme '${SCHEME}' exists and builds correctly"
     fi
 }
 
@@ -202,7 +231,7 @@ for zip in "$OUTPUT_DIR"/*.xcframework.zip; do
         CHECKSUM=$(swift package compute-checksum "$zip")
         echo ".binaryTarget("
         echo "    name: \"$NAME\","
-        echo "    url: \"https://github.com/hakaru/MIDI2Kit/releases/download/v1.0.0/$NAME.xcframework.zip\","
+        echo "    url: \"https://github.com/midi2kit/MIDI2Kit-SDK/releases/download/v1.0.0/$NAME.xcframework.zip\","
         echo "    checksum: \"$CHECKSUM\""
         echo "),"
         echo ""
