@@ -475,3 +475,282 @@ swift package generate-documentation
 **Document Writer**: Claude Sonnet 4.5
 **更新日時**: 2026-02-04 10:17 JST
 **ステータス**: 完了 ✅
+
+---
+
+# 追加更新 - 2026-02-04 11:31
+
+## 作業概要
+
+SET Operations Extension（Phase 1-3）の機能追加に伴い、ドキュメントを更新しました。
+
+**作業時間**: 2026-02-04 11:29 - 11:31
+
+---
+
+## 更新したドキュメント
+
+### 1. CHANGELOG.md
+
+**追加箇所**: `## [Unreleased] > ### Added`
+
+**追加内容**: 新セクション「SET Operations Extension (2026-02-04)」
+
+**詳細**:
+
+#### Phase 1: Payload Validation Layer
+- `PEPayloadValidator` プロトコル: SET前の検証インターフェース
+- `PEPayloadValidatorRegistry` (actor): スレッドセーフなバリデータ登録システム
+- `PESchemaBasedValidator`: JSONスキーマベース検証
+- `PEBuiltinValidators`: DeviceInfo, ResourceList等の組み込みバリデータ
+- `PEError.payloadValidationFailed`: 検証失敗エラー
+
+#### Phase 2: Batch SET API
+- `PESetItem`: 型安全なSETアイテム構造体
+- `PEBatchSetOptions`: バッチ実行戦略（.default, .strict, .fast, .serial）
+- `PEBatchSetResponse`: 構造化されたバッチ結果
+- `PEManager.batchSet()`: 複数SET操作の並行実行
+- `PEManager.batchSetChannels()`: チャンネル別バッチSET
+
+#### Phase 3: SET Chain/Pipeline
+- `PEPipeline<T>`: GET→Transform→SET フルエントビルダー
+- `PEConditionalSet<T>`: 条件付きSET（read-modify-write）
+- `PEConditionalResult<T>`: 型付き結果（updated/skipped/failed）
+
+**テスト**:
+- 53新規テスト追加（合計372テスト）
+  - PEPayloadValidatorTests: 18テスト
+  - PEBatchSetTests: 19テスト
+  - PEPipelineTests: 16テスト
+
+**コード例**:
+```swift
+// Payload validation
+let validator = PESchemaBasedValidator(schema: mySchema)
+try await validatorRegistry.register(validator, for: "Volume")
+
+// Batch SET
+let items = [
+    try PESetItem.json(resource: "Volume", value: VolumeInfo(level: 80)),
+    try PESetItem.json(resource: "Pan", value: PanInfo(position: 0))
+]
+let result = try await peManager.batchSet(items, to: device, options: .strict)
+
+// Pipeline
+let result = try await PEPipeline(manager: peManager, device: device)
+    .getJSON("ProgramName", as: ProgramName.self)
+    .map { $0.name.uppercased() }
+    .transform { ProgramName(name: $0) }
+    .setJSON("ProgramName")
+    .execute()
+```
+
+**追加行数**: 約80行
+
+---
+
+### 2. CLAUDE.md
+
+#### 更新箇所 1: MIDI2PE Module Section
+
+**Location**: `### MIDI2PE` セクション内
+
+**追加内容**: 新サブセクション「SET Operations Extension (2026-02-04)」
+
+**ディレクトリ構造**:
+```
+Sources/MIDI2PE/
+├── Validation/
+│   ├── PEPayloadValidator.swift
+│   └── PESchemaValidator.swift
+├── Batch/
+│   └── PESetItem.swift
+└── Pipeline/
+    ├── PEPipeline.swift
+    └── PEConditionalSet.swift
+```
+
+**Key Features 更新**:
+- Payload validation before SET
+- Pipeline-based GET→Transform→SET workflows
+- Conditional SET operations
+
+#### 更新箇所 2: Batch Operations Section
+
+**Location**: `### Batch Operations` セクション
+
+**拡張内容**:
+- Batch GET（既存）
+- **Batch SET** の使用例追加
+- **Pipeline Operations** の使用例追加
+- バッチオプション説明（.default, .strict, .fast, .serial）
+- 条件付きSET例追加
+
+**追加行数**: 約40行
+
+---
+
+### 3. README.md
+
+**更新箇所**: `## Features` セクション
+
+**変更内容**:
+```diff
+  - **MIDI-CI Device Discovery** - Automatically discover MIDI 2.0 capable devices
+  - **Property Exchange** - Get and set device properties via PE protocol
++ - **Advanced SET Operations** - Payload validation, batch SET, and pipeline workflows
+  - **High-Level API** - Simple `MIDI2Client` actor for common use cases
+  - **KORG Compatibility** - Works with KORG Module Pro and similar devices
+  - **Swift Concurrency** - Built with async/await and Sendable types
+```
+
+**追加行数**: 1行
+
+**理由**: READMEは簡潔性を保つため、機能リストに1行追加のみ。詳細はCHANGELOG/CLAUDEで補完。
+
+---
+
+## 新ファイル構造（MIDI2PE モジュール）
+
+### Validation/
+- `PEPayloadValidator.swift` (新規)
+  - `PEPayloadValidator` プロトコル
+  - `PEPayloadValidatorRegistry` actor
+  - `PEPayloadValidationError` enum
+
+- `PESchemaValidator.swift` (既存)
+  - JSONスキーマベース検証
+  - スキーマキャッシュ機能
+
+### Batch/
+- `PESetItem.swift` (新規)
+  - `PESetItem` struct
+  - Factory methods: `.json()`, `.dictionary()`
+  - Channel サポート
+
+### Pipeline/
+- `PEPipeline.swift` (新規)
+  - `PEPipeline<T>` struct
+  - Fluent builder pattern
+  - GET/transform/SET チェーン
+
+- `PEConditionalSet.swift` (新規)
+  - `PEConditionalSet<T>` struct
+  - Read-modify-write パターン
+  - `PEConditionalResult<T>` enum
+
+### Tests/
+- `PEPayloadValidatorTests.swift` (18 tests)
+- `PEBatchSetTests.swift` (19 tests)
+- `PEPipelineTests.swift` (16 tests)
+
+---
+
+## SET Operations Extension の主要API
+
+### Phase 1: Validation
+
+```swift
+// バリデータ登録
+let validator = PESchemaBasedValidator(schema: mySchema)
+try await validatorRegistry.register(validator, for: "Volume")
+
+// 検証付きSET
+try await peManager.set("Volume", data: volumeData, to: device)
+// → 自動的にデバイス送信前に検証
+```
+
+### Phase 2: Batch SET
+
+```swift
+// アイテム作成
+let items = [
+    try PESetItem.json(resource: "Volume", value: VolumeInfo(level: 80)),
+    try PESetItem.json(resource: "Pan", value: PanInfo(position: 0))
+]
+
+// バッチ実行
+let result = try await peManager.batchSet(items, to: device, options: .strict)
+// → PEBatchSetResponse（アイテムごとの成功/失敗）
+
+// チャンネル別バッチSET
+let channelItems = [
+    try PESetItem.json(resource: "ProgramName", value: ["name": "Piano"], channel: 0),
+    try PESetItem.json(resource: "ProgramName", value: ["name": "Strings"], channel: 1)
+]
+let channelResult = try await peManager.batchSetChannels(channelItems, to: device)
+```
+
+**バッチオプション**:
+- `.default`: 並列実行、最初のエラーで停止
+- `.strict`: 並列実行、エラーでall abort
+- `.fast`: 並列実行、エラーを無視して継続
+- `.serial`: 逐次実行
+
+### Phase 3: Pipeline
+
+```swift
+// フルエントパイプライン
+let result = try await PEPipeline(manager: peManager, device: device)
+    .getJSON("ProgramName", as: ProgramName.self)
+    .map { $0.name.uppercased() }
+    .transform { ProgramName(name: $0) }
+    .setJSON("ProgramName")
+    .execute()
+
+// 条件付きSET
+let conditional = PEConditionalSet(manager: peManager, device: device)
+let result = try await conditional.conditionalSet(
+    "Counter",
+    as: Counter.self
+) { counter in
+    guard counter.value < 100 else { return nil } // Skip if >= 100
+    return Counter(value: counter.value + 1) // Increment
+}
+// → PEConditionalResult<Counter> (.updated, .skipped, .failed)
+```
+
+---
+
+## テストカバレッジ
+
+- **総テスト数**: 372テスト（+53）
+- **Phase 1**: 18テスト（validation layer）
+- **Phase 2**: 19テスト（batch SET）
+- **Phase 3**: 16テスト（pipeline/conditional）
+
+すべてのテストが正常にパス（GitHub Actions CI #62/63で確認済み）
+
+---
+
+## 更新ファイル一覧
+
+| ファイル | 更新タイプ | 変更行数 |
+|----------|-----------|---------|
+| `CHANGELOG.md` | 追加 | +80行 |
+| `CLAUDE.md` | 更新 | +40行 |
+| `README.md` | 更新 | +1行 |
+| `docs/document-writer-20260204.md` | 追記 | 本セクション |
+
+---
+
+## 品質チェック
+
+✅ **CHANGELOG.md**: SET Operations Extension記録完了
+✅ **CLAUDE.md**: 新ファイル構造反映完了
+✅ **README.md**: 機能リスト更新完了
+✅ **docs/document-writer-20260204.md**: 作業ログ記録完了
+
+---
+
+## 次のステップ
+
+1. [ ] git statusで変更確認
+2. [ ] コミット作成
+3. [ ] プッシュ
+
+---
+
+**Document Writer**: Claude Sonnet 4.5
+**更新日時**: 2026-02-04 11:31 JST
+**ステータス**: 完了 ✅

@@ -142,11 +142,25 @@ MIDI2Core (Foundation - no dependencies)
 - `handleNotify`: Processes subscription notifications
 - `handleNAK`: Processes negative acknowledgements
 
+**SET Operations Extension** (2026-02-04):
+- **Validation/** directory:
+  - `PEPayloadValidator.swift`: Pre-SET validation protocol and registry
+  - `PESchemaValidator.swift`: JSONSchema-based validation
+- **Batch/** directory:
+  - `PESetItem.swift`: Batch SET item structure
+  - Batch SET methods in `PEManager`: `batchSet()`, `batchSetChannels()`
+- **Pipeline/** directory:
+  - `PEPipeline.swift`: GET→Transform→SET fluent builder
+  - `PEConditionalSet.swift`: Read-modify-write with conditional updates
+
 **Key Features**:
 - Request ID allocation (max 128 concurrent)
 - Automatic Mcoded7 decoding (with fallback for KORG)
 - Per-device inflight limiting
-- Batch operations
+- Batch operations (GET/SET)
+- Payload validation before SET
+- Pipeline-based GET→Transform→SET workflows
+- Conditional SET operations
 - Subscription management
 - Error classification with `isRetryable`, `isClientError`, `isDeviceError`
 - Automatic retry helper: `withPERetry(maxAttempts:operation:)`
@@ -300,12 +314,62 @@ let response = try await withPERetry(maxAttempts: 3) {
 ```
 
 ### Batch Operations
+
+**Batch GET:**
 ```swift
 let responses = await peManager.batchGet(
     ["DeviceInfo", "ResourceList"],
     from: handle
 )
 // Returns Dictionary<String, Result<PEResponse, Error>>
+```
+
+**Batch SET:**
+```swift
+// Create items
+let items = [
+    try PESetItem.json(resource: "Volume", value: VolumeInfo(level: 80)),
+    try PESetItem.json(resource: "Pan", value: PanInfo(position: 0))
+]
+
+// Execute batch SET
+let result = try await peManager.batchSet(items, to: device, options: .strict)
+// Returns PEBatchSetResponse with per-item results
+
+// Channel-specific batch SET
+let channelItems = [
+    try PESetItem.json(resource: "ProgramName", value: ["name": "Piano"], channel: 0),
+    try PESetItem.json(resource: "ProgramName", value: ["name": "Strings"], channel: 1)
+]
+let channelResult = try await peManager.batchSetChannels(channelItems, to: device)
+```
+
+**Batch Options:**
+- `.default`: Parallel, stop on first error
+- `.strict`: Parallel, abort all on any error
+- `.fast`: Parallel, continue on errors
+- `.serial`: Sequential execution
+
+**Pipeline Operations:**
+```swift
+// GET → Transform → SET pipeline
+let result = try await PEPipeline(manager: peManager, device: device)
+    .getJSON("ProgramName", as: ProgramName.self)
+    .map { $0.name.uppercased() }
+    .transform { ProgramName(name: $0) }
+    .setJSON("ProgramName")
+    .execute()
+
+// Conditional SET (read-modify-write)
+let conditional = PEConditionalSet(manager: peManager, device: device)
+let result = try await conditional.conditionalSet(
+    "Counter",
+    as: Counter.self
+) { counter in
+    guard counter.value < 100 else { return nil } // Skip if >= 100
+    return Counter(value: counter.value + 1) // Increment
+}
+// Returns PEConditionalResult<Counter> (.updated, .skipped, .failed)
 ```
 
 ---

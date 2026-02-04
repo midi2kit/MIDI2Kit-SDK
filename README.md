@@ -6,6 +6,7 @@ A Swift library for MIDI 2.0 / MIDI-CI / Property Exchange on Apple platforms.
 
 - **MIDI-CI Device Discovery** - Automatically discover MIDI 2.0 capable devices
 - **Property Exchange** - Get and set device properties via PE protocol
+- **Advanced SET Operations** - Payload validation, batch SET, and pipeline workflows
 - **High-Level API** - Simple `MIDI2Client` actor for common use cases
 - **KORG Compatibility** - Works with KORG Module Pro and similar devices
 - **Swift Concurrency** - Built with async/await and Sendable types
