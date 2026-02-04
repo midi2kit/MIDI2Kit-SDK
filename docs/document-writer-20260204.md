@@ -275,3 +275,203 @@ swift package generate-documentation
 ---
 
 **作成完了**: 2026-02-04 08:06
+
+---
+
+# 追加更新 - 2026-02-04 10:17
+
+## 作業概要
+
+リファクタリング作業（Phase A-D）完了に伴い、ドキュメントを更新しました。
+
+---
+
+## 更新したドキュメント
+
+### 1. CHANGELOG.md（追加更新）
+
+**Section**: `## [Unreleased] > ### Added`
+
+**追加内容**:
+新しいサブセクション「Refactoring Phase A-D (2026-02-04)」を追加し、以下を記録：
+
+- **R-001**: CIMessageParser format parsers testable
+  - 3つのフォーマットパーサーを分離
+  - 8つの新規テスト追加
+
+- **R-002**: MIDI2Client timeout+retry consolidation
+  - 重複コード450行削減
+  - executeWithDestinationFallback統合
+
+- **R-003**: PEManager handleReceived split
+  - 150行のメソッドを5つの専用ハンドラに分割
+
+- **R-006**: PETypes split into 7 files
+  - 921行のファイルを7つのドメイン別ファイルに整理
+
+- **Phase C/D**: Code cleanup and type-safe events
+  - TODO削除（5箇所）
+  - 型安全なイベント抽出API追加
+
+**改善効果の記録**:
+- コード量: 約10%削減（20,681→18,500行）
+- 重複コード: 450行削減
+- テストカバレッジ: 319テスト全パス維持
+- コードレビュー評価: ⭐⭐⭐⭐⭐ 5.0/5
+
+**Location**: Lines 12-54
+
+---
+
+### 2. CLAUDE.md（追加更新）
+
+#### Section 1: MIDI2PE Module Description（Lines 110-145）
+
+**更新内容**:
+
+**Core Types**セクションの拡張:
+- R-006リファクタリングを反映し、**Types/** ディレクトリ構造を追加
+- 7つの新しいファイルを記録:
+  - `PERequest.swift`: GET/SET/SUBSCRIBE parameters
+  - `PEDeviceInfo.swift`: Device metadata
+  - `PEControllerTypes.swift`: Controller-related types
+  - `PEHeaderTypes.swift`: PE message headers
+  - `PENAKTypes.swift`: NAK status codes
+  - `PEChannelInfo.swift`: Channel metadata
+  - `PESubscriptionTypes.swift`: Subscription types
+
+**Message Handlers**セクションの追加:
+- R-003リファクタリングで抽出された5つのハンドラを記録:
+  - `handleGetReply`: GET応答処理
+  - `handleSetReply`: SET応答処理
+  - `handleSubscribeReply`: SUBSCRIBE応答処理
+  - `handleNotify`: サブスクリプション通知処理
+  - `handleNAK`: 否定応答処理
+
+#### Section 2: Recent Fixes and Refactoring（Lines 350-430）
+
+**新規サブセクション追加**:
+「Refactoring Phase A-D (2026-02-04 - Complete)」
+
+**内容**:
+- リファクタリングの全体サマリー
+- 5つの個別項目（R-001, R-002, R-003, R-006, Phase C/D）の詳細
+- 各項目の技術的詳細:
+  - 変更対象ファイル
+  - 削減された行数
+  - 改善内容
+  - 追加されたテスト
+
+**Overall Impact**:
+- コード削減: ~10% (20,681 → 18,500 lines)
+- 重複コード削減: -450 lines
+- ファイル整理: 12の新しいフォーカスファイル
+- テストカバレッジ: 319 tests maintained (100% pass)
+- コードレビュー: ⭐⭐⭐⭐⭐ 5.0/5
+
+---
+
+## リファクタリング詳細（参考）
+
+### Phase A（高優先度）
+- **R-001**: CIMessageParser format parsers testable
+  - ファイル: `Sources/MIDI2CI/CIMessageParser.swift`
+  - 抽出: 3つのフォーマットパーサー関数
+  - テスト追加: 8つの専用テスト
+
+- **R-002**: MIDI2Client timeout+retry consolidation
+  - ファイル: `Sources/MIDI2Kit/MIDI2Client.swift`
+  - 削減: 450行の重複コード
+  - 統合: executeWithDestinationFallback<T>メソッド
+
+- **R-003**: PEManager handleReceived split
+  - ファイル: `Sources/MIDI2PE/PEManager.swift`
+  - 分割: 150行メソッド → 5つのハンドラ
+
+### Phase B（中優先度）
+- **R-006**: PETypes split into 7 files
+  - 元ファイル: `Sources/MIDI2PE/PETypes.swift` (921行)
+  - 新構造: `Sources/MIDI2PE/Types/` (7ファイル)
+
+### Phase C/D（低優先度）
+- **R-008**: TODO cleanup
+  - 削除: 5つの完了済みTODOコメント
+
+- **R-010**: Type-safe event filtering
+  - 追加: イベント抽出プロパティ
+  - 追加: イベント分類プロパティ
+  - 追加: AsyncStream拡張メソッド
+
+---
+
+## 品質指標
+
+### リファクタリング前
+- 総行数: ~20,681
+- MIDI2Client: 867行
+- PEManager: 150行のhandleReceivedメソッド
+- PETypes.swift: 921行（単一ファイル）
+- 重複コード: ~450行（PE関連メソッド）
+
+### リファクタリング後
+- 総行数: ~18,500 (-10%)
+- MIDI2Client: 467行 (-46%)
+- PEManager: 5つの専用ハンドラ（各30行程度）
+- PETypes: 7つの整理されたファイル（Types/配下）
+- 重複コード: 0（統一メソッドに集約）
+
+### テスト結果
+- **総テスト数**: 319
+- **合格率**: 100%
+- **リグレッション**: なし（既存機能すべて保持）
+
+### コードレビュー
+- **評価**: ⭐⭐⭐⭐⭐ 5.0/5
+- **Critical issues**: 0件
+- **Warnings**: 2件（軽微な提案）
+- **レポート**: docs/code-review-20260204-refactoring.md
+
+---
+
+## 更新したファイル
+
+1. **CHANGELOG.md**
+   - 追加行数: 44行
+   - セクション: Unreleased > Added > Refactoring Phase A-D
+
+2. **CLAUDE.md**
+   - 追加・変更行数: 約80行
+   - セクション1: MIDI2PE module description
+   - セクション2: Recent Fixes and Refactoring
+
+---
+
+## ドキュメント完全性チェック
+
+✅ **CHANGELOG.md**: リファクタリング内容記録済み
+✅ **CLAUDE.md**: モジュール構造更新済み
+✅ **Code Review**: 完了（docs/code-review-20260204-refactoring.md）
+✅ **Worklog**: すべての変更追跡済み（docs/ClaudeWorklog20260204.md）
+
+---
+
+## 関連ドキュメント
+
+- コードレビューレポート: `docs/code-review-20260204-refactoring.md`
+- 日次ワークログ: `docs/ClaudeWorklog20260204.md`
+- リファクタリングプラン: `docs/2026-02-04-refactoring-plan.md`（参照）
+
+---
+
+## 備考
+
+- すべてのpublic APIは後方互換性を維持
+- 破壊的変更なし
+- ドキュメントは新しいファイル構造を正確に反映
+- 将来の貢献者が整理されたコードベースを理解しやすくなった
+
+---
+
+**Document Writer**: Claude Sonnet 4.5
+**更新日時**: 2026-02-04 10:17 JST
+**ステータス**: 完了 ✅

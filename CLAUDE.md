@@ -118,15 +118,29 @@ MIDI2Core (Foundation - no dependencies)
 - `PEChunkAssembler` (actor): Multipart message reassembly
 - `PESubscriptionManager` (actor): Auto-reconnecting subscriptions
 
-**Core Types** (split into dedicated files in Phase 6):
+**Core Types** (organized into domain-focused files):
 - `PEResponse` (PEResponse.swift): HTTP-style status + header + body
 - `PEError` (PEError.swift): Rich error types with classification
 - `PEDeviceHandle`: Bundles MUID + destination (prevents routing mismatches)
-- `PERequest`: GET/SET/SUBSCRIBE parameters
+- **Types/** directory (R-006 refactoring):
+  - `PERequest.swift`: GET/SET/SUBSCRIBE parameters
+  - `PEDeviceInfo.swift`: Device metadata (manufacturer, family, model, version)
+  - `PEControllerTypes.swift`: Controller-related types
+  - `PEHeaderTypes.swift`: PE message headers
+  - `PENAKTypes.swift`: NAK status codes
+  - `PEChannelInfo.swift`: Channel metadata
+  - `PESubscriptionTypes.swift`: Subscription types
 
 **Extension Files**:
 - `PEManager+JSON.swift`: Typed API (getJSON/setJSON)
 - `PEManager+Legacy.swift`: Deprecated MUID+destination API
+
+**Message Handlers** (R-003 refactoring):
+- `handleGetReply`: Processes GET responses
+- `handleSetReply`: Processes SET responses
+- `handleSubscribeReply`: Processes SUBSCRIBE responses
+- `handleNotify`: Processes subscription notifications
+- `handleNAK`: Processes negative acknowledgements
 
 **Key Features**:
 - Request ID allocation (max 128 concurrent)
@@ -364,6 +378,59 @@ let responses = await peManager.batchGet(
 10. **CoreMIDI Bus error fix** (Sources/MIDI2Transport/CoreMIDITransport.swift)
     - Fixed MIDIPacketList handling using `unsafeSequence()`
     - Resolves crash in packet callback
+
+### Refactoring Phase A-D (2026-02-04 - Complete)
+
+**Summary**: Major code organization improvements reducing codebase by ~10% while maintaining 100% test pass rate (319 tests)
+
+11. **R-001: CIMessageParser format parsers testable** (Sources/MIDI2CI/CIMessageParser.swift)
+    - Extracted 3 format-specific parsers into separate `internal` functions
+    - `parseDiscoveryReply`, `parsePropertyExchangeCapabilities`, `parseEndpointInfo`
+    - Added 8 new dedicated format parser tests
+    - Improved testability and maintainability
+
+12. **R-002: MIDI2Client timeout+retry consolidation** (Sources/MIDI2Kit/MIDI2Client.swift)
+    - Unified `executeWithDestinationFallback<T>` method for all PE operations
+    - Eliminated 450 lines of duplicate code across 4 methods:
+      - `getDeviceInfo`, `getResourceList`, `get`, `set`
+    - Consistent error handling and retry behavior
+    - Reduced MIDI2Client from 867 to 467 lines (-46%)
+
+13. **R-003: PEManager handleReceived split** (Sources/MIDI2PE/PEManager.swift)
+    - Split 150-line `handleReceived` into 5 focused handlers:
+      - `handleGetReply`: GET response processing
+      - `handleSetReply`: SET response processing
+      - `handleSubscribeReply`: SUBSCRIBE response processing
+      - `handleNotify`: Subscription notification processing
+      - `handleNAK`: Negative acknowledgement processing
+    - Single Responsibility Principle applied
+    - Enhanced readability and error handling
+
+14. **R-006: PETypes split into 7 files** (Sources/MIDI2PE/Types/)
+    - Reorganized 921-line PETypes.swift into 7 domain-focused files:
+      - `PERequest.swift`: Request parameters
+      - `PEDeviceInfo.swift`: Device metadata
+      - `PEControllerTypes.swift`: Controller-related types
+      - `PEHeaderTypes.swift`: PE message headers
+      - `PENAKTypes.swift`: NAK status codes
+      - `PEChannelInfo.swift`: Channel metadata
+      - `PESubscriptionTypes.swift`: Subscription types
+    - Improved code navigation and maintainability
+
+15. **Phase C/D: Code cleanup and type-safe events**
+    - **R-008**: Removed 5 completed TODO comments from PESubscriptionHandler
+      - `startNotificationStream()`, `addPendingContinuation()`, etc.
+    - **R-010**: Added type-safe event extraction API to MIDI2ClientEvent
+      - Event properties: `discoveredDevice`, `lostDeviceMUID`, etc.
+      - Classification: `isDeviceLifecycleEvent`, `isClientStateEvent`
+      - AsyncStream extensions: `deviceDiscovered()`, `deviceLost()`, `notifications()`
+
+**Overall Impact**:
+- Code reduction: ~10% (20,681 → 18,500 lines)
+- Duplicate code: -450 lines
+- Improved organization: 12 new focused files
+- Test coverage: 319 tests maintained (100% pass)
+- Code review: ⭐⭐⭐⭐⭐ 5.0/5
 
 ---
 
