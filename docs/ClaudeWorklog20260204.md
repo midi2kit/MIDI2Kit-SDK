@@ -2123,7 +2123,7 @@
   - Swift 6 strict concurrency checking
   - ジェネリック型 T が actor 境界を越える際に Sendable 制約が必要
   - R-002リファクタリングで導入されたメソッドの問題
-  
+
   【修正内容】
   - T: Sendable 制約を追加
   - execute クロージャに @Sendable を追加
@@ -2131,4 +2131,31 @@
   - 修正適用
   - テスト実行
   - コミット・プッシュ
+---
+
+---
+2026-02-04 11:25
+作業項目: CI失敗修正（requestIDRecyclingテストタイムアウト）
+追加機能の説明:
+  - GitHub Actions CI #62: build失敗, build-ios成功
+  - 原因: requestIDRecycling()テストがmacOS CIでタイムアウト
+  - エラー: IntegrationTests.swift:367 - Timeout waiting for response: Resource2
+決定事項:
+  【原因分析】
+  - テストのタイミングが100msタイムアウトでCIには厳しい
+  - リクエスト送信から応答返却まで20msスリープ
+  - CI環境では処理が遅延し、タイムアウトする可能性
+
+  【修正内容】
+  - タイムアウト値を100ms→500msに増加
+  - スリープを20ms→50msに増加
+
+  【テスト結果】
+  ✅ 372 tests in 46 suites passed
+
+  【コミット】
+  ✅ a6d275d fix: increase timeout in requestIDRecycling test for CI stability
+  ✅ プッシュ完了
+次のTODO:
+  - CI結果確認
 ---
