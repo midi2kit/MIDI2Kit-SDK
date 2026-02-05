@@ -103,10 +103,9 @@ public actor PEResponder {
         guard !isRunning else { return }
         isRunning = true
 
-        handleTask = Task { [weak self] in
-            guard let self = self else { return }
-            for await received in transport.received {
-                guard await self.isRunning else { break }
+        handleTask = Task {
+            for await received in self.transport.received {
+                guard self.isRunning else { break }
                 await self.handleMessage(received.data)
             }
         }
@@ -437,8 +436,10 @@ public actor PEResponder {
         do {
             try await transport.send(data, to: dest.destinationID)
         } catch {
-            // Silently ignore send errors
-            // In production, consider adding a logger parameter to PEResponder
+            // TODO: Add logger parameter to PEResponder for proper logging
+            #if DEBUG
+            print("⚠️ PEResponder: failed to send reply to \(destinationMUID): \(error)")
+            #endif
         }
     }
 

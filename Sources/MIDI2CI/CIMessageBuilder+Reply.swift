@@ -271,13 +271,14 @@ extension CIMessageBuilder {
     /// Build JSON header for failed PE response
     public static func errorResponseHeader(status: Int, message: String? = nil) -> Data {
         if let message = message {
-            let escapedMessage = message.replacingOccurrences(of: "\"", with: "\\\"")
-            let json = "{\"status\":\(status),\"message\":\"\(escapedMessage)\"}"
-            return Data(json.utf8)
-        } else {
-            let json = "{\"status\":\(status)}"
-            return Data(json.utf8)
+            // Use JSONSerialization for safe escaping of all special characters
+            let json: [String: Any] = ["status": status, "message": message]
+            if let data = try? JSONSerialization.data(withJSONObject: json, options: []) {
+                return data
+            }
         }
+        // Fallback to status-only response
+        return Data("{\"status\":\(status)}".utf8)
     }
 
     /// Build JSON header for subscribe response

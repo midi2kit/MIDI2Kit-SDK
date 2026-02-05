@@ -65,6 +65,9 @@ public actor MockDevice {
     /// Message handling task
     private var handleTask: Task<Void, Never>?
 
+    /// Preset for auto-registration (cleared after start)
+    private var pendingPreset: MockDevicePreset?
+
     // MARK: - Initialization
 
     /// Create a mock device
@@ -99,7 +102,8 @@ public actor MockDevice {
         self.transport = transport
         self.peResponder = PEResponder(muid: muid, transport: transport)
 
-        // Register preset resources - done in start() because we're in init
+        // Store preset for auto-registration in start()
+        self.pendingPreset = preset
     }
 
     // MARK: - Lifecycle
@@ -111,14 +115,19 @@ public actor MockDevice {
         guard !isRunning else { return }
         isRunning = true
 
+        // Auto-register preset resources if pending
+        if let preset = pendingPreset {
+            await registerPresetResources(preset)
+            pendingPreset = nil
+        }
+
         // Start PE responder
         await peResponder.start()
 
         // Start handling CI messages
-        handleTask = Task { [weak self] in
-            guard let self = self else { return }
-            for await received in transport.received {
-                guard await self.isRunning else { break }
+        handleTask = Task {
+            for await received in self.transport.received {
+                guard self.isRunning else { break }
                 await self.handleMessage(received.data)
             }
         }

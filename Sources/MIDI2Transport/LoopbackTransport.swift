@@ -194,6 +194,10 @@ public actor LoopbackTransport: MIDITransport {
 
     /// Inject received data (called by peer's send)
     func injectReceived(_ data: [UInt8], from source: MIDISourceID) {
+        guard receivedContinuation != nil else {
+            // Transport has been shut down, ignore
+            return
+        }
         let received = MIDIReceivedData(data: data, sourceID: source)
         receivedContinuation?.yield(received)
     }
