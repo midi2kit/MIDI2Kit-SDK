@@ -638,3 +638,42 @@
 次のTODO:
   - commit
 ---
+
+---
+2026-02-05 16:44
+作業項目: MIDI2Kit-SDK v1.0.5 リリース
+追加機能の説明:
+  - MIDI-CI Responder機能追加
+  - コードレビュー改善適用
+決定事項:
+  【作業手順】
+  1. XCFrameworkビルド
+  2. チェックサム計算
+  3. Package.swift更新
+  4. GitHub Release作成
+次のTODO:
+  - ビルド実行
+---
+
+---
+2026-02-05 16:55
+作業項目: MIDI2Kit-SDK v1.0.5 リリース完了
+追加機能の説明:
+  - MIDI-CI Responder機能を含むXCFramework配布
+決定事項:
+  【リリース情報】
+  - タグ: v1.0.5
+  - URL: https://github.com/midi2kit/MIDI2Kit-SDK/releases/tag/v1.0.5
+
+  【新チェックサム】
+  - MIDI2Core: 34f6bb3ad08aed5a571a2393ff906f7c27c9156163178b475edf7492a4e095df
+  - MIDI2Transport: 16568c1deca7ec7f19e33991f8fa95ae17628fe8ab99646ee858852f07663525
+  - MIDI2CI: 9e39719f1819465a09ebc4ad38af6098cf38e023cd121554692d1e5ba21d7fc6
+  - MIDI2PE: b303ba82f31fb1da137e4130f50793e7723a7f6f5a51d60ea372778ab3a4b81f
+  - MIDI2Kit: d385212021c984579b8953fbc5b0993ab3b9a4b67ad258e9452b14b9799a4db1
+
+  【使用方法】
+  .package(url: "https://github.com/midi2kit/MIDI2Kit-SDK.git", from: "1.0.5")
+次のTODO:
+  - 完了
+---
