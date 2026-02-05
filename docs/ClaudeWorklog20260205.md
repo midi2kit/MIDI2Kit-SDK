@@ -378,3 +378,34 @@
   - commit push
   - v1.0.4 リリース
 ---
+
+---
+2026-02-05 14:15
+作業項目: MIDI2Kit-SDK v1.0.4 リリース完了
+追加機能の説明:
+  - .explorer で peSendStrategy = .broadcast
+  - KORG BLE MIDI の PE タイムアウト修正
+決定事項:
+  【リリース情報】
+  - タグ: v1.0.4
+  - URL: https://github.com/midi2kit/MIDI2Kit-SDK/releases/tag/v1.0.4
+
+  【使用方法】
+  .package(url: "https://github.com/midi2kit/MIDI2Kit-SDK.git", from: "1.0.4")
+次のTODO:
+  - MIDI2Explorerで実機テスト
+---
+
+---
+2026-02-05 14:17
+作業項目: ドキュメント更新
+追加機能の説明:
+  - v1.0.1〜v1.0.4の変更をドキュメント化
+決定事項:
+  【更新ファイル】
+  - /tmp/MIDI2Kit-SDK/README.md - v1.0.4推奨、マイグレーションガイド追加
+  - /tmp/MIDI2Kit-SDK/CHANGELOG.md - 新規作成
+  - /Users/hakaru/Desktop/Develop/MIDI2Kit/CHANGELOG.md - SDK履歴追加
+次のTODO:
+  - SDKリポジトリにcommit push
+---
