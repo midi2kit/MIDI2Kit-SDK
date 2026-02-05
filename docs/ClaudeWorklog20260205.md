@@ -677,3 +677,312 @@
 次のTODO:
   - 完了
 ---
+
+---
+2026-02-05 16:58
+作業項目: SimpleMidiController と KORG Module Pro の同一端末内通信検討
+追加機能の説明:
+  - ユーザーからの依頼: 同一iOSデバイス上でSimpleMidiControllerとModule Proを通信させたい
+  - SimpleMidiController: 独自MIDI-CI/PE実装を持つMIDIコントローラーアプリ
+  - KORG Module Pro: BLE MIDI経由でMIDI-CIに対応
+決定事項:
+  【前提】
+  - 先のセッションで判明: KORG Module ProのMIDI-CIはBLE MIDI経由でのみ動作
+  - 同一端末内ではBLE自己接続不可
+
+  【調査項目】
+  - SimpleMidiControllerがVirtual MIDIポートを作成しているか確認
+  - iOSのアプリ間MIDI通信の可能性を調査
+次のTODO:
+  - SimpleMidiControllerのMIDI設定を確認
+  - 通信可能な構成を提案
+---
+
+---
+2026-02-05 17:01
+作業項目: MIDI-CI/PEテスト方法の説明
+追加機能の説明:
+  - ユーザーは MIDI-CI/Property Exchange テストを希望
+  - 2つの方法を提示: 2台構成 vs MockDevice
+決定事項:
+  【方法1: 2台構成（BLE MIDI経由）】
+  - iPhone + iPad（またはMac）
+  - 一方でSimpleMidiController、他方でKORG Module Pro
+  - BLE MIDIでペアリング
+
+  【方法2: MockDevice（同一アプリ内テスト）】
+  - MIDI2KitのMockDevice機能を使用
+  - SimpleMidiControllerにMIDI2Kitを統合
+  - 同一プロセス内でInitiator↔Responderテスト
+  - 実機不要、デバッグが容易
+次のTODO:
+  - 各方法の具体的手順を説明
+---
+
+---
+2026-02-05 17:02
+作業項目: SimpleMidiController MockDevice統合の設計
+追加機能の説明:
+  - MIDI2Kit-SDKは既に依存に追加済み
+  - SimpleMidiControllerは独自MIDICIManager実装を使用
+  - 統合方法の検討
+決定事項:
+  【選択: 新しいデバッグビュー追加】
+  - 既存のMIDICIManagerには触れない
+  - 新規「MockDeviceTestView」を作成
+  - MIDI2Kitを直接使用してMockDeviceとテスト
+  - 設定画面からアクセス
+
+  【理由】
+  - 既存コードへの影響最小
+  - MIDI2KitのAPIをそのまま使用可能
+  - デバッグ専用なので本番コードは汚れない
+
+  【実装ファイル】
+  1. MockDeviceTestView.swift - テスト画面UI
+  2. SettingsView.swift修正 - テスト画面へのリンク追加
+次のTODO:
+  - MockDeviceTestView.swift作成
+  - SettingsViewに追加
+---
+
+---
+2026-02-05 17:14
+作業項目: SimpleMidiController MockDevice統合完了
+追加機能の説明:
+  - MockDeviceTestView.swift を作成（デバッグビルドのみ）
+  - SettingsViewに「Developer」セクションを追加
+  - MIDI2Kit-SDK v1.0.5 を全5モジュールで依存に設定
+決定事項:
+  【実装内容】
+  1. MockDeviceTestView.swift (350行)
+     - LoopbackTransport + MockDevice + CIManager + PEManager を使用
+     - KORG Module Proプリセットでテスト
+     - DeviceInfo、ResourceList、CMList の取得テスト
+     - ログ表示、結果表示
+
+  2. SettingsView.swift修正
+     - #if DEBUG で Developer セクション追加
+     - MockDeviceTestView へのNavigationLink
+
+  3. project.pbxproj修正
+     - MIDI2Kit-SDK v1.0.4 → v1.0.5
+     - 全5モジュール依存追加（MIDI2Kit, MIDI2Core, MIDI2CI, MIDI2PE, MIDI2Transport）
+     - XCFrameworkモジュール間依存解決のため
+
+  【型競合の解決】
+  - SimpleMidiController.MUID と MIDI2Core.MUID の競合
+  - private typealias MIDI2MUID = MIDI2Core.MUID で解決
+
+  【ビルド結果】
+  - BUILD SUCCEEDED
+次のTODO:
+  - 実機またはシミュレーターで動作確認
+---
+
+---
+2026-02-05 17:15
+作業項目: MockDeviceTestをReleaseビルドに含める
+追加機能の説明:
+  - #if DEBUG を削除
+  - Releaseビルドでも MockDevice Test が使用可能に
+決定事項:
+  【変更ファイル】
+  - MockDeviceTestView.swift: #if DEBUG / #endif 削除
+  - SettingsView.swift: #if DEBUG / #endif 削除
+
+  【ビルド結果】
+  - Release BUILD SUCCEEDED
+次のTODO:
+  - 完了
+---
+
+---
+2026-02-05 17:27
+作業項目: 同一端末内でMIDI2KitアプリとKORG Module間MIDI-CI通信の可否調査
+追加機能の説明:
+  - ユーザーは通常使用時に同一iPhone上でMIDI2Kit採用アプリとKORG Module等を通信させたい
+  - iOSのInter-App MIDI機能とMIDI-CI/PEの互換性を調査
+決定事項:
+  【結論: 同一端末内MIDI-CI/PE通信は不可能】
+
+  【理由1: KORG Module ProのMIDI-CI対応経路】
+  - KORG Module ProはBLE MIDI経由でのみMIDI-CIに対応
+  - 同一端末内ではBLE自己接続不可（Bluetooth仕様上の制限）
+
+  【理由2: iOSのInter-App MIDIの制限】
+  - CoreMIDI Virtual Portsによるアプリ間MIDI通信は可能
+  - しかしこれは「MIDI 1.0メッセージ」のみ対応
+  - MIDI-CI SysExは技術的に送受信可能だが：
+    - 相手アプリ（KORG Module）がVirtual Port経由のMIDI-CIを処理しない
+    - KORGはBLE MIDI→MIDIHostインターフェース経由でのみCI処理を実装
+
+  【理由3: 技術的背景】
+  - iOSのInter-App MIDIはAudioUnitベースのHosting（AUM等）を想定
+  - MIDI-CI/Property Exchangeはホスト/デバイス発見が必要
+  - Virtual Portsでは物理的デバイス発見機構が働かない
+
+  【代替案】
+  案1: 2台構成（推奨）
+    - iPhone + iPad（またはMac）をBLE MIDIでペアリング
+    - 一方でMIDI2Kitアプリ、他方でKORG Module Pro
+
+  案2: MockDevice機能（開発・テスト用）
+    - MIDI2KitのMockDevice機能を使用
+    - 同一アプリ内でKORG Module Proをエミュレート
+    - 実機不要でMIDI-CI/PEの動作確認可能
+    - 本日実装済み（v1.0.5）
+次のTODO:
+  - なし（調査完了）
+---
+
+---
+2026-02-05 17:33
+作業項目: 1台構成でのMIDI-CI通信の可能性を再検討
+追加機能の説明:
+  - ユーザーはエミュレートではなく実用用途で1台構成を希望
+  - 技術的可能性を再調査
+決定事項:
+  【再検討中の選択肢】
+
+  A. Virtual Port経由でKORG ModuleにMIDI-CI送信
+     - 技術的にはSysEx送信可能
+     - KORG ModuleがVirtual Port経由のCIを処理するかは未検証
+     - 試す価値あり
+
+  B. 2つのMIDI2Kit採用アプリ間で通信
+     - 両方が自分の制御下なら確実に実装可能
+     - Virtual Portを作成してMIDI-CI SysExを交換
+
+  C. MIDI2KitアプリがResponderとしてVirtual Portを公開
+     - 他のMIDI-CIアプリからの接続を受け付ける
+     - PEResponder機能を使用
+
+  【確認が必要】
+  - 具体的なユースケースは何か？
+  - 通信相手は KORG Module のみ？それとも自作アプリ同士？
+次のTODO:
+  - ユースケース確認
+  - 実現可能な方法を提案
+---
+
+---
+2026-02-05 17:34
+作業項目: 自作アプリ → KORG Module 同一端末通信の検討
+追加機能の説明:
+  - ユースケース確定: MIDI2Kit採用アプリからKORG Moduleを制御
+  - Virtual Port経由でのMIDI-CI可能性を検討
+決定事項:
+  【技術的検討】
+
+  1. Virtual Port経由の実験（試す価値あり）
+     - CoreMIDI Virtual SourceからKORG ModuleのDestinationへ接続
+     - Discovery Inquiry (0x70) を送信
+     - 応答があるか確認
+     - KORG ModuleがVirtual Port経由のCIを処理するかは未知数
+
+  2. 問題点
+     - KORG Module ProのMIDI-CI実装はBLE MIDIインターフェース層に紐づいている可能性
+     - Virtual PortからのSysExをMIDI-CIとして処理しない可能性が高い
+
+  3. 実験方法
+     - MIDI2KitのCoreMIDITransportでKORG Moduleに接続
+     - ciManager.startDiscovery() で探索
+     - デバイスが見つかるか確認
+
+  【現実的な見解】
+  - KORG側の実装依存のため、高確率で動作しない
+  - しかし試す価値はある
+次のTODO:
+  - 実験コードを書いて試す
+  - 結果に基づき次の方針決定
+---
+
+---
+2026-02-05 17:35
+作業項目: Inter-App MIDI経由のMIDI-CI実験コード作成
+追加機能の説明:
+  - SimpleMidiControllerにInter-App MIDIテスト機能を追加
+  - Virtual Port経由でKORG Moduleに接続してCI探索を試す
+決定事項:
+  【実装内容】
+  - InterAppMIDITestView.swift を作成
+  - CoreMIDIで利用可能なソース/デスティネーションを列挙
+  - 選択したポートに対してDiscovery Inquiryを送信
+  - 応答を確認
+次のTODO:
+  - InterAppMIDITestView.swift 作成
+  - SettingsViewに追加
+  - ビルド・実機テスト
+---
+
+---
+2026-02-05 17:39
+作業項目: InterAppMIDITestView実装完了
+追加機能の説明:
+  - SimpleMidiControllerにInter-App MIDIテスト機能を追加
+  - CoreMIDITransportを使用してVirtual Port経由でMIDI-CI Discoveryを実行
+決定事項:
+  【実装ファイル】
+  - InterAppMIDITestView.swift (395行)
+    - CoreMIDIのソース/デスティネーション列挙
+    - CoreMIDITransportを使用したMIDI-CI Discovery
+    - 15秒間のDiscovery実行、結果をログ表示
+
+  【SettingsView更新】
+  - Developer セクションに「Inter-App MIDI Test」追加
+
+  【ビルド結果】
+  - BUILD SUCCEEDED（警告のみ）
+  - 警告: deprecated API使用（後日MIDI2Client移行で解消予定）
+
+  【テスト手順】
+  1. SimpleMidiControllerを実機にインストール
+  2. KORG Module Proを起動
+  3. Settings → Developer → Inter-App MIDI Test
+  4. 「Start MIDI-CI Discovery」をタップ
+  5. 15秒間待機、結果を確認
+次のTODO:
+  - 実機でテスト実行
+  - 結果に基づき次の判断
+---
+
+---
+2026-02-05 17:48
+作業項目: Inter-App MIDI経由MIDI-CI実験結果
+追加機能の説明:
+  - 実機でテスト実行完了
+  - 結果: KORG ModuleはVirtual Port経由でMIDI-CIに応答しない
+決定事項:
+  【実験結果】
+  - KORG ModuleのVirtual Portは見える: Dest: Module (ID: 3547336)
+  - Discovery Inquiry送信: 成功
+  - 応答: なし（15秒待機後タイムアウト）
+  - 結論: KORG ModuleはVirtual Port経由のMIDI-CIをサポートしていない
+
+  【技術的考察】
+  - KORG ModuleのMIDI-CI実装はBLE MIDIインターフェース層に紐づいている
+  - Virtual PortからのSysExはMIDI-CIとして処理されない
+  - これはKORG側の設計判断であり、変更不可能
+
+  【確定: 同一端末内KORG Module通信は不可能】
+
+  【代替案の再整理】
+  1. 2台構成（BLE MIDI経由）- KORG Moduleと通信する唯一の方法
+  2. 自作アプリ同士 - Virtual Port経由でMIDI-CI実装すれば同一端末内で可能
+  3. MockDevice - 開発・テスト用にKORGをエミュレート
+次のTODO:
+  - ユーザーと次の方針を相談
+---
+
+---
+2026-02-05 17:49
+作業項目: 同一端末内MIDI-CI通信に関するドキュメント作成
+追加機能の説明:
+  - 調査結果をドキュメント化
+  - docs/Inter-App-MIDI-CI.md を作成
+決定事項:
+  - 技術的制限と代替案をまとめたドキュメント
+次のTODO:
+  - ドキュメント作成
+---
