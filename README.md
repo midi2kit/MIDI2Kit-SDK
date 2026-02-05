@@ -10,14 +10,14 @@ Add to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/midi2kit/MIDI2Kit-SDK.git", from: "1.0.1")
+    .package(url: "https://github.com/midi2kit/MIDI2Kit-SDK.git", from: "1.0.4")
 ]
 ```
 
 Or in Xcode:
 1. File > Add Package Dependencies...
 2. Enter: `https://github.com/midi2kit/MIDI2Kit-SDK.git`
-3. Select "Up to Next Major Version" starting from `1.0.1`
+3. Select "Up to Next Major Version" starting from `1.0.4`
 
 ## Available Modules
 
@@ -64,10 +64,17 @@ for await event in client.events {
 
 ### KORG BLE MIDI Devices
 
+Use the optimized preset for BLE MIDI devices like KORG Module Pro:
+
 ```swift
-// Use optimized configuration for KORG devices
-let client = MIDI2Client(configuration: .korgBLEMIDI)
+// Optimized preset for KORG BLE MIDI devices
+let client = MIDI2Client(configuration: .explorer)
 ```
+
+The `.explorer` preset includes the following optimizations:
+- Uses `broadcast` strategy for Property Exchange
+- Fixes PE timeout issues (improved KORG BLE MIDI compatibility)
+- Improved device auto-detection (`registerFromInquiry = true`)
 
 ## Requirements
 
@@ -75,11 +82,39 @@ let client = MIDI2Client(configuration: .korgBLEMIDI)
 - Swift 5.9+
 - Xcode 15.0+
 
-## Migration from v1.0.0
+## Migration Guides
 
-If upgrading from v1.0.0, change your import:
-- Before: `import MIDI2Client`
-- After: `import MIDI2Kit`
+### v1.0.0 → v1.0.4
+
+#### Breaking Change (v1.0.1)
+Module name has been changed:
+
+```swift
+// Before (v1.0.0)
+import MIDI2Client
+
+// After (v1.0.1+)
+import MIDI2Kit
+```
+
+#### Behavior Change (v1.0.3)
+Device discovery behavior has been improved:
+- Default value of `registerFromInquiry` changed from `false` to `true`
+- Improved compatibility with KORG and similar devices
+- No code changes required (unless you explicitly set this option)
+
+#### KORG BLE MIDI Optimization (v1.0.4)
+The `.korgBLEMIDI` preset has been consolidated into `.explorer`:
+
+```swift
+// Before (v1.0.3 and earlier)
+let client = MIDI2Client(configuration: .korgBLEMIDI)
+
+// After (v1.0.4+) - Recommended
+let client = MIDI2Client(configuration: .explorer)
+```
+
+`.korgBLEMIDI` is kept for compatibility, but `.explorer` is recommended.
 
 ## Source Code
 
