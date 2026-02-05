@@ -60,6 +60,16 @@ public enum MIDI2Error: Error, Sendable {
     
     /// Invalid configuration
     case invalidConfiguration(String)
+
+    /// Invalid or unexpected response from device
+    ///
+    /// The device returned data that could not be decoded or was malformed.
+    ///
+    /// - Parameters:
+    ///   - muid: The device MUID (if known)
+    ///   - resource: The resource being fetched
+    ///   - details: Description of what went wrong
+    case invalidResponse(muid: MUID?, resource: String, details: String)
 }
 
 // MARK: - CustomStringConvertible
@@ -87,6 +97,8 @@ extension MIDI2Error: CustomStringConvertible {
             return "Transport error: \(error)"
         case .invalidConfiguration(let message):
             return "Invalid configuration: \(message)"
+        case .invalidResponse(_, let resource, let details):
+            return "Invalid response for '\(resource)': \(details)"
         }
     }
 }
@@ -116,6 +128,8 @@ extension MIDI2Error: LocalizedError {
             return "Check that no other application is using the MIDI ports."
         case .invalidConfiguration:
             return "Review the configuration parameters."
+        case .invalidResponse:
+            return "The device may have returned malformed data. Try the request again or check if the resource is supported."
         }
     }
 }

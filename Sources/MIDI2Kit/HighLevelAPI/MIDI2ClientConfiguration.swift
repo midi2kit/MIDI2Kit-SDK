@@ -76,14 +76,28 @@ public struct MIDI2ClientConfiguration: Sendable {
     /// Default: 2
     public var maxInflightPerDevice: Int
     
+    /// Strategy for warming up connections before multi-chunk PE requests
+    ///
+    /// Some devices (especially over BLE) benefit from a "warm-up" request
+    /// before multi-chunk requests like ResourceList.
+    ///
+    /// Available strategies:
+    /// - `.always`: Always warm up (most reliable, slowest)
+    /// - `.never`: Never warm up (fastest, may fail)
+    /// - `.adaptive`: Try without warm-up, remember failures
+    /// - `.vendorBased`: Use vendor-specific optimizations
+    ///
+    /// Default: `.adaptive` (recommended)
+    public var warmUpStrategy: WarmUpStrategy
+
     /// Whether to fetch DeviceInfo before ResourceList as a "warm-up"
     ///
-    /// Some devices (especially over BLE) benefit from a single-chunk
-    /// request before multi-chunk requests. DeviceInfo is ideal for this
-    /// because it's always single-chunk.
-    ///
-    /// Default: true (recommended for KORG and BLE devices)
-    public var warmUpBeforeResourceList: Bool
+    /// - Note: Deprecated. Use `warmUpStrategy` instead.
+    @available(*, deprecated, message: "Use warmUpStrategy instead")
+    public var warmUpBeforeResourceList: Bool {
+        get { warmUpStrategy == .always }
+        set { warmUpStrategy = newValue ? .always : .never }
+    }
     
     // MARK: - Resilience Settings
     
@@ -197,6 +211,30 @@ public struct MIDI2ClientConfiguration: Sendable {
     /// ```
     public var logger: any MIDI2Core.MIDI2Logger
 
+    // MARK: - Vendor Optimizations
+
+    /// Vendor-specific PE optimizations
+    ///
+    /// Enable performance optimizations for specific vendors:
+    /// - KORG: Skip ResourceList (99% faster PE fetch)
+    /// - Use X-ParameterList as warmup instead of DeviceInfo
+    ///
+    /// Default: `.default` (KORG optimizations enabled)
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// // Use default optimizations (recommended)
+    /// var config = MIDI2ClientConfiguration()
+    ///
+    /// // Disable all optimizations
+    /// config.vendorOptimizations = .none
+    ///
+    /// // Custom optimizations
+    /// config.vendorOptimizations.enable(.skipResourceListWhenPossible, for: .korg)
+    /// ```
+    public var vendorOptimizations: VendorOptimizationConfig
+
     // MARK: - Initialization
     
     /// Create configuration with default values
@@ -206,7 +244,7 @@ public struct MIDI2ClientConfiguration: Sendable {
         self.autoStartDiscovery = true
         self.peTimeout = .seconds(5)
         self.maxInflightPerDevice = 2
-        self.warmUpBeforeResourceList = true
+        self.warmUpStrategy = .adaptive
         self.maxRetries = 2
         self.retryDelay = .milliseconds(100)
         self.multiChunkTimeoutMultiplier = 1.5
@@ -221,6 +259,7 @@ public struct MIDI2ClientConfiguration: Sendable {
         self.deviceIdentity = .default
         self.categorySupport = .propertyExchange
         self.logger = MIDI2Core.NullMIDI2Logger()
+        self.vendorOptimizations = .default
     }
     
     /// Create configuration from preset

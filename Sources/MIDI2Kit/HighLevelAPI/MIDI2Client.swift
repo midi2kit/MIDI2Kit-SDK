@@ -100,6 +100,9 @@ public actor MIDI2Client {
     /// Last communication trace
     private var _lastCommunicationTrace: CommunicationTrace?
 
+    /// Warm-up cache for adaptive strategy
+    private let warmUpCache: WarmUpCache
+
     // MARK: - Tasks
     
     /// Receive dispatcher task
@@ -189,6 +192,9 @@ public actor MIDI2Client {
             strategy: configuration.destinationStrategy,
             transport: transport
         )
+
+        // Initialize warm-up cache for adaptive strategy
+        self.warmUpCache = WarmUpCache()
     }
     
     deinit {
@@ -382,10 +388,11 @@ public actor MIDI2Client {
     
     /// Get ResourceList from a device (with automatic retry and destination fallback)
     ///
-    /// When `configuration.warmUpBeforeResourceList` is enabled (default),
-    /// this method first fetches DeviceInfo as a "warm-up". This helps
-    /// establish a reliable BLE connection before requesting the multi-chunk
-    /// ResourceList, which is more prone to packet loss on idle connections.
+    /// Uses the configured `warmUpStrategy` to determine warm-up behavior:
+    /// - `.always`: Always fetch DeviceInfo before ResourceList
+    /// - `.never`: Skip warm-up entirely
+    /// - `.adaptive`: Try without warm-up, retry with warm-up on failure
+    /// - `.vendorBased`: Use vendor-specific optimizations
     ///
     /// On timeout, the method tries the next destination candidate (max 1 retry).
     ///
@@ -399,54 +406,71 @@ public actor MIDI2Client {
         let destination = try await resolveDestination(for: muid)
         let handle = PEDeviceHandle(muid: muid, destination: destination)
 
-        // Optional warm-up: Fetch DeviceInfo first to wake up BLE connection
-        if configuration.warmUpBeforeResourceList {
-            MIDI2Logger.pe.midi2Debug("Warm-up: fetching DeviceInfo before ResourceList")
-            do {
-                _ = try await peManager.getDeviceInfo(from: handle)
-                MIDI2Logger.pe.midi2Debug("Warm-up successful, proceeding with ResourceList")
-            } catch {
-                // Warm-up failure is not fatal - proceed with ResourceList anyway
-                MIDI2Logger.pe.midi2Warning("Warm-up failed (\(error)), proceeding anyway")
-            }
-
-            // Small delay to let BLE connection stabilize
-            try? await Task.sleep(for: .milliseconds(50))
-        }
-
         // Calculate timeout for multi-chunk request
         let timeout = Duration.seconds(
             configuration.peTimeout.asTimeInterval * configuration.multiChunkTimeoutMultiplier
         )
 
+        // Determine warm-up behavior based on strategy
+        let shouldWarmUp = await determineWarmUpNeeded(for: muid, strategy: configuration.warmUpStrategy)
+        let useVendorWarmUp = configuration.warmUpStrategy == .vendorBased
+
+        if shouldWarmUp {
+            await performWarmUp(handle: handle, useVendorWarmUp: useVendorWarmUp)
+        }
+
+        // First attempt
         do {
-            let result = try await peManager.getResourceList(
-                from: handle,
-                timeout: timeout,
-                maxRetries: configuration.maxRetries
-            )
-            recordTrace(
-                operation: .getResourceList,
-                muid: muid,
-                resource: "ResourceList",
-                result: .success,
-                destination: destination,
-                duration: Date().timeIntervalSince(startTime)
-            )
+            let result = try await fetchResourceList(handle: handle, timeout: timeout, muid: muid, startTime: startTime)
+
+            // Record success for adaptive strategy
+            if configuration.warmUpStrategy == .adaptive && !shouldWarmUp {
+                let deviceKey = await getDeviceKey(for: muid)
+                await warmUpCache.recordNoWarmUpNeeded(deviceKey)
+            }
+
             return result
         } catch let error as PEError {
-            // Try fallback on timeout
+            // For adaptive strategy: if we didn't warm up, retry with warm-up
+            if configuration.warmUpStrategy == .adaptive && !shouldWarmUp {
+                if case .timeout = error {
+                    MIDI2Logger.pe.midi2Info("Adaptive: ResourceList failed without warm-up, retrying with warm-up")
+
+                    // Record that this device needs warm-up
+                    let deviceKey = await getDeviceKey(for: muid)
+                    await warmUpCache.recordNeedsWarmUp(deviceKey)
+
+                    // Perform warm-up and retry
+                    await performWarmUp(handle: handle)
+
+                    do {
+                        let result = try await fetchResourceList(handle: handle, timeout: timeout, muid: muid, startTime: startTime)
+                        MIDI2Logger.pe.midi2Info("Adaptive: ResourceList succeeded with warm-up")
+                        return result
+                    } catch {
+                        // Fall through to destination fallback
+                        MIDI2Logger.pe.midi2Warning("Adaptive: ResourceList still failed after warm-up")
+                    }
+                }
+            }
+
+            // Try destination fallback on timeout
             if case .timeout = error {
                 if let nextDest = await destinationResolver.getNextCandidate(after: destination, for: muid) {
                     MIDI2Logger.pe.midi2Info("ResourceList timeout, trying fallback destination: \(nextDest)")
                     let retryHandle = PEDeviceHandle(muid: muid, destination: nextDest)
+
+                    // Warm-up for fallback destination if needed
+                    if shouldWarmUp || configuration.warmUpStrategy == .adaptive {
+                        await performWarmUp(handle: retryHandle)
+                    }
+
                     do {
                         let result = try await peManager.getResourceList(
                             from: retryHandle,
                             timeout: timeout,
                             maxRetries: configuration.maxRetries
                         )
-                        // Cache successful destination
                         await destinationResolver.cacheDestination(nextDest, for: muid)
                         MIDI2Logger.pe.midi2Info("ResourceList succeeded with fallback destination")
                         recordTrace(
@@ -473,6 +497,7 @@ public actor MIDI2Client {
                     }
                 }
             }
+
             let resultType: CommunicationTrace.Result = {
                 if case .timeout = error { return .timeout }
                 return .error
@@ -488,6 +513,132 @@ public actor MIDI2Client {
             )
             throw MIDI2Error(from: error, muid: muid, timeout: timeout)
         }
+    }
+
+    // MARK: - Private: Warm-Up Helpers
+
+    /// Determine if warm-up is needed based on strategy and cache
+    private func determineWarmUpNeeded(for muid: MUID, strategy: WarmUpStrategy) async -> Bool {
+        switch strategy {
+        case .always:
+            return true
+
+        case .never:
+            return false
+
+        case .adaptive:
+            let deviceKey = await getDeviceKey(for: muid)
+            // Check cache - if device is known to need warm-up, do it
+            if await warmUpCache.needsWarmUp(for: deviceKey) {
+                return true
+            }
+            // If device is known to work without warm-up, skip it
+            if await warmUpCache.canSkipWarmUp(for: deviceKey) {
+                return false
+            }
+            // Unknown device - try without warm-up first
+            return false
+
+        case .vendorBased:
+            // Check vendor optimizations
+            let vendor = await detectVendor(for: muid)
+            if vendor == .korg {
+                // KORG with vendor optimizations: use X-ParameterList as warmup
+                if configuration.vendorOptimizations.isEnabled(.useXParameterListAsWarmup, for: .korg) {
+                    // Use X-ParameterList as warm-up (handled in performWarmUp)
+                    return true
+                }
+            }
+            // Fall back to adaptive behavior for other vendors
+            let deviceKey = await getDeviceKey(for: muid)
+            if await warmUpCache.needsWarmUp(for: deviceKey) {
+                return true
+            }
+            if await warmUpCache.canSkipWarmUp(for: deviceKey) {
+                return false
+            }
+            // Unknown device - try without warm-up first (adaptive behavior)
+            return false
+        }
+    }
+
+    /// Perform warm-up request
+    ///
+    /// For vendorBased strategy with KORG, uses X-ParameterList instead of DeviceInfo
+    /// as warm-up, which can provide useful data while stabilizing the connection.
+    private func performWarmUp(handle: PEDeviceHandle, useVendorWarmUp: Bool = false) async {
+        if useVendorWarmUp {
+            let vendor = await detectVendor(for: handle.muid)
+            if vendor == .korg && configuration.vendorOptimizations.isEnabled(.useXParameterListAsWarmup, for: .korg) {
+                MIDI2Logger.pe.midi2Debug("KORG vendor warm-up: fetching X-ParameterList for device \(handle.muid)")
+                do {
+                    let response = try await peManager.get("X-ParameterList", from: handle, timeout: .seconds(3))
+                    MIDI2Logger.pe.midi2Debug("KORG vendor warm-up successful (X-ParameterList: \(response.decodedBody.count) bytes)")
+                } catch {
+                    MIDI2Logger.pe.midi2Warning("KORG vendor warm-up failed (\(error)), falling back to DeviceInfo")
+                    // Fall back to standard warm-up
+                    await performStandardWarmUp(handle: handle)
+                }
+                try? await Task.sleep(for: .milliseconds(50))
+                return
+            }
+        }
+
+        // Standard warm-up using DeviceInfo
+        await performStandardWarmUp(handle: handle)
+    }
+
+    /// Standard warm-up using DeviceInfo
+    private func performStandardWarmUp(handle: PEDeviceHandle) async {
+        MIDI2Logger.pe.midi2Debug("Performing standard warm-up (DeviceInfo) for device \(handle.muid)")
+        do {
+            _ = try await peManager.getDeviceInfo(from: handle)
+            MIDI2Logger.pe.midi2Debug("Warm-up successful")
+        } catch {
+            MIDI2Logger.pe.midi2Warning("Warm-up failed (\(error)), proceeding anyway")
+        }
+        // Small delay to let connection stabilize
+        try? await Task.sleep(for: .milliseconds(50))
+    }
+
+    /// Fetch ResourceList with tracing
+    private func fetchResourceList(
+        handle: PEDeviceHandle,
+        timeout: Duration,
+        muid: MUID,
+        startTime: Date
+    ) async throws -> [PEResourceEntry] {
+        let result = try await peManager.getResourceList(
+            from: handle,
+            timeout: timeout,
+            maxRetries: configuration.maxRetries
+        )
+        recordTrace(
+            operation: .getResourceList,
+            muid: muid,
+            resource: "ResourceList",
+            result: .success,
+            destination: handle.destination,
+            duration: Date().timeIntervalSince(startTime)
+        )
+        return result
+    }
+
+    /// Get device key for warm-up cache
+    private func getDeviceKey(for muid: MUID) async -> String {
+        if let info = deviceInfoCache[muid] {
+            return WarmUpCache.deviceKey(manufacturer: info.manufacturerName, model: info.productName)
+        }
+        // Fallback to MUID-based key
+        return WarmUpCache.deviceKey(muid: muid)
+    }
+
+    /// Detect vendor for a device
+    private func detectVendor(for muid: MUID) async -> MIDIVendor {
+        if let info = deviceInfoCache[muid] {
+            return MIDIVendor.detect(from: info.manufacturerName)
+        }
+        return .unknown
     }
     
     /// Get a property from a device
