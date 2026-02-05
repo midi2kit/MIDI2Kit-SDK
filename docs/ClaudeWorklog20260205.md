@@ -1164,3 +1164,531 @@
 次のTODO:
   - 完了
 ---
+
+---
+2026-02-05 22:41
+作業項目: MIDI2Kit統合提案書の確認・分析
+追加機能の説明:
+  - SimpleMidiControllerのMIDI-CI/PE実装をMIDI2Kitに統合する提案書を確認
+  - 現在のMIDI2Kitとの差分・重複分析
+決定事項:
+  【提案書の内容】
+  - SimpleMidiControllerの独自MIDI-CI実装をMIDI2Kitに統合する計画
+  - 新規モジュール: MIDI2CI, MIDI2PE を提案
+
+  【現在のMIDI2Kitとの比較】
+  - MIDI2Kit v1.0.5は既に MIDI2CI, MIDI2PE モジュールを実装済み
+  - 提案書は過去の計画文書と思われる（作成日: 2026-02-05）
+
+  【既存機能（MIDI2Kit v1.0.5）】
+  - MUID型: MIDI2Core/MUID.swift（実装済み）
+  - CIMessageParser/Builder: MIDI2CI/（実装済み）
+  - SysExAssembler: MIDI2Transport/（actor実装済み）
+  - ChunkAssembler: MIDI2PE/（実装済み）
+  - PEModels: MIDI2PE/Types/（実装済み）
+  - PEManager: MIDI2PE/（350行+拡張ファイル）
+  - CIManager: MIDI2CI/（Discovery実装済み）
+
+  【提案書の課題記述との比較】
+  1. SysExパケット順序問題 → MIDI2Kitでは actor + processPacketList で解決済み
+  2. ChunkAssemblerデータ破損 → PEChunkAssembler actor で解決済み
+  3. MUID管理 → CIManager で管理、設定可能
+
+  【結論】
+  - 提案書の機能はほぼMIDI2Kit v1.0.5で実装済み
+  - SimpleMidiControllerは MIDI2Kit-SDK を依存追加済み（本日17:14）
+次のTODO:
+  - SimpleMidiControllerの独自MIDI-CI実装をMIDI2Kitに置き換える移行計画を検討
+  - または提案書の更新が必要か確認
+---
+
+---
+2026-02-05 22:43
+作業項目: SimpleMidiController MIDI-CI実装調査完了・移行計画策定
+追加機能の説明:
+  - SimpleMidiControllerの独自MIDI-CI実装を詳細調査
+  - MIDI2Kitへの移行計画と提案書更新を開始
+決定事項:
+  【SimpleMidiController独自実装（計2,807行）】
+  1. MIDICIMessages.swift (509行) - MUID, DeviceIdentity, CIMessageBuilder/Parser
+  2. SysExAssembler.swift (185行) - actor-based SysExバッファリング
+  3. ChunkAssembler.swift (202行) - 複数チャンクPE応答組立
+  4. PEModels.swift (556行) - PEデータモデル、KORG独自対応
+  5. PEJSONParser.swift (177行) - JSON解析ユーティリティ
+  6. MIDICIManager.swift (833行) - Discovery + PE統合管理
+  7. PropertyExchangeManager.swift (345行) - キャッシュ + トランザクション
+
+  【MIDI2Kitとの対応関係】
+  - MIDICIMessages → MIDI2Core (MUID, DeviceIdentity) + MIDI2CI (CIMessageBuilder/Parser)
+  - SysExAssembler → MIDI2Transport (内部実装)
+  - ChunkAssembler → MIDI2PE/PEChunkAssembler (内部actor)
+  - PEModels → MIDI2PE/Types/ (7ファイル)
+  - PEJSONParser → MIDI2Core/RobustJSONDecoder
+  - MIDICIManager → MIDI2CI/CIManager + MIDI2Kit/MIDI2Client
+  - PropertyExchangeManager → MIDI2PE/PEManager
+
+  【移行戦略】
+  - 段階的移行（既存機能を維持しながら）
+  - Phase 1: 既存ViewをMIDI2Client経由に変更
+  - Phase 2: 独自実装を削除
+  - Phase 3: テスト・検証
+次のTODO:
+  - 移行計画ドキュメント作成
+  - 提案書を「完了済み」に更新
+---
+
+---
+2026-02-05 22:48
+作業項目: 提案書更新完了
+追加機能の説明:
+  - MIDI2Kit-Integration-Proposal.md を「完了済み」に更新
+  - 4フェーズの移行計画を追記
+決定事項:
+  【提案書更新内容】
+  - ステータス: ✅ 完了（v1.0.5でライブラリ実装済み）
+  - 提案→MIDI2Kit対応表を追加
+  - 課題対策の実装状況を追加
+  - 現状分析（2,807行の独自実装）を追加
+  - 4フェーズ移行計画を追加:
+    - Phase 1: 新規View作成（デュアル実装期間）
+    - Phase 2: 既存Viewの移行
+    - Phase 3: 独自実装の削除（約2,800行削減）
+    - Phase 4: テストと検証
+  - API対応マッピング（Before/After）を追加
+
+  【ファイル更新】
+  - /Users/hakaru/Desktop/Develop/SimpleMidiController/Docs/MIDI2Kit-Integration-Proposal.md
+次のTODO:
+  - Phase 1 実装開始（ユーザー判断待ち）
+---
+
+---
+2026-02-05 22:50
+作業項目: Phase 1 実装開始 - MIDI2KitDeviceListView作成
+追加機能の説明:
+  - SimpleMidiControllerにMIDI2Kitベースの新しいデバイス一覧Viewを追加
+  - 既存のMIDICIDeviceListViewと並行運用
+決定事項:
+  【実装内容】
+  1. MIDI2KitDeviceListView.swift (新規)
+     - MIDI2Clientを使用
+     - CoreMIDITransportで実機接続
+     - DeviceInfo/ResourceList取得
+
+  2. SettingsView.swift更新
+     - Developer セクションに追加
+次のTODO:
+  - MIDI2KitDeviceListView.swift作成
+  - SettingsView更新
+---
+
+---
+2026-02-05 22:55
+作業項目: Phase 1 実装完了 - MIDI2KitDeviceListView
+追加機能の説明:
+  - SimpleMidiControllerにMIDI2Kitベースのデバイス発見・PE取得View追加
+  - 既存のMIDICIDeviceListViewと並行運用可能
+決定事項:
+  【作成ファイル】
+  - MIDI2KitDeviceListView.swift (約540行)
+    - CoreMIDITransport使用（実機接続）
+    - CIManager + PEManager でDiscovery/PE
+    - デバイス一覧表示
+    - DeviceInfo/ResourceList/CMList取得
+    - ログ表示
+
+  【SettingsView更新】
+  - Developer セクションに「MIDI2Kit Devices」追加
+
+  【ビルド結果】
+  - BUILD SUCCEEDED（シミュレータ）
+
+  【Phase 1 完了内容】
+  - MIDI2KitDeviceListView: デバイス発見、PE取得
+  - 既存実装との並行運用可能
+  - 実機テスト待ち
+次のTODO:
+  - 実機テスト
+  - Phase 2: 既存Viewの移行（MainPageView等）
+---
+
+---
+2026-02-05 22:56
+作業項目: Phase 2 開始 - 既存Viewの移行
+追加機能の説明:
+  - MainPageViewなど既存ViewをMIDI2Kit APIに移行
+  - MIDI2KitServiceを作成して抽象化
+決定事項:
+  【移行対象のMIDICIManager使用箇所（MainPageView）】
+  1. ciManager.startDiscovery() - デバイス発見
+  2. ciManager.checkConnection() - 接続確認
+  3. ciManager.discoveredDevices - デバイス一覧
+  4. ciManager.requestXProgramEditForAllDevices() - X-ProgramEdit
+  5. ciManager.stopPeriodicDiscovery() - 定期発見停止
+  6. ciManager.getControllerName(for:) - コントローラー名
+  7. ciManager.propertyExchange.getAllCurrentValues() - 現在値
+
+  【移行戦略】
+  - MIDI2KitService.swift を作成
+  - 既存MIDICIManagerと同様のAPIを提供
+  - 内部でMIDI2Kit (CIManager + PEManager) を使用
+  - 段階的に各Viewを移行
+次のTODO:
+  - MIDI2KitService.swift 作成
+  - MainPageView移行
+---
+
+---
+2026-02-05 23:02
+作業項目: Phase 2 実装完了 - MIDI2KitService作成・MainPageView移行
+追加機能の説明:
+  - MIDI2KitService.swift を作成（MIDICIManagerの代替）
+  - MainPageViewを条件分岐でMIDI2Kit対応
+  - SettingsViewに「Use MIDI2Kit」トグル追加
+決定事項:
+  【作成ファイル】
+  - Services/MIDI2KitService.swift (約380行)
+    - CoreMIDITransport + CIManager + PEManager を内包
+    - MIDICIManagerと同様のAPIを提供
+    - discoveredDevices, startDiscovery(), getControllerName()等
+    - X-ProgramEdit対応（KORG）
+
+  【更新ファイル】
+  - PageStates.swift
+    - AppSettingsState.useMIDI2Kit フラグ追加
+    - SliderPageState にMIDI2KitService対応メソッド追加
+
+  - MainPageView.swift
+    - useMIDI2Kit @AppStorage 追加
+    - onAppear/onChange等でMIDI2KitService使用に条件分岐
+    - applyPENamesMIDI2Kit(), applyCurrentValuesToSlidersMIDI2Kit()追加
+
+  - SettingsView.swift
+    - Developer セクションに「Use MIDI2Kit」トグル追加
+
+  【ビルド結果】
+  - BUILD SUCCEEDED
+
+  【切り替え方法】
+  - Settings → Developer → Use MIDI2Kit をON
+  - アプリ再起動後、MIDI2Kitを使用
+次のTODO:
+  - 実機テスト（useMIDI2Kit ON/OFF両方）
+  - Phase 3: 独自実装の削除検討
+---
+
+---
+2026-02-05 23:03
+作業項目: Phase 3 開始 - 独自実装の削除
+追加機能の説明:
+  - 独自MIDI-CI実装を削除して約2,800行のコード削減
+  - MIDI2KitServiceをデフォルトに変更
+決定事項:
+  【削除対象ファイル（計2,807行）】
+  1. MIDICIMessages.swift (509行)
+  2. SysExAssembler.swift (185行)
+  3. ChunkAssembler.swift (202行)
+  4. PEModels.swift (556行)
+  5. PEJSONParser.swift (177行)
+  6. MIDICIManager.swift (833行)
+  7. PropertyExchangeManager.swift (345行)
+
+  【移行戦略】
+  1. useMIDI2Kit をデフォルト true に変更
+  2. 独自実装への参照をMIDI2KitServiceに置き換え
+  3. 未使用ファイルを削除
+  4. ビルド確認
+次のTODO:
+  - 依存関係の確認
+  - 段階的な削除実行
+---
+
+---
+2026-02-05 23:02
+作業項目: Phase 3 継続 - ProgramChangePageView / XYPadPageView 移行
+追加機能の説明:
+  - SlidersPageViewは既にMIDI2KitService対応済み
+  - ProgramChangePageView、XYPadPageViewをMIDI2KitService対応に更新
+  - ciManagerパラメータを削除してMIDI2KitService.sharedを使用
+決定事項:
+  【移行対象】
+  1. ProgramChangePageView.swift - ciManager使用箇所の置き換え
+  2. XYPadPageView.swift - ciManager使用箇所の置き換え
+次のTODO:
+  - ProgramChangePageView更新
+  - XYPadPageView更新
+  - ビルド確認
+---
+
+---
+2026-02-05 23:08
+作業項目: Phase 3 ビュー移行完了
+追加機能の説明:
+  - ProgramChangePageView、XYPadPageView、XYPadView、ProgramBrowserViewを更新
+  - ciManagerパラメータを削除、MIDI2KitService.sharedを使用
+  - MIDI2KitServiceにProgramList関連メソッド追加
+決定事項:
+  【更新ファイル】
+  1. MIDI2KitService.swift
+     - fetchProgramList(for:channel:) 追加
+     - getProgramList(channel:) 追加
+     - getProgramName(number:bankMSB:bankLSB:channel:) 追加
+     - requestProgramListForAllDevices(channel:) 追加
+     - deviceSupportsResource(_:device:) 追加
+     - MIDI2KitDevice.programList プロパティ追加
+
+  2. ProgramChangePageView.swift
+     - let ciManager: MIDICIManager 削除
+     - private var midi2KitService 追加
+     - 全てのciManager使用をmidi2KitServiceに変更
+
+  3. XYPadPageView.swift / XYPadView
+     - let ciManager: MIDICIManager 削除
+     - private var midi2KitService 追加
+     - 全てのciManager使用をmidi2KitServiceに変更
+
+  4. ProgramBrowserView.swift
+     - let ciManager: MIDICIManager 削除
+     - private var midi2KitService 追加
+     - 全てのciManager使用をmidi2KitServiceに変更
+
+  5. MainPageView.swift
+     - ProgramChangePageView, XYPadPageViewへのciManagerパラメータ削除
+
+  【ビルド結果】
+  - BUILD SUCCEEDED (警告のみ、エラーなし)
+次のTODO:
+  - 残りのciManager依存の削除
+  - 独自実装ファイルの削除検討
+---
+
+---
+2026-02-05 23:10
+作業項目: Phase 3 継続 - 残りのciManager依存削除
+追加機能の説明:
+  - ciManager使用ファイルを調査（10ファイル）
+  - MIDI2Kit系ファイル（4件）は問題なし
+  - 移行対象: MainPageView, SettingsView, PageStates, XProgramEditControlView, MIDICIDeviceView, SliderSettingRow
+決定事項:
+  - 段階的にciManager依存を削除
+次のTODO:
+  - 各ファイルの移行実施
+---
+
+---
+2026-02-05 23:13
+作業項目: Phase 3 完了 - ciManager依存の完全削除
+追加機能の説明:
+  - MainPageView、SettingsView、SliderSettingRow、MIDI2SettingsButtonを更新
+  - ciManagerパラメータとuseMIDI2Kitフラグを削除
+  - 全てMIDI2KitService.sharedを使用
+決定事項:
+  【更新ファイル】
+  1. MainPageView.swift
+     - ciManagerプロパティ削除
+     - useMIDI2Kitフラグ削除
+     - 条件分岐削除、全てmidi2KitService使用
+     - applyPENames(), applyCurrentValuesToSliders() をMIDI2Kit版に統合
+
+  2. SettingsView.swift
+     - ciManagerパラメータ削除
+     - midi2KitServiceプロパティ追加
+     - discoveredDevices参照をmidi2KitServiceに変更
+
+  3. SliderSettingRow.swift
+     - ciManagerパラメータ削除
+     - midi2KitServiceプロパティ追加
+     - getControllerName()をmidi2KitServiceに変更
+
+  4. MIDICIDeviceView.swift (MIDI2SettingsButton)
+     - ciManagerパラメータ削除
+     - midi2KitServiceプロパティ追加
+     - MIDICIDeviceListView → MIDI2KitDeviceListViewに変更
+
+  【ビルド結果】
+  - BUILD SUCCEEDED
+
+  【移行完了状況】
+  - 主要ページビュー: 完了 (Sliders, ProgramChange, XYPad)
+  - 設定画面: 完了 (SettingsView, SliderSettingRow)
+  - デバイス一覧: 完了 (MIDI2KitDeviceListViewを使用)
+次のTODO:
+  - 独自MIDI-CI実装ファイルの削除検討
+  - XProgramEditControlView, PageStates等の残り確認
+---
+
+---
+2026-02-05 23:14
+作業項目: SimpleMidiController MIDI2Kit移行のコードレビュー
+追加機能の説明:
+  - 移行完了した9ファイルをレビュー
+  - MIDI2KitService、MainPageView、各種View更新内容
+決定事項:
+  【レビュー対象ファイル】
+  1. MIDI2KitService.swift
+  2. MainPageView.swift
+  3. SlidersPageView.swift
+  4. ProgramChangePageView.swift
+  5. XYPadPageView.swift
+  6. ProgramBrowserView.swift
+  7. SettingsView.swift
+  8. SliderSettingRow.swift
+  9. MIDICIDeviceView.swift
+次のTODO:
+  - レビュー実施
+  - 改善提案
+---
+
+---
+2026-02-05 23:23
+作業項目: SimpleMidiController MIDI2Kit移行のコードレビュー完了
+追加機能の説明:
+  - 9ファイル（計約3,500行）のコードレビュー実施
+  - 総合評価: 4.0/5.0
+決定事項:
+  【レビュー結果】
+  - Warning 3件: エラーハンドリング欠如、Singleton制約、Actor隔離不整合
+  - Suggestion 5件: JSONDecoder使用、固定遅延排除、計算プロパティ最適化
+  - Nitpick 4件: 命名規則、コメント、ログの一貫性
+  
+  【良かった点】
+  - MIDI2KitService抽象化レイヤーの導入
+  - 型安全なMUID管理（MIDI2KitDevice構造体）
+  - 段階的移行で既存コードとの並行運用が可能
+  - PE名の自動適用
+  
+  【主な改善提案】
+  1. エラーログの追加（即座に適用可能）
+  2. 固定遅延（2秒）をイベント駆動に変更（中期的改善）
+  3. Dependency Injection対応（長期的リファクタリング）
+  
+  【出力ファイル】
+  - docs/code-review-20260205.md（詳細レビューレポート）
+次のTODO:
+  - 実機テストでの動作確認
+  - エッジケースの洗い出し
+---
+
+---
+2026-02-05 23:24
+作業項目: Phase 3 コードレビュー完了
+追加機能の説明:
+  - 9ファイル（約3,500行）のコードレビュー実施
+  - MIDI2Kit移行コードの品質評価
+決定事項:
+  【総合評価】 ⭐⭐⭐⭐ 4.0/5.0
+
+  【主要な問題点 (Warning)】
+  1. エラーハンドリングの欠如 - fetchPEData等でエラーを無視
+  2. Singletonパターン - テスト困難
+  3. Actor隔離の不整合 - パフォーマンス問題の可能性
+
+  【改善提案 (Suggestion)】
+  1. JSONSerialization → JSONDecoder（型安全性向上）
+  2. 固定2秒遅延 → イベント駆動
+  3. 計算プロパティのキャッシュ化
+  4. リフレッシュ処理の最適化
+
+  【良かった点】
+  1. MIDI2KitService抽象化レイヤー（既存Viewへの影響最小）
+  2. 型安全なMUID管理
+  3. 段階的移行（並行運用可能）
+  4. PE名の自動適用
+  5. 一貫したパターン
+
+  【結論】
+  - 実用レベルの品質達成
+  - Critical問題なし
+  - 段階的改善で対応可能
+次のTODO:
+  - 実機テスト
+  - エラーログの追加（推奨）
+---
+
+---
+2026-02-05 23:26
+作業項目: SimpleMidiController Phase 3 変更のコミット・プッシュ完了
+追加機能の説明:
+  - MIDI2Kit移行（Phase 3）の変更をコミット・プッシュ
+  - MainPageView、SettingsView等のciManager依存削除
+  - MIDI2KitService.sharedへの統一
+決定事項:
+  【コミット】309a261
+  - refactor: Replace MIDICIManager with MIDI2KitService (Phase 3)
+
+  【変更内容】14ファイル
+  - 新規: MIDI2KitService.swift, MIDI2KitDeviceListView.swift
+  - 更新: MainPageView, ProgramChangePageView, XYPadPageView,
+    ProgramBrowserView, SettingsView, SliderSettingRow,
+    MIDICIDeviceView, PageStates, SlidersPageView
+  - ドキュメント: code-review-20260205.md, MIDI2Kit-Integration-Proposal.md
+
+  【統計】+1,692 / -1,741 行
+次のTODO:
+  - 実機テスト
+  - Phase 4: 独自MIDI-CI実装の削除検討（約2,800行）
+---
+
+---
+2026-02-05 23:28
+作業項目: Phase 4 開始 - 独自MIDI-CI実装の削除
+追加機能の説明:
+  - 使用されなくなったレガシー実装を削除
+  - 約2,800行のコード削減
+決定事項:
+  【削除対象ファイル（調査結果）】
+  1. MIDICIMessages.swift (509行) - MIDI2Coreで代替
+  2. SysExAssembler.swift (185行) - MIDI2Transportで代替
+  3. ChunkAssembler.swift (202行) - MIDI2PEで代替
+  4. PEModels.swift (556行) - MIDI2PE/Types/で代替
+  5. PEJSONParser.swift (177行) - RobustJSONDecoderで代替
+  6. MIDICIManager.swift (833行) - MIDI2KitServiceで代替
+  7. PropertyExchangeManager.swift (345行) - PEManagerで代替
+
+  【使用状況確認】
+  - MIDICIDeviceListView: 未使用（Previewのみ）
+  - XProgramEditControlView: MIDICIDeviceDetailViewからのみ使用
+  - PageStates: レガシーメソッドは未使用
+次のTODO:
+  - レガシーファイルの削除実行
+  - PageStates.swiftのレガシーメソッド削除
+  - ビルド確認
+---
+
+---
+2026-02-05 23:40
+作業項目: Phase 4 完了 - 独自MIDI-CI実装の削除
+追加機能の説明:
+  - レガシーMIDI-CI実装ファイルを削除
+  - 依存するビューも削除
+  - ビルド成功確認
+決定事項:
+  【削除ファイル（10ファイル）】
+  - MIDICIManager.swift (833行)
+  - MIDICIMessages.swift (509行)
+  - PEModels.swift (556行)
+  - PropertyExchangeManager.swift (345行)
+  - SysExAssembler.swift (185行)
+  - ChunkAssembler.swift (202行)
+  - PEJSONParser.swift (177行)
+  - CIDevice.swift (Models)
+  - MIDICIDeviceView.swift (レガシーUI)
+  - XProgramEditControlView.swift (レガシーUI)
+
+  【更新ファイル】
+  - PageStates.swift: レガシーMIDICIManager参照削除
+  - SettingsView.swift: MIDI2SettingsButton削除、NavigationLink化
+  - ProgramBrowserView.swift: MIDI2PE API互換に更新
+  - MIDI2KitService.swift: Notification.Name追加
+  - MIDI2KitDeviceListView.swift: CapsuleTag追加
+
+  【削減行数】約3,949行削除（実績）
+  【ビルド結果】BUILD SUCCEEDED
+
+  【コミット】b4ae272
+  - refactor: Delete legacy MIDI-CI implementation (Phase 4)
+  - 15ファイル変更、+119 / -3,949行
+次のTODO:
+  - 実機テスト
+  - 完了
+---

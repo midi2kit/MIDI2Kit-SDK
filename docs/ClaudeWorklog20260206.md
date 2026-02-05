@@ -584,3 +584,33 @@
   - v1.0.8タグ作成
   - MIDI2Kit-SDKリリース
 ---
+
+---
+2026-02-06 03:32
+作業項目: v1.0.8リリース完了
+追加機能の説明:
+  前回セッションからの継続。
+
+  【完了したタスク】
+  1. XCFramework ZIPアップロード (6モジュール)
+  2. GitHubリリース作成
+     - https://github.com/midi2kit/MIDI2Kit-SDK/releases/tag/v1.0.8
+  3. Package.swift更新（新チェックサム）
+  4. CHANGELOG.md更新（v1.0.6, v1.0.7, v1.0.8エントリ追加）
+  5. コミット＆プッシュ
+
+  【チェックサム】
+  - MIDI2Core: 118025ee47ef699d674d97f6c3d9a252ea9c6d658f3248af7335ff1d4389a9d0
+  - MIDI2Transport: 9b586f355f00214fcce61a313ba7c1669c4f4f85fe11c136d78f4d567898ef2d
+  - MIDI2CI: 4f239b1567480ed79806292758e591bb92e75992c2021dd6146d178c5e2f6272
+  - MIDI2PE: 64f7ed73f24c4750979a7a6394170d98d575c2d3c7031ef7f77a7684b3b1efbd
+  - MIDI2Client: af3a58ecf2be11786651e3ba7f98808cfe4d855b19b4920934b30d687ded8f2b
+  - MIDI2Kit: 9571668c5e702d936abce611aaa8517db10b59d2fc668a315b449e29c96b2638
+
+決定事項:
+  - v1.0.8リリース完了
+  - KORG最適化機能（99%高速化）が利用可能
+  - SDKユーザーは `from: "1.0.8"` で最新版を取得可能
+次のTODO:
+  - なし（完了）
+---
