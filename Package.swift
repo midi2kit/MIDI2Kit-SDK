@@ -141,7 +141,13 @@ let package = Package(
         // MARK: - Tests
         .testTarget(
             name: "MIDI2KitTests",
-            dependencies: ["MIDI2Kit"],
+            dependencies: [
+                "MIDI2Kit",
+                "MIDI2Core",
+                "MIDI2Transport",
+                "MIDI2CI",
+                "MIDI2PE"
+            ],
             swiftSettings: [
                 .swiftLanguageMode(.v6)
             ]
