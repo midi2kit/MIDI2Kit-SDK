@@ -6,6 +6,45 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [1.0.8] - 2026-02-06
+
+### Added
+- **KORG-Specific PE Optimization**: 99% faster PE fetch (16.4s → 144ms)
+  - `VendorOptimizationConfig` for vendor-specific settings
+  - Skip ResourceList fetch for KORG devices
+  - Direct `X-ParameterList` access
+- **X-ParameterList / X-ProgramEdit Native Support**
+  - `PEXParameter` type for KORG parameter definitions
+  - `PEXProgramEdit` type for current program data
+  - `MIDIVendor` enum for vendor detection
+  - Extension methods: `getXParameterList()`, `getXProgramEdit()`, `getOptimizedResources()`
+- **Adaptive WarmUp Strategy**
+  - `WarmUpStrategy` enum (`.always`, `.never`, `.adaptive`, `.vendorBased`)
+  - `WarmUpCache` actor for device-specific warmup tracking
+  - Default changed to `.adaptive`
+
+### Changed
+- `MIDI2ClientConfiguration.warmUpStrategy` replaces `warmUpBeforeResourceList`
+- Added `MIDI2ClientConfiguration.vendorOptimizations`
+- Added `MIDI2Error.invalidResponse` case
+
+## [1.0.7] - 2026-02-06
+
+### Fixed
+- **Critical**: Fixed AsyncStream race condition in 4 additional files
+  - `CoreMIDITransport.swift` (production MIDI I/O)
+  - `MockMIDITransport.swift` (test infrastructure)
+  - `LoopbackTransport.swift` (test infrastructure)
+  - `PESubscriptionManager.swift` (subscription events)
+
+## [1.0.6] - 2026-02-06
+
+### Fixed
+- **Critical**: Fixed AsyncStream continuation race condition in CIManager
+  - `CIManager.events` stream now properly fires events
+  - Used `AsyncStream.makeStream()` for immediate continuation access
+  - Fixes GitHub issue #1: deviceDiscovered events not firing
+
 ## [1.0.5] - 2026-02-05
 
 ### Added
