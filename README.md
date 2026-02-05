@@ -10,14 +10,14 @@ Add to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/midi2kit/MIDI2Kit-SDK.git", from: "1.0.0")
+    .package(url: "https://github.com/midi2kit/MIDI2Kit-SDK.git", from: "1.0.1")
 ]
 ```
 
 Or in Xcode:
 1. File > Add Package Dependencies...
 2. Enter: `https://github.com/midi2kit/MIDI2Kit-SDK.git`
-3. Select "Up to Next Major Version" starting from `1.0.0`
+3. Select "Up to Next Major Version" starting from `1.0.1`
 
 ## Available Modules
 
@@ -27,15 +27,14 @@ Or in Xcode:
 | `MIDI2Transport` | CoreMIDI integration with connection management |
 | `MIDI2CI` | MIDI Capability Inquiry protocol (device discovery) |
 | `MIDI2PE` | Property Exchange (GET/SET device properties) |
-| `MIDI2Client` | High-level unified API (recommended) |
-| `MIDI2Kit` | Umbrella library (alias for MIDI2Client) |
+| `MIDI2Kit` | High-level unified API (recommended) |
 
 ## Usage
 
 ### Quick Start
 
 ```swift
-import MIDI2Client
+import MIDI2Kit
 
 // Create client with standard configuration
 let client = MIDI2Client(configuration: .standard)
@@ -75,6 +74,12 @@ let client = MIDI2Client(configuration: .korgBLEMIDI)
 - iOS 17.0+ / macOS 14.0+
 - Swift 5.9+
 - Xcode 15.0+
+
+## Migration from v1.0.0
+
+If upgrading from v1.0.0, change your import:
+- Before: `import MIDI2Client`
+- After: `import MIDI2Kit`
 
 ## Source Code
 
