@@ -313,3 +313,68 @@
   - MIDI2Explorerで実機テスト
   - v1.0.3リリース検討
 ---
+
+---
+2026-02-05 13:38
+作業項目: MIDI2Kit-SDK v1.0.3 リリース完了
+追加機能の説明:
+  - registerFromInquiry デフォルト true
+  - KORG等の互換性向上
+決定事項:
+  【リリース情報】
+  - タグ: v1.0.3
+  - URL: https://github.com/midi2kit/MIDI2Kit-SDK/releases/tag/v1.0.3
+  - アセット: 5つのXCFramework zip
+
+  【新チェックサム】
+  - MIDI2Core: cf16a16ab3b3ca07aa7537e486be354b7a3e3f1d171dbad5b44b0734cba292f5
+  - MIDI2Transport: 07159a99a0815514f6e9254bf0b104be9861e1af0d3f4649117d61b353dbe9ca
+  - MIDI2CI: 9606f020e180829d18c16ce4009578b44beac6d70f8bf1e40c8749a5f37212cd
+  - MIDI2PE: a88894f8056a04f9d55ed8910e368d2c4f69d232602e96f723e2b006d3e41a10
+  - MIDI2Kit: 794127a672fb003bae4ca2eb5b1925de28cd0dc8987f5032a5ee1589a0ab0c36
+
+  【使用方法】
+  .package(url: "https://github.com/midi2kit/MIDI2Kit-SDK.git", from: "1.0.3")
+次のTODO:
+  - MIDI2Explorerで実機テスト
+---
+
+---
+2026-02-05 14:02
+作業項目: PESendStrategy問題の分析
+追加機能の説明:
+  - registerFromInquiry=true でもPEタイムアウト
+  - .fallback ストラテジーのbroadcast未実装が原因
+  - KORG BLE MIDIは複数destination、正しいものに送らないと応答しない
+決定事項:
+  【問題】
+  - .fallback の Step 3 (broadcast) が未実装
+  - Tried: 1つだけ、Candidates: 3つ
+
+  【修正案の分析】
+  - 案A: .explorer で .broadcast 設定 → 即効性あり
+  - 案B: .fallback 実装修正 → 正攻法だが複雑（将来課題）
+  - 案C: 両方 → 最も確実
+
+  【決定】案Aで実施
+次のTODO:
+  - 実装・テスト
+---
+
+---
+2026-02-05 14:05
+作業項目: .explorer に peSendStrategy = .broadcast 追加
+追加機能の説明:
+  - .explorer プリセットで broadcast を使用
+  - KORG BLE MIDI の複数destination問題を解決
+決定事項:
+  【実装内容】
+  - self.peSendStrategy = .broadcast を .explorer に追加
+  - ビルド成功確認済み
+
+  【将来課題】
+  - 案B: .fallback の Step 3 broadcast 実装
+次のTODO:
+  - commit push
+  - v1.0.4 リリース
+---

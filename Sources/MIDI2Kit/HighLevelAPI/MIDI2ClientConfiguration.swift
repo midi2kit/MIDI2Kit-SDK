@@ -238,6 +238,7 @@ public struct MIDI2ClientConfiguration: Sendable {
             self.deviceTimeout = .seconds(120)
             self.peTimeout = .seconds(10)
             self.registerFromInquiry = true  // KORG etc. compatibility
+            self.peSendStrategy = .broadcast  // Ensure PE reaches all destinations
             
         case .minimal:
             // Quick testing with short timeouts
