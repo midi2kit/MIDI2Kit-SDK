@@ -986,3 +986,181 @@
 次のTODO:
   - ドキュメント作成
 ---
+
+---
+2026-02-05 17:51
+作業項目: ドキュメントコミット・プッシュ完了
+追加機能の説明:
+  - Inter-App-MIDI-CI.md追加
+  - ワークログ更新
+決定事項:
+  【コミット】f583c09
+  - docs: add Inter-App MIDI-CI investigation and documentation
+次のTODO:
+  - 完了
+---
+
+---
+2026-02-05 17:53
+作業項目: SimpleMidiController変更確認
+追加機能の説明:
+  - InterAppMIDITestView.swift等の変更状態確認
+決定事項:
+  【確認結果】
+  - 既にコミット・プッシュ済み
+  - コミット: ef15dac (2026-02-05 17:45)
+  - 内容:
+    - InterAppMIDITestView.swift (405行)
+    - MockDeviceTestView.swift (386行)
+    - SettingsView.swift更新
+    - project.pbxproj更新
+次のTODO:
+  - 完了
+---
+
+---
+2026-02-05 17:55
+作業項目: midi2kit.github.io ウェブサイト更新
+追加機能の説明:
+  - MIDI2Kit v1.0.5 の最新状態に合わせてウェブサイトを更新
+  - MIDI-CI Responder機能追加の反映
+  - SDK v1.0.5 リリース情報の反映
+決定事項:
+  - 調査中
+次のTODO:
+  - midi2kit.github.ioリポジトリの現状確認
+  - 更新内容の特定
+---
+
+---
+2026-02-05 18:04
+作業項目: midi2kit.github.io ウェブサイト更新完了
+追加機能の説明:
+  - MIDI2Kit v1.0.5 の最新機能をウェブサイトに反映
+  - MIDI-CI Responder / MockDevice / LoopbackTransport のドキュメント追加
+決定事項:
+  【更新ファイル】
+  - index.html:
+    - hero-badge を "v1.0.5 — MIDI-CI Responder & MockDevice" に更新
+    - Features に「MockDevice & Testing」「Batch & Pipeline Operations」カード追加
+    - Quick Start に MockDevice タブ追加
+    - Modules セクションの説明更新
+    - Documentation に新ガイドへのリンク追加
+
+  - docs/midi2kit.html:
+    - MockDevice セクション追加（presets、custom resources）
+
+  - docs/midi2transport.html:
+    - LoopbackTransport セクション追加
+
+  - docs/midi2pe.html:
+    - PEResponder セクション追加（resource types）
+
+  - guides/index.html:
+    - 新ガイドへのリンク追加
+
+  【新規ガイドページ】
+  - guides/mockdevice.html - MockDeviceを使ったテスト方法
+    - Quick Start コード例
+    - Available Presets（korgModulePro, generic, rolandStyle, yamahaStyle, minimal）
+    - Custom Resources 登録方法
+    - Unit Testing Example
+    - Subscription テスト方法
+
+  - guides/inter-app-midi-ci.html - 同一端末内MIDI-CI通信の制限
+    - 問題の解説（KORG Module等はVirtual PortでMIDI-CIを処理しない）
+    - 代替案（2台構成、MockDevice、MIDI2Kitアプリ同士）
+    - テスト結果（KORG ModuleへのDiscovery Inquiryはタイムアウト）
+
+  【コミット】71c8ae8
+  - feat: Update website for MIDI2Kit v1.0.5
+次のTODO:
+  - 完了
+---
+
+---
+2026-02-05 18:13
+作業項目: midi2kit.github.io 整合性確認・修正
+追加機能の説明:
+  - Package.swift URL修正（midi2kit-core → MIDI2Kit-SDK）
+  - ウェブサイト全体の整合性確認
+決定事項:
+  - 調査中
+次のTODO:
+  - 全ファイルの整合性確認
+  - 不整合箇所の修正
+---
+
+---
+2026-02-05 18:18
+作業項目: midi2kit.github.io 整合性修正完了
+追加機能の説明:
+  - Package.swift URL修正
+  - 壊れたリンクの修正
+決定事項:
+  【修正内容】
+  1. Package.swift URL:
+     - midi2kit/midi2kit-core.git → midi2kit/MIDI2Kit-SDK.git
+     - from: "1.0.0" → from: "1.0.5"
+
+  2. 存在しないページへのリンク修正:
+     - docs/installation.html → docs/index.html または関連ページ
+     - docs/quickstart.html → docs/midi2kit.html
+     - docs/basic-concepts.html → 削除
+     - docs/examples.html → 削除
+     - guides/testing.html → guides/mockdevice.html
+
+  3. 更新ファイル:
+     - index.html: Getting Startedリンク修正
+     - docs/index.html: サイドバー・カード修正、GitHubリンク修正
+     - docs/midi2kit.html: サイドバー修正
+     - docs/midi2core.html: サイドバー修正
+     - guides/index.html: testing.htmlリンク削除
+     - guides/architecture.html: サイドバー修正
+     - guides/property-exchange.html: サイドバー修正
+
+  【コミット】106ca92
+  - fix: Correct Package.swift URL and fix broken links
+次のTODO:
+  - 完了
+---
+
+---
+2026-02-05 18:24
+作業項目: Swift-DocC API Reference 再生成
+追加機能の説明:
+  - MIDI2Kit v1.0.5の最新APIに合わせてSwift-DocCを再生成
+  - 新機能（MIDI2Client, MockDevice, LoopbackTransport, PEResponder）を反映
+決定事項:
+  - MIDI2Kitソースから再生成
+次のTODO:
+  - swift package generate-documentation 実行
+  - 生成物をmidi2kit.github.io/api/にコピー
+---
+
+---
+2026-02-05 18:37
+作業項目: Swift-DocC API Reference 再生成完了・プッシュ完了
+追加機能の説明:
+  - MIDI2Kit v1.0.5の最新APIドキュメントを再生成
+  - midi2kit.github.io/api/ にコピー・コミット・プッシュ完了
+決定事項:
+  【再生成手順】
+  1. MIDI2Kitで swift package --disable-sandbox generate-documentation 実行
+  2. .build/plugins/Swift-DocC/outputs/intermediates/MIDI2Kit.doccarchive を api/ にコピー
+
+  【コミット】9976ec0
+  - docs: Regenerate Swift-DocC API Reference for v1.0.5
+  - 462ファイル変更（新機能のAPI追加）
+  - api.bak/ 削除
+
+  【追加されたAPIドキュメント】
+  - MIDI2Client, MIDI2ClientConfiguration, MIDI2ClientEvent
+  - MIDI2Device, MIDI2Error, MIDI2Logger
+  - MockDevice, MockDevicePreset
+  - ClientPreset, DestinationStrategy
+  - CommunicationTrace, DestinationDiagnostics
+  - AsyncStream extensions（type-safe event filtering）
+次のTODO:
+  - 完了
+---
