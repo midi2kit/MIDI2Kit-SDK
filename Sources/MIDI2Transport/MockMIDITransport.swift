@@ -42,16 +42,14 @@ public actor MockMIDITransport: MIDITransport {
     // MARK: - Initialization
     
     public init() {
-        var receivedCont: AsyncStream<MIDIReceivedData>.Continuation?
-        self.received = AsyncStream { continuation in
-            receivedCont = continuation
-        }
-        
-        var setupCont: AsyncStream<Void>.Continuation?
-        self.setupChanged = AsyncStream { continuation in
-            setupCont = continuation
-        }
-        
+        // Use makeStream() to ensure continuations are available immediately
+        // The old closure-based approach had a race condition where continuation
+        // was nil until the stream was first iterated
+        let (receivedStream, receivedCont) = AsyncStream<MIDIReceivedData>.makeStream()
+        let (setupStream, setupCont) = AsyncStream<Void>.makeStream()
+
+        self.received = receivedStream
+        self.setupChanged = setupStream
         self.receivedContinuation = receivedCont
         self.setupChangedContinuation = setupCont
     }

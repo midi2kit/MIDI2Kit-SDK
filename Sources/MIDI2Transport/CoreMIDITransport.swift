@@ -103,21 +103,17 @@ public final class CoreMIDITransport: MIDITransport, @unchecked Sendable {
     // MARK: - Initialization
     
     public init(clientName: String = "MIDI2Kit") throws {
-        // Initialize streams
-        var receivedCont: AsyncStream<MIDIReceivedData>.Continuation?
-        self.received = AsyncStream { continuation in
-            receivedCont = continuation
-        }
-        
-        var setupCont: AsyncStream<Void>.Continuation?
-        self.setupChanged = AsyncStream { continuation in
-            setupCont = continuation
-        }
-        
-        // Store continuations
+        // Use makeStream() to ensure continuations are available immediately
+        // The old closure-based approach had a race condition where continuation
+        // was nil until the stream was first iterated
+        let (receivedStream, receivedCont) = AsyncStream<MIDIReceivedData>.makeStream()
+        let (setupStream, setupCont) = AsyncStream<Void>.makeStream()
+
+        self.received = receivedStream
+        self.setupChanged = setupStream
         self.receivedContinuation = receivedCont
         self.setupChangedContinuation = setupCont
-        
+
         // Setup CoreMIDI
         try setupCoreMIDI(clientName: clientName)
     }

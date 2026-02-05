@@ -170,12 +170,12 @@ public actor PESubscriptionManager {
         self.peManager = peManager
         self.ciManager = ciManager
         self.logger = logger
-        
-        // Create event stream
-        var continuation: AsyncStream<PESubscriptionEvent>.Continuation?
-        self.events = AsyncStream { cont in
-            continuation = cont
-        }
+
+        // Use makeStream() to ensure continuation is available immediately
+        // The old closure-based approach had a race condition where continuation
+        // was nil until the stream was first iterated
+        let (stream, continuation) = AsyncStream<PESubscriptionEvent>.makeStream()
+        self.events = stream
         self.eventContinuation = continuation
     }
     
