@@ -167,10 +167,11 @@ public actor CIManager {
         self.configuration = configuration
         self.logger = logger ?? NullMIDI2Logger()
 
-        var continuation: AsyncStream<CIManagerEvent>.Continuation?
-        self.events = AsyncStream { cont in
-            continuation = cont
-        }
+        // Use makeStream() to ensure continuation is available immediately
+        // The old closure-based approach had a race condition where continuation
+        // was nil until the stream was first iterated
+        let (stream, continuation) = AsyncStream<CIManagerEvent>.makeStream()
+        self.events = stream
         self.eventContinuation = continuation
     }
     
