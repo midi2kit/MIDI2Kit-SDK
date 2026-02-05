@@ -6,6 +6,20 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [1.0.5] - 2026-02-05
+
+### Added
+- **MIDI-CI Responder**: Same-process testing without physical hardware
+  - `MockDevice` actor for device simulation
+  - `LoopbackTransport` for bidirectional communication
+  - `PEResponder` for Property Exchange handling
+  - Device presets: KORG Module Pro, Roland, Yamaha, generic
+
+### Improved
+- Auto-register preset resources in `MockDevice.start()`
+- Safer JSON escaping in error response headers
+- Shutdown guard in `LoopbackTransport`
+
 ## [1.0.4] - 2026-02-05
 
 ### Changed
