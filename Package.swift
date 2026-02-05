@@ -22,28 +22,28 @@ let package = Package(
     targets: [
         .binaryTarget(
             name: "MIDI2Core",
-            url: "https://github.com/midi2kit/MIDI2Kit-SDK/releases/download/v1.0.6/MIDI2Core.xcframework.zip",
-            checksum: "963eb1ff160634afa815abf74b568248234739e11d080beb5587a305a24b5de6"
+            url: "https://github.com/midi2kit/MIDI2Kit-SDK/releases/download/v1.0.7/MIDI2Core.xcframework.zip",
+            checksum: "8c3e522e57ef3952187101ccc17ca18cbab6a2b335608e44edb8243b674fa236"
         ),
         .binaryTarget(
             name: "MIDI2Transport",
-            url: "https://github.com/midi2kit/MIDI2Kit-SDK/releases/download/v1.0.6/MIDI2Transport.xcframework.zip",
-            checksum: "86e112b67ef4679e6f41886d3241fd1d78bd10e7427b20e89dd21a7f49be5a21"
+            url: "https://github.com/midi2kit/MIDI2Kit-SDK/releases/download/v1.0.7/MIDI2Transport.xcframework.zip",
+            checksum: "5413b4a30d4dbbb24cf8088a7796666a1712b4eedcd3aa47a2fbe9a172ab70c9"
         ),
         .binaryTarget(
             name: "MIDI2CI",
-            url: "https://github.com/midi2kit/MIDI2Kit-SDK/releases/download/v1.0.6/MIDI2CI.xcframework.zip",
-            checksum: "0a0c4d707a6022d55f553ef8eba4fd751757c3400609a41318fd1a45774d4514"
+            url: "https://github.com/midi2kit/MIDI2Kit-SDK/releases/download/v1.0.7/MIDI2CI.xcframework.zip",
+            checksum: "6f94f14b0bb8d9341b4f8b5a82cd5c2be5c830b965f729f803a57998089c0cc6"
         ),
         .binaryTarget(
             name: "MIDI2PE",
-            url: "https://github.com/midi2kit/MIDI2Kit-SDK/releases/download/v1.0.6/MIDI2PE.xcframework.zip",
-            checksum: "11f6deaff713a4d9a35146738b83b46b8c7945e2ea5bb9c0c4e19a52da3d66b7"
+            url: "https://github.com/midi2kit/MIDI2Kit-SDK/releases/download/v1.0.7/MIDI2PE.xcframework.zip",
+            checksum: "8e2b73714a76036518a538e20b5bedcdecc4f45c8974b2002c17530294c066ab"
         ),
         .binaryTarget(
             name: "MIDI2Kit",
-            url: "https://github.com/midi2kit/MIDI2Kit-SDK/releases/download/v1.0.6/MIDI2Kit.xcframework.zip",
-            checksum: "546d0081bd9faaba5d743fa1b8d1849c9e1be50e2a7108485dab317160490173"
+            url: "https://github.com/midi2kit/MIDI2Kit-SDK/releases/download/v1.0.7/MIDI2Kit.xcframework.zip",
+            checksum: "414e82a03d7418a9a051a7de79f7e41aefa300cfe6ceeebf3555aa66a645f534"
         )
     ]
 )
