@@ -98,3 +98,218 @@
 次のTODO:
   - MIDI2Explorerでの動作確認
 ---
+
+---
+2026-02-05 12:18
+作業項目: XCFramework モジュール名不整合修正（方法2: MIDI2Kit統一）
+追加機能の説明:
+  - swiftinterface の -module-name MIDI2Kit と modulemap の不整合を修正
+  - 方法2を選択: MIDI2Kit で統一（破壊的変更）
+決定事項:
+  【修正内容】
+  - MIDI2Client.xcframework → MIDI2Kit.xcframework にリネーム
+  - modulemap: framework module MIDI2Kit に変更
+  - Package.swift: ターゲット名を MIDI2Kit に変更
+  - 利用側: import MIDI2Kit で使用
+
+  【作業手順】
+  1. ビルドスクリプトでPRODUCT_MODULE_NAME=MIDI2Kitを確認
+  2. xcframeworkビルド時のフレームワーク名をMIDI2Kitに変更
+  3. zipファイル再作成
+  4. チェックサム再計算
+  5. Package.swift更新
+  6. GitHub Release更新
+次のTODO:
+  - ビルドスクリプト修正
+  - xcframework再ビルド
+---
+
+---
+2026-02-05 12:23
+作業項目: MIDI2Kit-SDK v1.0.1 リリース完了
+追加機能の説明:
+  - ビルドスクリプト修正（MIDI2Client→MIDI2Kit）
+  - MIDI2Kit.xcframeworkビルド成功
+  - modulemap と swiftinterface の module-name が MIDI2Kit で一致
+決定事項:
+  【新チェックサム】
+  - MIDI2Kit: 0fb7231548fdc756825ccf3e46872b6b995b1e81153bf0f089af10022f56031d
+  （他の4モジュールは変更なし）
+
+  【リリース情報】
+  - タグ: v1.0.1
+  - URL: https://github.com/midi2kit/MIDI2Kit-SDK/releases/tag/v1.0.1
+  - アセット: 5つのXCFramework zip（MIDI2Kit.xcframework.zip含む）
+
+  【破壊的変更】
+  - import MIDI2Client → import MIDI2Kit
+  - READMEにマイグレーションガイド追加
+次のTODO:
+  - MIDI2Explorerで動作確認
+---
+
+---
+2026-02-05 12:45
+作業項目: MIDI2Kit SDK dyld問題の解決方針検討
+追加機能の説明:
+  - dyld: Library not loaded: @rpath/MIDI2ClientDynamic.framework
+  - MIDI2Kit.xcframeworkが内部でMIDI2ClientDynamicに動的リンク
+  - SDKリリースにMIDI2ClientDynamic.xcframeworkが含まれていない
+決定事項:
+  【問題分析】
+  - XCFrameworkビルド時に動的フレームワーク依存が埋め込まれていない
+  - 2つの解決オプションを検討中
+
+  【オプション比較】
+  - オプション1: MIDI2ClientDynamic.xcframeworkを追加
+    → 複数フレームワーク配布が複雑、利用者の設定負担増
+  - オプション2: 静的リンクでビルドし直す
+    → 単一XCFrameworkで完結、利用者の設定が簡単
+次のTODO:
+  - 方針決定後、ビルドスクリプト修正
+---
+
+---
+2026-02-05 12:47
+作業項目: MIDI2Kit SDK 静的リンク対応
+追加機能の説明:
+  - Package.swiftに静的ライブラリ製品を追加
+  - ビルドスクリプトを静的版スキームに変更
+決定事項:
+  【原因】
+  - MIDI2ClientDynamic は type: .dynamic で定義
+  - 動的フレームワークは依存を外部参照として残す
+
+  【修正内容】
+  1. Package.swift: MIDI2KitStatic (type: .static) を追加
+  2. build-xcframework.sh: MIDI2KitStatic スキームを使用
+  3. 依存モジュールも同様に静的版を追加
+次のTODO:
+  - ビルド・テスト
+---
+
+---
+2026-02-05 13:01
+作業項目: dyld問題解決 - install_name_tool による修正
+追加機能の説明:
+  - 静的ライブラリはフレームワークを生成しない → 別アプローチ必要
+  - 問題の根本原因: LC_ID_DYLIB が @rpath/MIDI2ClientDynamic のまま
+  - install_name_tool -id で正しい名前に修正
+決定事項:
+  【実際の解決策】
+  - 動的フレームワークを維持（フレームワーク生成に必要）
+  - install_name_tool -id でLC_ID_DYLIBを修正
+  - 依存モジュールはSPMにより自動的に静的リンク済み
+
+  【ビルドスクリプト修正】
+  - install_name_tool -id "@rpath/${MODULE}.framework/${MODULE}" を追加
+
+  【新チェックサム】
+  - MIDI2Core: ede7730a857ab8cf8fe7754bb7fbc9f6c8c9eeb79c585f26bfbbadffc08b8a72
+  - MIDI2Transport: 92edcdfda95887f73fc5d806a9a5f11ed0f6f9f39e2cff27291cee72d9de03f4
+  - MIDI2CI: 61a23bcb522754a5388a840e22bb6b616ae73bfb883e9580154aa55a22d4b215
+  - MIDI2PE: 22338d4702e0e7239cf7f823fe27127eacca93cc1b1e18e621fe5ef403d3cfa8
+  - MIDI2Kit: d0d07259f784560727a05bd4c81833cc90db9e25817aa805873cf1f180024ff7
+次のTODO:
+  - MIDI2Kit-SDK v1.0.2 リリース
+  - MIDI2Explorerでの動作確認
+---
+
+---
+2026-02-05 13:04
+作業項目: MIDI2Kit-SDK v1.0.2 リリース完了
+追加機能の説明:
+  - dyld: Library not loaded エラーを修正
+  - install_name_tool によるLC_ID_DYLIB修正をビルドスクリプトに追加
+  - 全5モジュールのXCFrameworkを再ビルド
+決定事項:
+  【リリース情報】
+  - タグ: v1.0.2
+  - URL: https://github.com/midi2kit/MIDI2Kit-SDK/releases/tag/v1.0.2
+  - アセット: 5つのXCFramework zip
+
+  【修正内容】
+  - LC_ID_DYLIBが @rpath/MIDI2Kit.framework/MIDI2Kit に修正
+  - 実行時のMIDI2ClientDynamic.framework依存が解消
+
+  【使用方法】
+  .package(url: "https://github.com/midi2kit/MIDI2Kit-SDK.git", from: "1.0.2")
+次のTODO:
+  - MIDI2Explorerでの動作確認
+---
+
+---
+2026-02-05 13:12
+作業項目: v1.0.2 修正内容のコードレビュー
+追加機能の説明:
+  - ビルドスクリプトとPackage.swiftの修正をレビュー
+決定事項:
+  - レビュー完了: 4.0/5
+  - 改善点3件を適用
+次のTODO:
+  - 改善適用完了後、再テスト
+---
+
+---
+2026-02-05 13:23
+作業項目: レビュー指摘事項の改善適用
+追加機能の説明:
+  - install_name_toolのエラーハンドリング改善
+  - install_name検証の追加
+  - Package.swiftから未使用の静的ライブラリ削除
+決定事項:
+  【適用した改善】
+  1. install_name_toolエラーハンドリング: || true → if ! ... then warning
+  2. install_name検証追加: otool -D で全プラットフォーム確認
+  3. Package.swift整理: 未使用の静的ライブラリ5件削除
+
+  【検証結果】
+  - ✅ Release-iphoneos: install name OK
+  - ✅ Release-iphonesimulator: install name OK
+  - ✅ Release: install name OK
+次のTODO:
+  - MIDI2Explorerで動作確認
+---
+
+---
+2026-02-05 13:32
+作業項目: PE取得失敗問題の修正案レビュー
+追加機能の説明:
+  - pe-fix-proposal.md の案1と案3を分析
+  - registerFromInquiry 設定の影響評価
+決定事項:
+  【案1: .explorer に registerFromInquiry = true】
+  - ✅ 問題なし
+  - .explorer は「デバイス探索用」なので意図に合致
+  - 既存の .default を変更しない
+
+  【案3: デフォルトを true に変更】
+  - ⚠️ 軽微な問題あり
+  - breaking change: 既存アプリの挙動が変わる
+  - ただし実害は低い（登録されるデバイスが増えるだけ）
+
+  【推奨】
+  案1 + 案3 の両方を採用
+  - .explorer: registerFromInquiry = true
+  - .default: registerFromInquiry = true（デフォルト値変更）
+  - 理由: KORGは大手メーカー、多くのユーザーに影響
+次のTODO:
+  - 実装
+---
+
+---
+2026-02-05 13:34
+作業項目: registerFromInquiry デフォルト値変更
+追加機能の説明:
+  - init(): registerFromInquiry = false → true
+  - .explorer プリセット: registerFromInquiry = true 追加
+  - ドキュメントコメント更新
+決定事項:
+  【変更内容】
+  - デフォルト値: true（KORG等の互換性向上）
+  - .explorer: 明示的に true を設定
+  - ビルド成功確認済み
+次のTODO:
+  - MIDI2Explorerで実機テスト
+  - v1.0.3リリース検討
+---

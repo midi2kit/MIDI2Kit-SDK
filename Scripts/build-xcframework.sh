@@ -14,7 +14,8 @@
 set -e
 
 # All modules to build
-ALL_MODULES=("MIDI2Core" "MIDI2Transport" "MIDI2CI" "MIDI2PE" "MIDI2Client")
+# Note: MIDI2Kit (formerly MIDI2Client) is the high-level API module
+ALL_MODULES=("MIDI2Core" "MIDI2Transport" "MIDI2CI" "MIDI2PE" "MIDI2Kit")
 
 # If a specific module is requested
 if [ -n "$1" ]; then
@@ -34,12 +35,13 @@ mkdir -p "$BUILD_DIR" "$OUTPUT_DIR"
 # Function to build a single module
 build_module() {
     local MODULE=$1
+    # Use dynamic library schemes for framework generation
+    # Special case: MIDI2Kit uses MIDI2ClientDynamic scheme (legacy naming)
     local SCHEME="${MODULE}Dynamic"
-    # Special case: MIDI2ClientDynamic target is MIDI2Kit, not MIDI2Client
-    local TARGET_NAME="${MODULE}"
-    if [ "$MODULE" = "MIDI2Client" ]; then
-        TARGET_NAME="MIDI2Kit"
+    if [ "$MODULE" = "MIDI2Kit" ]; then
+        SCHEME="MIDI2ClientDynamic"
     fi
+    local TARGET_NAME="${MODULE}"
 
     echo ""
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -137,6 +139,13 @@ HEADER
             mv "$FW/${SCHEME}" "$FW/${MODULE}"
         fi
 
+        # Fix install name (LC_ID_DYLIB) for renamed framework
+        if [ -f "$FW/${MODULE}" ]; then
+            if ! install_name_tool -id "@rpath/${MODULE}.framework/${MODULE}" "$FW/${MODULE}"; then
+                echo "    ⚠️ Warning: Failed to update install name for ${MODULE}"
+            fi
+        fi
+
         # Update Info.plist
         if [ -f "$FW/Info.plist" ]; then
             /usr/libexec/PlistBuddy -c "Set :CFBundleExecutable ${MODULE}" "$FW/Info.plist" 2>/dev/null || true
@@ -178,6 +187,22 @@ HEADER
                 echo "    ✅ $(basename $(dirname $(dirname $FW))): Modules/ (${SWIFTMODULE_COUNT} swiftinterface files)"
             else
                 echo "    ⚠️ $(basename $(dirname $(dirname $FW))): Modules/ MISSING"
+            fi
+        fi
+    done
+
+    # Verify install names (LC_ID_DYLIB)
+    echo "  🔍 Verifying install names..."
+    for FW in "$IOS_FW" "$IOS_SIM_FW" "$MACOS_FW"; do
+        if [ -n "$FW" ] && [ -f "$FW/${MODULE}" ]; then
+            local ACTUAL_ID=$(otool -D "$FW/${MODULE}" 2>/dev/null | tail -1)
+            local EXPECTED_ID="@rpath/${MODULE}.framework/${MODULE}"
+            if [ "$ACTUAL_ID" = "$EXPECTED_ID" ]; then
+                echo "    ✅ $(basename $(dirname $(dirname $FW))): install name OK"
+            else
+                echo "    ⚠️ $(basename $(dirname $(dirname $FW))): install name mismatch"
+                echo "       Expected: $EXPECTED_ID"
+                echo "       Actual:   $ACTUAL_ID"
             fi
         fi
     done

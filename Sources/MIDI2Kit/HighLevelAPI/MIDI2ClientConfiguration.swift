@@ -155,15 +155,15 @@ public struct MIDI2ClientConfiguration: Sendable {
 
     /// Whether to register devices from received Discovery Inquiry messages
     ///
-    /// When `false` (default), only devices that respond to our Discovery Inquiry
-    /// with a Discovery Reply are registered. This ensures that registered devices
-    /// are actually capable of responding to our requests.
+    /// When `true` (default), devices are registered both when they respond to
+    /// our Discovery Inquiry with a Reply, and when they send Discovery Inquiry
+    /// to us. This provides maximum compatibility with devices like KORG Module Pro
+    /// that send Inquiry but don't respond to our Inquiry with a Reply.
     ///
-    /// When `true`, devices are also registered when they send Discovery Inquiry
-    /// to us. This is useful for devices like KORG Module Pro that send Inquiry
-    /// but don't respond to our Inquiry with a Reply.
+    /// When `false`, only devices that respond to our Discovery Inquiry
+    /// with a Discovery Reply are registered.
     ///
-    /// Default: false
+    /// Default: true (recommended for KORG and similar devices)
     public var registerFromInquiry: Bool
     
     /// Whether to tolerate CI version mismatches
@@ -215,7 +215,7 @@ public struct MIDI2ClientConfiguration: Sendable {
         self.fallbackStepTimeout = .milliseconds(500)
         self.destinationCacheTTL = .seconds(1800)
         self.respondToDiscovery = false
-        self.registerFromInquiry = false
+        self.registerFromInquiry = true
         self.tolerateCIVersionMismatch = true
         self.maxSysExSize = 0
         self.deviceIdentity = .default
@@ -237,6 +237,7 @@ public struct MIDI2ClientConfiguration: Sendable {
             self.discoveryInterval = .seconds(5)
             self.deviceTimeout = .seconds(120)
             self.peTimeout = .seconds(10)
+            self.registerFromInquiry = true  // KORG etc. compatibility
             
         case .minimal:
             // Quick testing with short timeouts
