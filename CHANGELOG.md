@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.4] - 2026-02-05 (SDK Release)
+
+### Changed
+- **MIDI2Kit-SDK**: `.explorer` プリセットで `peSendStrategy = .broadcast` を使用
+- **MIDI2Kit-SDK**: KORG BLE MIDI デバイスの PE タイムアウト問題を修正
+
+## [1.0.3] - 2026-02-05 (SDK Release)
+
+### Changed
+- **MIDI2Kit-SDK**: `registerFromInquiry` のデフォルト値を `true` に変更（KORG互換性向上）
+
+## [1.0.2] - 2026-02-05 (SDK Release)
+
+### Fixed
+- **MIDI2Kit-SDK**: dyld Library not loaded エラーを修正（LC_ID_DYLIB 不一致解消）
+
+## [1.0.1] - 2026-02-05 (SDK Release)
+
+### Changed
+- **MIDI2Kit-SDK**: モジュール名を `MIDI2Client` から `MIDI2Kit` にリネーム（破壊的変更）
+
+## [1.0.0] - 2026-02-04 (SDK Release)
+
+### Added
+- **MIDI2Kit-SDK**: XCFramework バイナリ配布リポジトリ初回リリース
+- **MIDI2Kit-SDK**: 5つのモジュール（MIDI2Core, MIDI2Transport, MIDI2CI, MIDI2PE, MIDI2Kit）のバイナリ提供
+
+---
+
+## [Unreleased] (Source)
+
 ### Added
 
 #### SET Operations Extension (2026-02-04)
