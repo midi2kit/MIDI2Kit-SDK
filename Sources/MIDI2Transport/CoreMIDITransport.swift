@@ -551,6 +551,8 @@ public final class CoreMIDITransport: MIDITransport, @unchecked Sendable {
         // Extract MIDI bytes from UMP words in the event list
         // Tuple: (MIDI 1.0 bytes, umpWord1, umpWord2)
         var allPacketData: [([UInt8], UInt32, UInt32)] = []
+        // Buffer for assembling UMP type 0x3 SysEx fragments
+        var umpSysExBuffer: [UInt8] = []
         for packet in eventList.unsafeSequence() {
             let wordCount = Int(packet.pointee.wordCount)
             guard wordCount > 0 else { continue }
@@ -593,7 +595,41 @@ public final class CoreMIDITransport: MIDITransport, @unchecked Sendable {
                     wi += 1
 
                 case 0x3:
-                    // Data / SysEx (64-bit, 2 words)
+                    // Data / SysEx 7-bit (64-bit, 2 words)
+                    guard wi + 1 < words.count else { wi += 1; continue }
+                    let word2 = words[wi + 1]
+                    let sysexStatus = (word >> 20) & 0x0F  // 0=complete, 1=start, 2=continue, 3=end
+                    let numBytes = Int((word >> 16) & 0x0F)
+                    // Extract up to 6 payload bytes from the two words
+                    let rawBytes: [UInt8] = [
+                        UInt8((word >> 8) & 0xFF),
+                        UInt8(word & 0xFF),
+                        UInt8((word2 >> 24) & 0xFF),
+                        UInt8((word2 >> 16) & 0xFF),
+                        UInt8((word2 >> 8) & 0xFF),
+                        UInt8(word2 & 0xFF),
+                    ]
+                    let payload = Array(rawBytes.prefix(numBytes))
+
+                    switch sysexStatus {
+                    case 0: // Complete (single-packet SysEx)
+                        var msg: [UInt8] = [0xF0]
+                        msg.append(contentsOf: payload)
+                        msg.append(0xF7)
+                        allPacketData.append((msg, 0, 0))
+                    case 1: // Start
+                        umpSysExBuffer = [0xF0]
+                        umpSysExBuffer.append(contentsOf: payload)
+                    case 2: // Continue
+                        umpSysExBuffer.append(contentsOf: payload)
+                    case 3: // End
+                        umpSysExBuffer.append(contentsOf: payload)
+                        umpSysExBuffer.append(0xF7)
+                        allPacketData.append((umpSysExBuffer, 0, 0))
+                        umpSysExBuffer = []
+                    default:
+                        break
+                    }
                     wi += 2
 
                 case 0x4:
