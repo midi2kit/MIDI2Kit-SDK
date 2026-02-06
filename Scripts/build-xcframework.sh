@@ -60,7 +60,8 @@ build_module() {
         -derivedDataPath "$MODULE_BUILD/ios" \
         BUILD_LIBRARY_FOR_DISTRIBUTION=YES \
         SKIP_INSTALL=NO \
-        -quiet 2>&1 | grep -E "^error:" || true
+        2>&1 | tail -20
+    echo "  📱 iOS Device build exit: ${PIPESTATUS[0]}"
 
     # Build for iOS Simulator
     echo "  📱 iOS Simulator..."
@@ -71,7 +72,8 @@ build_module() {
         -derivedDataPath "$MODULE_BUILD/ios-sim" \
         BUILD_LIBRARY_FOR_DISTRIBUTION=YES \
         SKIP_INSTALL=NO \
-        -quiet 2>&1 | grep -E "^error:" || true
+        2>&1 | tail -20
+    echo "  📱 iOS Simulator build exit: ${PIPESTATUS[0]}"
 
     # Build for macOS
     echo "  💻 macOS..."
@@ -82,7 +84,8 @@ build_module() {
         -derivedDataPath "$MODULE_BUILD/macos" \
         BUILD_LIBRARY_FOR_DISTRIBUTION=YES \
         SKIP_INSTALL=NO \
-        -quiet 2>&1 | grep -E "^error:" || true
+        2>&1 | tail -20
+    echo "  💻 macOS build exit: ${PIPESTATUS[0]}"
 
     # Find frameworks - SPM generates SCHEME.framework (e.g., MIDI2CoreDynamic.framework)
     local IOS_FW=$(find "$MODULE_BUILD/ios" -path "*Release-iphoneos*PackageFrameworks*" -name "${SCHEME}.framework" -type d 2>/dev/null | head -1)
