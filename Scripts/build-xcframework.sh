@@ -135,8 +135,15 @@ MODULEMAP
 HEADER
 
         # Rename binary if needed
+        # SPM names the binary after the product (e.g., MIDI2PEDynamic)
+        # We need to rename it to match the module name (e.g., MIDI2PE)
         if [ -f "$FW/${SCHEME}" ] && [ ! -f "$FW/${MODULE}" ]; then
+            echo "    Renaming binary: ${SCHEME} -> ${MODULE}"
             mv "$FW/${SCHEME}" "$FW/${MODULE}"
+        elif [ ! -f "$FW/${SCHEME}" ] && [ ! -f "$FW/${MODULE}" ]; then
+            # Binary not found - list contents for debugging
+            echo "    ⚠️ Binary not found: ${SCHEME} or ${MODULE} in $FW"
+            ls -la "$FW/" 2>/dev/null | head -10
         fi
 
         # Fix install name (LC_ID_DYLIB) for renamed framework
@@ -204,6 +211,9 @@ HEADER
                 echo "       Expected: $EXPECTED_ID"
                 echo "       Actual:   $ACTUAL_ID"
             fi
+        elif [ -n "$FW" ] && [ -d "$FW" ]; then
+            echo "    ❌ $(basename $(dirname $(dirname $FW))): binary '${MODULE}' NOT FOUND in $FW"
+            ls -la "$FW/" 2>/dev/null
         fi
     done
 
@@ -216,7 +226,7 @@ HEADER
     if [ -n "$ARGS" ]; then
         echo "  📦 Creating XCFramework..."
         rm -rf "$OUTPUT_DIR/${MODULE}.xcframework"
-        xcodebuild -create-xcframework $ARGS -output "$OUTPUT_DIR/${MODULE}.xcframework" 2>/dev/null
+        xcodebuild -create-xcframework $ARGS -output "$OUTPUT_DIR/${MODULE}.xcframework"
 
         echo "  🗜️ Creating ZIP..."
         rm -f "$OUTPUT_DIR/${MODULE}.xcframework.zip"
