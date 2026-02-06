@@ -6,6 +6,37 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [1.0.10] - 2026-02-06
+
+### Added
+- **AnyCodableValue** (MIDI2Core): Type-safe container for heterogeneous JSON values (Int, String, Bool, Array, Dictionary mixed types)
+  - Convenience accessors: `stringValue`, `intValue`, `doubleValue`, `boolValue`, `arrayValue`, `dictionaryValue`
+  - Coercion methods: `coercedIntValue`, `coercedStringValue`
+  - Full Codable, Hashable, Equatable, ExpressibleByLiteral support
+- **PEXCurrentValue** (MIDI2PE): Support for `currentValues` in X-ProgramEdit with mixed-type parameters
+  - Handles JSON like `{"controlcc": 11, "current": 100}` or `{"controlcc": 12, "current": "High"}`
+  - Convenience accessors: `intValue`, `stringValue`
+- **bankPC Array Support in PEXProgramEdit** (MIDI2PE): Automatic `[bankMSB, bankLSB, programNumber]` array conversion
+  - Same pattern as PEProgramDef/PEChannelInfo for consistency
+- **X-Resource Fallback** (MIDI2Kit): Auto-try X-prefixed resources before standard resources
+  - `getChannelList()`: X-ChannelList → ChannelList fallback
+  - `getProgramList()`: X-ProgramList → ProgramList fallback
+  - `getProgramEdit()`: X-ProgramEdit → ProgramEdit fallback (new API)
+- **BLE MIDI Timeout Optimization** (MIDI2Transport + MIDI2Kit)
+  - `MIDITransportType` enum: `.usb`, `.ble`, `.network`, `.virtual`, `.unknown`
+  - Auto-detect BLE transport via `kMIDIPropertyDriverOwner` and display name heuristics
+  - `autoAdjustBLETimeout` and `blePETimeout` configuration options
+  - Automatic PE timeout adjustment to 15s for BLE connections
+- **Empty Response Handling** (MIDI2PE)
+  - `PEEmptyResponseRepresentable` protocol for graceful 0-byte response handling
+  - `PEError.emptyResponse(resource:)` for non-array types
+
+### Fixed
+- Removed duplicate `AnyCodableValue` definition from `PEResource.swift` (unified to MIDI2Core version)
+
+### Tests
+- 509 tests passing (+51 new tests)
+
 ## [1.0.9] - 2026-02-06
 
 ### Added
