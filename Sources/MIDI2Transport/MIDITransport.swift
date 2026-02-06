@@ -168,11 +168,23 @@ public struct MIDIDestinationInfo: Sendable, Identifiable, Hashable {
 /// Received MIDI data with source information
 public struct MIDIReceivedData: Sendable {
     public let data: [UInt8]
+    public let umpWord1: UInt32    // raw UMP word1 (0 = MIDI 1.0 source)
+    public let umpWord2: UInt32    // raw UMP word2 (0 = MIDI 1.0 source)
     public let sourceID: MIDISourceID?
     public let timestamp: UInt64
-    
+
     public init(data: [UInt8], sourceID: MIDISourceID? = nil, timestamp: UInt64 = 0) {
         self.data = data
+        self.umpWord1 = 0
+        self.umpWord2 = 0
+        self.sourceID = sourceID
+        self.timestamp = timestamp
+    }
+
+    public init(data: [UInt8], umpWord1: UInt32, umpWord2: UInt32, sourceID: MIDISourceID? = nil, timestamp: UInt64 = 0) {
+        self.data = data
+        self.umpWord1 = umpWord1
+        self.umpWord2 = umpWord2
         self.sourceID = sourceID
         self.timestamp = timestamp
     }

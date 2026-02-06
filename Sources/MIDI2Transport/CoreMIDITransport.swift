@@ -236,13 +236,14 @@ public final class CoreMIDITransport: MIDITransport, @unchecked Sendable {
         self.outputPort = outPort
         
         // Create input port using protocol-aware API (supports MIDI 2.0 devices)
-        // Using ._1_0 so CoreMIDI translates all incoming data to MIDI 1.0 byte stream,
-        // which is compatible with the existing handlePacketList/handleReceivedData path.
+        // Using ._2_0 so CoreMIDI delivers MIDI 2.0 Channel Voice messages (type 0x4)
+        // with full precision (16-bit velocity, 32-bit CC values, etc.).
+        // MIDI 1.0 sources are automatically translated up to MIDI 2.0 by CoreMIDI.
         var inPort: MIDIPortRef = 0
         let inStatus = MIDIInputPortCreateWithProtocol(
             client,
             "Input" as CFString,
-            ._1_0,
+            ._2_0,
             &inPort
         ) { [weak self] eventList, srcConnRefCon in
             // Extract source from connRefCon (passed via MIDIPortConnectSource)
@@ -547,8 +548,9 @@ public final class CoreMIDITransport: MIDITransport, @unchecked Sendable {
         let packetCount = Int(eventList.pointee.numPackets)
         debugLastCallback = "pkts=\(packetCount) src=\(sourceRef.map { String($0) } ?? "nil")"
 
-        // Extract MIDI 1.0 bytes from UMP words in the event list
-        var allPacketData: [[UInt8]] = []
+        // Extract MIDI bytes from UMP words in the event list
+        // Tuple: (MIDI 1.0 bytes, umpWord1, umpWord2)
+        var allPacketData: [([UInt8], UInt32, UInt32)] = []
         for packet in eventList.unsafeSequence() {
             let wordCount = Int(packet.pointee.wordCount)
             guard wordCount > 0 else { continue }
@@ -560,7 +562,10 @@ public final class CoreMIDITransport: MIDITransport, @unchecked Sendable {
                 }
             }
 
-            for word in words {
+            // Index-based iteration to handle multi-word messages
+            var wi = 0
+            while wi < words.count {
+                let word = words[wi]
                 debugWordCount += 1
                 let messageType = (word >> 28) & 0x0F
                 debugLastWord = String(format: "0x%08X mt=%d wc=%d", word, messageType, wordCount)
@@ -570,8 +575,9 @@ public final class CoreMIDITransport: MIDITransport, @unchecked Sendable {
                     // System Real-Time / System Common (1 word)
                     let status = UInt8((word >> 16) & 0xFF)
                     if status >= 0xF0 {
-                        allPacketData.append([status])
+                        allPacketData.append(([status], 0, 0))
                     }
+                    wi += 1
 
                 case 0x2:
                     // MIDI 1.0 Channel Voice (1 word)
@@ -580,27 +586,76 @@ public final class CoreMIDITransport: MIDITransport, @unchecked Sendable {
                     let data2 = UInt8(word & 0xFF)
                     let statusNibble = status >> 4
                     if statusNibble == 0xC || statusNibble == 0xD {
-                        // Program Change, Channel Pressure: 2 bytes
-                        allPacketData.append([status, data1])
+                        allPacketData.append(([status, data1], 0, 0))
                     } else {
-                        // Note On/Off, CC, Pitch Bend, etc.: 3 bytes
-                        allPacketData.append([status, data1, data2])
+                        allPacketData.append(([status, data1, data2], 0, 0))
                     }
+                    wi += 1
 
                 case 0x3:
                     // Data / SysEx (64-bit, 2 words)
-                    // Extract SysEx bytes from word pair
-                    break
+                    wi += 2
+
+                case 0x4:
+                    // MIDI 2.0 Channel Voice (2 words)
+                    guard wi + 1 < words.count else { wi += 1; continue }
+                    let word2 = words[wi + 1]
+                    debugWordCount += 1
+
+                    let status = UInt8((word >> 20) & 0x0F)
+                    let channel = UInt8((word >> 16) & 0x0F)
+                    let byte3 = UInt8((word >> 8) & 0xFF)   // note or controller
+                    let statusByte = (status << 4) | channel
+
+                    switch status {
+                    case 0x9: // Note On (16-bit velocity in upper 16 of word2)
+                        let vel16 = UInt16((word2 >> 16) & 0xFFFF)
+                        let vel7 = UInt8(vel16 >> 9)  // scale 16→7 bit
+                        allPacketData.append(([0x90 | channel, byte3, max(1, vel7)], word, word2))
+
+                    case 0x8: // Note Off
+                        let vel16 = UInt16((word2 >> 16) & 0xFFFF)
+                        let vel7 = UInt8(vel16 >> 9)
+                        allPacketData.append(([0x80 | channel, byte3, vel7], word, word2))
+
+                    case 0xB: // Control Change (32-bit value)
+                        let val32 = word2
+                        let val7 = UInt8(val32 >> 25)  // scale 32→7 bit
+                        allPacketData.append(([0xB0 | channel, byte3, val7], word, word2))
+
+                    case 0xE: // Pitch Bend (32-bit unsigned, center=0x80000000)
+                        let val32 = word2
+                        let val14 = UInt16(val32 >> 18)  // scale 32→14 bit
+                        let lsb = UInt8(val14 & 0x7F)
+                        let msb = UInt8((val14 >> 7) & 0x7F)
+                        allPacketData.append(([0xE0 | channel, lsb, msb], word, word2))
+
+                    case 0xD: // Channel Pressure (32-bit)
+                        let val7 = UInt8(word2 >> 25)
+                        allPacketData.append(([0xD0 | channel, val7], word, word2))
+
+                    case 0xA: // Poly Aftertouch (32-bit)
+                        let val7 = UInt8(word2 >> 25)
+                        allPacketData.append(([0xA0 | channel, byte3, val7], word, word2))
+
+                    case 0xC: // Program Change
+                        let program = UInt8((word2 >> 8) & 0x7F)
+                        allPacketData.append(([0xC0 | channel, program], word, word2))
+
+                    default:
+                        break
+                    }
+                    wi += 2
 
                 default:
-                    break
+                    wi += 1
                 }
             }
         }
 
         Task { [weak self, allPacketData, sourceID] in
-            for data in allPacketData {
-                await self?.processReceivedData(data, from: sourceID)
+            for (data, w1, w2) in allPacketData {
+                await self?.processReceivedData(data, umpWord1: w1, umpWord2: w2, from: sourceID)
             }
         }
     }
@@ -634,7 +689,7 @@ public final class CoreMIDITransport: MIDITransport, @unchecked Sendable {
         }
     }
     
-    private func processReceivedData(_ data: [UInt8], from sourceID: MIDISourceID?) async {
+    private func processReceivedData(_ data: [UInt8], umpWord1: UInt32 = 0, umpWord2: UInt32 = 0, from sourceID: MIDISourceID?) async {
         guard !data.isEmpty else { return }
 
         // SysEx messages need assembly (may be fragmented across packets)
@@ -655,7 +710,7 @@ public final class CoreMIDITransport: MIDITransport, @unchecked Sendable {
                 let label = MIDITraceEntry.detectLabel(for: data)
                 tracer.recordReceive(from: sourceID?.value ?? 0, data: data, label: label)
             }
-            let received = MIDIReceivedData(data: data, sourceID: sourceID)
+            let received = MIDIReceivedData(data: data, umpWord1: umpWord1, umpWord2: umpWord2, sourceID: sourceID)
             receivedContinuation?.yield(received)
         }
     }
