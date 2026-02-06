@@ -159,6 +159,18 @@ public final class CoreMIDITransport: MIDITransport, @unchecked Sendable {
     /// print(transport.tracer?.dump() ?? "")
     /// ```
     public var tracer: MIDITracer?
+
+    /// Debug: number of times the CoreMIDI input callback was invoked
+    public private(set) var debugCallbackCount: Int = 0
+
+    /// Debug: number of UMP words / packets processed
+    public private(set) var debugWordCount: Int = 0
+
+    /// Debug: last callback info
+    public private(set) var debugLastCallback: String = "(none)"
+
+    /// Debug: last raw UMP word (hex)
+    public private(set) var debugLastWord: String = "(none)"
     
     // MARK: - Public Streams
     
@@ -523,12 +535,17 @@ public final class CoreMIDITransport: MIDITransport, @unchecked Sendable {
     
     /// Handle MIDIEventList from MIDIInputPortCreateWithProtocol
     private func handleEventList(_ eventList: UnsafePointer<MIDIEventList>, from sourceRef: MIDIEndpointRef?) {
+        debugCallbackCount += 1
+
         let sourceID: MIDISourceID?
         if let ref = sourceRef, ref != 0 {
             sourceID = MIDISourceID(UInt32(ref))
         } else {
             sourceID = nil
         }
+
+        let packetCount = Int(eventList.pointee.numPackets)
+        debugLastCallback = "pkts=\(packetCount) src=\(sourceRef.map { String($0) } ?? "nil")"
 
         // Extract MIDI 1.0 bytes from UMP words in the event list
         var allPacketData: [[UInt8]] = []
@@ -544,7 +561,9 @@ public final class CoreMIDITransport: MIDITransport, @unchecked Sendable {
             }
 
             for word in words {
+                debugWordCount += 1
                 let messageType = (word >> 28) & 0x0F
+                debugLastWord = String(format: "0x%08X mt=%d wc=%d", word, messageType, wordCount)
 
                 switch messageType {
                 case 0x1:
@@ -616,17 +635,27 @@ public final class CoreMIDITransport: MIDITransport, @unchecked Sendable {
     }
     
     private func processReceivedData(_ data: [UInt8], from sourceID: MIDISourceID?) async {
-        // Assemble SysEx messages
-        let messages = await sysExAssembler.process(data)
-        
-        for message in messages {
-            // Trace receive
-            if let tracer = tracer {
-                let label = MIDITraceEntry.detectLabel(for: message)
-                tracer.recordReceive(from: sourceID?.value ?? 0, data: message, label: label)
+        guard !data.isEmpty else { return }
+
+        // SysEx messages need assembly (may be fragmented across packets)
+        let hasPendingSysEx = await sysExAssembler.hasIncomplete
+        if data.first == 0xF0 || hasPendingSysEx {
+            let messages = await sysExAssembler.process(data)
+            for message in messages {
+                if let tracer = tracer {
+                    let label = MIDITraceEntry.detectLabel(for: message)
+                    tracer.recordReceive(from: sourceID?.value ?? 0, data: message, label: label)
+                }
+                let received = MIDIReceivedData(data: message, sourceID: sourceID)
+                receivedContinuation?.yield(received)
             }
-            
-            let received = MIDIReceivedData(data: message, sourceID: sourceID)
+        } else {
+            // Non-SysEx data: pass through directly
+            if let tracer = tracer {
+                let label = MIDITraceEntry.detectLabel(for: data)
+                tracer.recordReceive(from: sourceID?.value ?? 0, data: data, label: label)
+            }
+            let received = MIDIReceivedData(data: data, sourceID: sourceID)
             receivedContinuation?.yield(received)
         }
     }
