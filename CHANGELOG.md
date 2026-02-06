@@ -6,6 +6,32 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [1.0.9] - 2026-02-06
+
+### Added
+- **KORG ChannelList/ProgramList Auto-Conversion**: Automatically converts KORG proprietary format to standard format
+  - `PEProgramDef`: Auto-converts KORG format (`title`, `bankPC: [Int]`)
+    - `title` → `name` mapping
+    - `bankPC: [bankMSB, bankLSB, program]` → Auto-expands to individual properties
+    - Correctly handles explicit `program: 0` (distinguishes from `nil`)
+  - `PEChannelInfo`: Auto-converts KORG format (`bankPC: [Int]`)
+    - `bankPC: [bankMSB, bankLSB, program]` → Auto-expands to individual properties
+  - Maintains backward compatibility with standard format
+- **New APIs** (`MIDI2Client+KORG.swift`)
+  - `getChannelList(from:timeout:)`: Auto-detects vendor and selects `X-ChannelList`/`ChannelList`
+  - `getProgramList(from:timeout:)`: Auto-detects vendor and fetches ProgramList
+
+### Changed
+- **PETypes.swift**: Enhanced decoding for `PEProgramDef`, `PEChannelInfo`
+  - Supports both KORG and standard formats
+
+### Testing
+- **PETypesKORGFormatTests.swift**: Added 24 tests
+  - PEProgramDef KORG Format: 9 tests
+  - PEChannelInfo KORG Format: 7 tests
+  - Edge case tests: 7 tests (explicit `program: 0`, empty array, out-of-range values)
+  - ChannelList/ProgramList array decoding: 2 tests
+
 ## [1.0.8] - 2026-02-06
 
 ### Added
@@ -27,6 +53,11 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - `MIDI2ClientConfiguration.warmUpStrategy` replaces `warmUpBeforeResourceList`
 - Added `MIDI2ClientConfiguration.vendorOptimizations`
 - Added `MIDI2Error.invalidResponse` case
+
+### Performance
+- **KORG Optimization**: PE operations 99.1% faster (16.4s → 144ms)
+  - Skip ResourceList (16.4s)
+  - Direct X-ParameterList fetch (144ms)
 
 ## [1.0.7] - 2026-02-06
 
