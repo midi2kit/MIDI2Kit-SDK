@@ -113,6 +113,28 @@ public enum MIDI2ChannelVoiceStatus: UInt8, Sendable, CaseIterable {
     case perNoteManagement = 0xF
 }
 
+// MARK: - SysEx7 Status (Data 64)
+
+/// SysEx7 (Data 64) message status codes
+///
+/// Used in the status field of Data 64 (Type 0x3) UMP messages to indicate
+/// whether the packet is a complete message or part of a multi-packet sequence.
+///
+/// Reference: MIDI 2.0 UMP Specification, Section 3.1
+public enum SysEx7Status: UInt8, Sendable, CaseIterable {
+    /// Complete SysEx message in one packet (payload <= 6 bytes)
+    case complete = 0x0
+
+    /// First packet of a multi-packet SysEx message
+    case start = 0x1
+
+    /// Continuation packet of a multi-packet SysEx message
+    case `continue` = 0x2
+
+    /// Last packet of a multi-packet SysEx message
+    case end = 0x3
+}
+
 // MARK: - MIDI 1.0 Channel Voice Status (for UMP wrapping)
 
 /// MIDI 1.0 Channel Voice message status codes

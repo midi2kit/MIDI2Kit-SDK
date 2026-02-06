@@ -149,9 +149,28 @@ public enum UMPTranslator {
             let msb = UInt8((value14 >> 7) & 0x7F)
             return [0xE0 | channel.value, lsb, msb]
 
+        case .registeredController(_, let channel, let bank, let index, let value):
+            // RPN → CC 101 (RPN MSB) + CC 100 (RPN LSB) + CC 6 (Data Entry MSB)
+            let ch = channel.value
+            let dataMSB = downscale32to7(value)
+            return [
+                0xB0 | ch, 101, bank & 0x7F,
+                0xB0 | ch, 100, index & 0x7F,
+                0xB0 | ch, 6, dataMSB
+            ]
+
+        case .assignableController(_, let channel, let bank, let index, let value):
+            // NRPN → CC 99 (NRPN MSB) + CC 98 (NRPN LSB) + CC 6 (Data Entry MSB)
+            let ch = channel.value
+            let dataMSB = downscale32to7(value)
+            return [
+                0xB0 | ch, 99, bank & 0x7F,
+                0xB0 | ch, 98, index & 0x7F,
+                0xB0 | ch, 6, dataMSB
+            ]
+
         case .perNotePitchBend, .registeredPerNoteController, .assignablePerNoteController,
-             .perNoteManagement, .registeredController, .assignableController,
-             .relativeRegisteredController, .relativeAssignableController:
+             .perNoteManagement, .relativeRegisteredController, .relativeAssignableController:
             // These MIDI 2.0 specific messages don't have direct MIDI 1.0 equivalents
             return nil
         }
@@ -412,6 +431,92 @@ public enum UMPTranslator {
         // Shift to high bits and replicate
         let v = UInt32(value & 0x3FFF)
         return (v << 18) | (v << 4) | (v >> 10)
+    }
+}
+
+// MARK: - SysEx7 (Data 64) Conversion
+
+extension UMPTranslator {
+
+    /// Convert MIDI 1.0 SysEx bytes to UMP Data 64 packets
+    ///
+    /// Takes a complete MIDI 1.0 SysEx message (with or without F0/F7 framing)
+    /// and splits it into one or more UMP Data 64 packets.
+    ///
+    /// - Parameters:
+    ///   - bytes: MIDI 1.0 SysEx bytes (may include F0 prefix and F7 suffix)
+    ///   - group: UMP group (default: 0)
+    /// - Returns: Array of UMP packets, each a 2-word `[UInt32]`
+    public static func fromMIDI1SysEx(_ bytes: [UInt8], group: UMPGroup = 0) -> [[UInt32]] {
+        guard !bytes.isEmpty else { return [] }
+
+        // Strip F0 prefix and F7 suffix if present
+        var payload = bytes
+        if payload.first == 0xF0 { payload.removeFirst() }
+        if payload.last == 0xF7 { payload.removeLast() }
+
+        let maxBytesPerPacket = 6
+
+        // Short message: fits in a single Complete packet
+        if payload.count <= maxBytesPerPacket {
+            let packet = UMPBuilder.data64(
+                group: group.rawValue,
+                status: SysEx7Status.complete.rawValue,
+                numBytes: UInt8(payload.count),
+                data: payload
+            )
+            return [packet]
+        }
+
+        // Long message: Start + Continue... + End
+        var result: [[UInt32]] = []
+        var offset = 0
+        let totalBytes = payload.count
+
+        while offset < totalBytes {
+            let remaining = totalBytes - offset
+            let chunkSize = min(maxBytesPerPacket, remaining)
+            let chunk = Array(payload[offset..<(offset + chunkSize)])
+
+            let status: SysEx7Status
+            if offset == 0 {
+                status = .start
+            } else if offset + chunkSize >= totalBytes {
+                status = .end
+            } else {
+                status = .continue
+            }
+
+            let packet = UMPBuilder.data64(
+                group: group.rawValue,
+                status: status.rawValue,
+                numBytes: UInt8(chunkSize),
+                data: chunk
+            )
+            result.append(packet)
+            offset += chunkSize
+        }
+
+        return result
+    }
+
+    /// Convert a single UMP Data 64 (SysEx7) Complete packet to MIDI 1.0 SysEx bytes
+    ///
+    /// Only processes Complete status packets. For multi-packet SysEx, use `UMPSysEx7Assembler`.
+    ///
+    /// - Parameter parsed: Parsed UMP message
+    /// - Returns: MIDI 1.0 SysEx bytes `[F0, data..., F7]`, or nil if not a Complete SysEx7
+    public static func data64ToMIDI1SysEx(_ parsed: ParsedUMPMessage) -> [UInt8]? {
+        guard case .data64(_, let status, let bytes) = parsed else {
+            return nil
+        }
+        guard status == SysEx7Status.complete.rawValue else {
+            return nil
+        }
+        var result: [UInt8] = [0xF0]
+        result.append(contentsOf: bytes)
+        result.append(0xF7)
+        return result
     }
 }
 

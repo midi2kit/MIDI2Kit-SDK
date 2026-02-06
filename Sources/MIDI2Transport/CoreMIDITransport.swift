@@ -638,8 +638,8 @@ public final class CoreMIDITransport: MIDITransport, @unchecked Sendable {
                         let val7 = UInt8(word2 >> 25)
                         allPacketData.append(([0xA0 | channel, byte3, val7], word, word2))
 
-                    case 0xC: // Program Change
-                        let program = UInt8((word2 >> 8) & 0x7F)
+                    case 0xC: // Program Change (program at bits 31-24 of word2)
+                        let program = UInt8((word2 >> 24) & 0x7F)
                         allPacketData.append(([0xC0 | channel, program], word, word2))
 
                     default:

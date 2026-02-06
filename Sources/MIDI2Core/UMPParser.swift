@@ -230,27 +230,30 @@ public enum UMPParser {
     
     private static func parseData64(_ words: [UInt32]) -> ParsedUMPMessage {
         guard words.count >= 2 else { return .unknown(words: words) }
-        
+
         let word0 = words[0]
         let word1 = words[1]
-        
+
         let group = UInt8((word0 >> 24) & 0x0F)
         let status = UInt8((word0 >> 20) & 0x0F)
-        
-        // Extract bytes from remaining bits
+        let numBytes = Int((word0 >> 16) & 0x0F)
+
+        // Extract all 6 data bytes from remaining bits
         var bytes: [UInt8] = []
-        
+
         // Word 0: bits 15-0 (2 bytes)
         bytes.append(UInt8((word0 >> 8) & 0xFF))
         bytes.append(UInt8(word0 & 0xFF))
-        
+
         // Word 1: all 4 bytes
         bytes.append(UInt8((word1 >> 24) & 0xFF))
         bytes.append(UInt8((word1 >> 16) & 0xFF))
         bytes.append(UInt8((word1 >> 8) & 0xFF))
         bytes.append(UInt8(word1 & 0xFF))
-        
-        return .data64(group: group, status: status, bytes: bytes)
+
+        // Trim to actual number of valid bytes (numBytes field, 0-6)
+        let validCount = min(numBytes, 6)
+        return .data64(group: group, status: status, bytes: Array(bytes.prefix(validCount)))
     }
     
     private static func parseData128(_ words: [UInt32]) -> ParsedUMPMessage {

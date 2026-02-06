@@ -342,6 +342,45 @@ public enum UMPBuilder {
         return [word0, 0]
     }
     
+    // MARK: - Data 64-bit Messages (SysEx7)
+
+    /// Build a Data 64-bit (SysEx7) UMP message
+    ///
+    /// - Parameters:
+    ///   - group: UMP group (0-15)
+    ///   - status: SysEx7 status (complete/start/continue/end)
+    ///   - numBytes: Number of valid data bytes (0-6)
+    ///   - data: Data bytes (up to 6; excess bytes are ignored, missing bytes are zero-filled)
+    /// - Returns: Array of 2 UInt32 words
+    public static func data64(
+        group: UInt8,
+        status: UInt8,
+        numBytes: UInt8,
+        data: [UInt8]
+    ) -> [UInt32] {
+        let clampedNum = min(numBytes, 6)
+
+        // Pad data to 6 bytes
+        var d = [UInt8](repeating: 0, count: 6)
+        for i in 0..<min(Int(clampedNum), data.count) {
+            d[i] = data[i]
+        }
+
+        let word0 = UInt32(UMPMessageType.data64.rawValue) << 28 |
+                     UInt32(group & 0x0F) << 24 |
+                     UInt32(status & 0x0F) << 20 |
+                     UInt32(clampedNum) << 16 |
+                     UInt32(d[0]) << 8 |
+                     UInt32(d[1])
+
+        let word1 = UInt32(d[2]) << 24 |
+                     UInt32(d[3]) << 16 |
+                     UInt32(d[4]) << 8 |
+                     UInt32(d[5])
+
+        return [word0, word1]
+    }
+
     // MARK: - MIDI 1.0 over UMP (32-bit)
     
     /// Build a MIDI 1.0 Control Change wrapped in UMP (32-bit)
