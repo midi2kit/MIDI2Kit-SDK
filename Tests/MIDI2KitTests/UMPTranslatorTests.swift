@@ -297,6 +297,92 @@ struct UMPTranslatorTests {
         #expect(messages[2] is UMPSystemRealTime)  // Start
     }
 
+    // MARK: - RPN/NRPN to MIDI 1.0
+
+    @Test("RPN (Registered Controller) to MIDI 1.0 CC sequence")
+    func rpnToMidi1() {
+        let ump = UMPMIDI2ChannelVoice.registeredController(
+            group: 0, channel: 0, bank: 0, index: 0, value: 0x80000000
+        )
+        let bytes = UMPTranslator.toMIDI1(ump)
+
+        // RPN: CC 101 (bank), CC 100 (index), CC 6 (data entry MSB)
+        // 0x80000000 >> 25 = 64
+        #expect(bytes == [0xB0, 101, 0, 0xB0, 100, 0, 0xB0, 6, 64])
+    }
+
+    @Test("NRPN (Assignable Controller) to MIDI 1.0 CC sequence")
+    func nrpnToMidi1() {
+        let ump = UMPMIDI2ChannelVoice.assignableController(
+            group: 0, channel: 0, bank: 3, index: 7, value: 0xFFFFFFFF
+        )
+        let bytes = UMPTranslator.toMIDI1(ump)
+
+        // NRPN: CC 99 (bank), CC 98 (index), CC 6 (data entry MSB)
+        // 0xFFFFFFFF >> 25 = 127
+        #expect(bytes == [0xB0, 99, 3, 0xB0, 98, 7, 0xB0, 6, 127])
+    }
+
+    @Test("RPN on different channel")
+    func rpnDifferentChannel() {
+        let ump = UMPMIDI2ChannelVoice.registeredController(
+            group: 0, channel: 9, bank: 0, index: 5, value: 0x00000000
+        )
+        let bytes = UMPTranslator.toMIDI1(ump)
+
+        // Channel 9 → 0xB9
+        #expect(bytes == [0xB9, 101, 0, 0xB9, 100, 5, 0xB9, 6, 0])
+    }
+
+    @Test("RPN with zero value")
+    func rpnZeroValue() {
+        let ump = UMPMIDI2ChannelVoice.registeredController(
+            group: 0, channel: 0, bank: 0, index: 0, value: 0
+        )
+        let bytes = UMPTranslator.toMIDI1(ump)
+
+        #expect(bytes != nil)
+        #expect(bytes![8] == 0) // Data entry MSB should be 0
+    }
+
+    @Test("Relative RPN returns nil (no MIDI 1.0 equivalent)")
+    func relativeRpnReturnsNil() {
+        let ump = UMPMIDI2ChannelVoice.relativeRegisteredController(
+            group: 0, channel: 0, bank: 0, index: 0, value: 100
+        )
+        #expect(UMPTranslator.toMIDI1(ump) == nil)
+    }
+
+    @Test("Relative NRPN returns nil (no MIDI 1.0 equivalent)")
+    func relativeNrpnReturnsNil() {
+        let ump = UMPMIDI2ChannelVoice.relativeAssignableController(
+            group: 0, channel: 0, bank: 0, index: 0, value: -50
+        )
+        #expect(UMPTranslator.toMIDI1(ump) == nil)
+    }
+
+    @Test("RPN/NRPN in batch toMIDI1Stream")
+    func rpnNrpnInBatchStream() {
+        let messages: [any UMPMessage] = [
+            UMPMIDI2ChannelVoice.registeredController(
+                group: 0, channel: 0, bank: 0, index: 0, value: 0x80000000
+            ),
+            UMPMIDI1ChannelVoice.noteOn(group: 0, channel: 0, note: 60, velocity: 100)
+        ]
+
+        let stream = UMPTranslator.toMIDI1Stream(messages)
+
+        // RPN (9 bytes) + Note On (3 bytes) = 12 bytes
+        #expect(stream.count == 12)
+        // RPN part
+        #expect(stream[0] == 0xB0)
+        #expect(stream[1] == 101)
+        // Note On part
+        #expect(stream[9] == 0x90)
+        #expect(stream[10] == 60)
+        #expect(stream[11] == 100)
+    }
+
     // MARK: - Edge Cases
 
     @Test("Empty bytes return nil")

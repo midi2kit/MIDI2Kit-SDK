@@ -251,6 +251,38 @@ public enum UMP {
         }
     }
     
+    // MARK: - SysEx7 (Data 64) Messages
+
+    /// SysEx7 (Data 64) message factory
+    public enum sysEx7 {
+
+        /// Convert MIDI 1.0 SysEx bytes to UMP Data 64 packets
+        ///
+        /// - Parameters:
+        ///   - group: UMP group (default: 0)
+        ///   - bytes: MIDI 1.0 SysEx bytes (with or without F0/F7 framing)
+        /// - Returns: Array of UMP packets, each a 2-word `[UInt32]`
+        public static func fromMIDI1(group: UMPGroup = 0, bytes: [UInt8]) -> [[UInt32]] {
+            UMPTranslator.fromMIDI1SysEx(bytes, group: group)
+        }
+
+        /// Build a single Complete SysEx7 packet (payload must be <= 6 bytes)
+        ///
+        /// - Parameters:
+        ///   - group: UMP group (default: 0)
+        ///   - payload: SysEx data bytes (without F0/F7), max 6 bytes
+        /// - Returns: 2-word UMP packet, or nil if payload exceeds 6 bytes
+        public static func complete(group: UMPGroup = 0, payload: [UInt8]) -> [UInt32]? {
+            guard payload.count <= 6 else { return nil }
+            return UMPBuilder.data64(
+                group: group.rawValue,
+                status: SysEx7Status.complete.rawValue,
+                numBytes: UInt8(payload.count),
+                data: payload
+            )
+        }
+    }
+
     // MARK: - System Messages
     
     /// System message factory
