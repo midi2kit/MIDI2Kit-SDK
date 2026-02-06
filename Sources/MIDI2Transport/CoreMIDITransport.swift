@@ -762,11 +762,19 @@ private func getEndpointName(_ endpoint: MIDIEndpointRef) -> String {
         let destRef = MIDIEndpointRef(destination.value)
         var protocolID: Int32 = 0
         let status = MIDIObjectGetIntegerProperty(destRef, kMIDIPropertyProtocolID, &protocolID)
-        
+
         if status == noErr, protocolID == 2 {
             return ._2_0
         }
         return ._1_0
+    }
+
+    /// Detect the transport type for a destination endpoint
+    ///
+    /// - Parameter destination: Destination endpoint ID
+    /// - Returns: Detected transport type
+    public func transportType(for destination: MIDIDestinationID) -> MIDITransportType {
+        MIDITransportType.detect(for: MIDIEndpointRef(destination.value))
     }
 }
 

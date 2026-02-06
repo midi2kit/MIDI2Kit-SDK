@@ -7,6 +7,126 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.9] - 2026-02-06
+
+### Added
+- **KORG ChannelList/ProgramList Auto-Conversion**: Auto-convert KORG proprietary format to standard format
+  - `PEProgramDef`: Auto-convert KORG format (`title`, `bankPC: [Int]`)
+    - `title` → `name` mapping
+    - `bankPC: [bankMSB, bankLSB, program]` → Auto-expand to individual properties
+    - Correctly handles explicit `program: 0` (distinguishes from `nil`)
+  - `PEChannelInfo`: Auto-convert KORG format (`bankPC: [Int]`)
+    - `bankPC: [bankMSB, bankLSB, program]` → Auto-expand to individual properties
+  - Maintains backward compatibility with standard format
+
+- **New APIs** (`MIDI2Client+KORG.swift`)
+  - `getChannelList(from:timeout:)`: Auto-detect vendor and select `X-ChannelList`/`ChannelList`
+  - `getProgramList(from:timeout:)`: Auto-detect vendor and fetch ProgramList
+
+### Changed
+- **PETypes.swift**: Enhanced decoding for `PEProgramDef`, `PEChannelInfo`
+  - Supports both KORG and standard formats
+
+### Testing
+- **PETypesKORGFormatTests.swift**: Added 24 tests
+  - PEProgramDef KORG Format: 9 tests
+  - PEChannelInfo KORG Format: 7 tests
+  - Edge case tests: 7 tests (explicit `program: 0`, empty array, out-of-range values)
+  - ChannelList/ProgramList array decoding: 2 tests
+
+## [1.0.8] - 2026-02-06
+
+### Added
+- **KORG最適化機能** (`PEKORGTypes.swift`, `MIDI2Client+KORG.swift`)
+  - `PEXParameter`: KORG X-ParameterListエントリ（CC番号→パラメータ名マッピング）
+  - `PEXParameterValue`: X-ProgramEdit内のパラメータ値
+  - `PEXProgramEdit`: X-ProgramEdit（現在のプログラムデータ）
+  - `MIDIVendor`: ベンダー識別enum
+  - `VendorOptimization`: ベンダー別最適化オプション
+  - `VendorOptimizationConfig`: ベンダー最適化設定
+
+- **KORG拡張API** (`MIDI2Client+KORG.swift`)
+  - `getXParameterList(from:timeout:)`: X-ParameterList取得
+  - `getXParameterListWithResponse(from:timeout:)`: レスポンス付き取得
+  - `getXProgramEdit(from:timeout:)`: X-ProgramEdit取得
+  - `getXProgramEdit(channel:from:timeout:)`: チャンネル指定X-ProgramEdit取得
+  - `getOptimizedResources(from:preferVendorResources:)`: 最適化パス自動選択
+    - KORGデバイス: ResourceListをスキップしてX-ParameterList直接取得（99%高速化）
+    - 他のベンダー: 標準パスにフォールバック
+
+- **Adaptive WarmUp Strategy** (`WarmUpStrategy.swift`)
+  - `WarmUpStrategy` enum: `.always`, `.never`, `.adaptive`, `.vendorBased`
+  - `WarmUpCache` actor: デバイスごとの成功/失敗記録（in-memory、TTL付き）
+  - `WarmUpCacheDiagnostics`: キャッシュ診断情報
+
+### Changed
+- **MIDI2ClientConfiguration.swift**
+  - `warmUpBeforeResourceList: Bool` → `warmUpStrategy: WarmUpStrategy` (後方互換性維持)
+  - `vendorOptimizations: VendorOptimizationConfig` 追加
+  - デフォルト: `.adaptive` warmup strategy
+
+- **MIDI2Client.swift**
+  - WarmUpCache統合
+  - `getResourceList()`: adaptive戦略対応
+  - vendorBased戦略: KORG+useXParameterListAsWarmup時はX-ParameterListでwarmup
+
+- **MIDI2Error.swift**
+  - `.invalidResponse(muid:resource:details:)` ケース追加
+
+### Performance
+- **KORG最適化**: PE操作が99.1%高速化（16.4秒 → 144ms）
+  - ResourceList (16.4秒) をスキップ
+  - X-ParameterList直接取得 (144ms)
+
+### Testing
+- **PEKORGTypesTests.swift**: 25テスト追加
+  - PEXParameterTests: 9テスト
+  - PEXParameterValueTests: 3テスト
+  - PEXProgramEditTests: 5テスト
+  - MIDIVendorTests: 4テスト
+  - VendorOptimizationConfigTests: 4テスト
+
+- **WarmUpStrategyTests.swift**: 20テスト追加
+  - WarmUpStrategyTests: 4テスト
+  - WarmUpCacheTests: 12テスト
+  - WarmUpCacheDiagnosticsTests: 1テスト
+  - ConfigurationWarmUpStrategyTests: 3テスト
+
+### Documentation
+- **docs/KORG-Optimization.md**: KORG最適化ガイド（日本語）
+
+## [1.0.7] - 2026-02-06
+
+### Fixed
+- **AsyncStream race condition fixed**: Fixed similar bugs in 4 files
+  - `CoreMIDITransport.swift`: Production MIDI I/O (highest priority)
+  - `MockMIDITransport.swift`: Test infrastructure
+  - `LoopbackTransport.swift`: Test infrastructure
+  - `PESubscriptionManager.swift`: Subscription events
+  - Unified all AsyncStreams to `makeStream()` pattern
+
+### Changed
+- **AsyncStream initialization**: Unified from closure pattern (deferred execution) to `makeStream()` (immediate execution)
+  - Prevents race conditions
+  - Ensures continuation is set
+
+## [1.0.6] - 2026-02-06
+
+### Fixed
+- **CIManager.events AsyncStream race condition**: Critical bug fix
+  - AsyncStream continuation was not set correctly in `CIManager.init()`
+  - Old closure pattern (deferred execution) left `eventContinuation` as `nil`
+  - Fixed by using `AsyncStream.makeStream()` to immediately get continuation
+  - `.deviceDiscovered`, `.deviceLost` events now fire correctly
+
+### Impact
+- **Affected**: All code using CIManager directly
+- **Symptom**: `CIManager.events` stream never fires events
+- **Resolution**: Update to v1.0.6 for events to fire correctly
+
+### Testing
+- All 387 tests pass
+
 ## [1.0.4] - 2026-02-05 (SDK Release)
 
 ### Changed

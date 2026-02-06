@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import MIDI2Core
 
 /// Standard Property Exchange resource names
 ///
@@ -272,58 +273,7 @@ public struct PESchemaProperty: Sendable, Codable, Equatable {
     }
 }
 
-/// Type-erased codable value for JSON Schema defaults
-public enum AnyCodableValue: Sendable, Codable, Equatable {
-    case string(String)
-    case int(Int)
-    case double(Double)
-    case bool(Bool)
-    case null
-    
-    public init(from decoder: Decoder) throws {
-        let container = try decoder.singleValueContainer()
-        
-        if container.decodeNil() {
-            self = .null
-            return
-        }
-        if let bool = try? container.decode(Bool.self) {
-            self = .bool(bool)
-            return
-        }
-        if let int = try? container.decode(Int.self) {
-            self = .int(int)
-            return
-        }
-        if let double = try? container.decode(Double.self) {
-            self = .double(double)
-            return
-        }
-        if let string = try? container.decode(String.self) {
-            self = .string(string)
-            return
-        }
-        
-        throw DecodingError.typeMismatch(
-            AnyCodableValue.self,
-            DecodingError.Context(
-                codingPath: decoder.codingPath,
-                debugDescription: "Unsupported value type"
-            )
-        )
-    }
-    
-    public func encode(to encoder: Encoder) throws {
-        var container = encoder.singleValueContainer()
-        switch self {
-        case .string(let v): try container.encode(v)
-        case .int(let v): try container.encode(v)
-        case .double(let v): try container.encode(v)
-        case .bool(let v): try container.encode(v)
-        case .null: try container.encodeNil()
-        }
-    }
-}
+// AnyCodableValue is provided by MIDI2Core
 
 // MARK: - PE Resource Entry
 

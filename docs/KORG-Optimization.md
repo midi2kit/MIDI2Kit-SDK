@@ -1,16 +1,16 @@
-# KORG最適化ガイド (v1.0.8+)
+# KORG Optimization Guide (v1.0.8+)
 
-MIDI2Kit v1.0.8では、KORG Module ProなどのKORGデバイス向けに大幅なパフォーマンス改善を実現する最適化機能が追加されました。この最適化により、Property Exchangeのリソース取得時間を**99%以上削減**（16.4秒 → 144ms）できます。
+MIDI2Kit v1.0.8 introduces significant performance improvements for KORG devices like KORG Module Pro. These optimizations achieve **99% reduction** in Property Exchange resource fetch time (16.4s → 144ms).
 
-## 主な新機能
+## Key New Features
 
-### 1. 最適化されたリソース取得API
+### 1. Optimized Resource Fetch API
 
-従来の`getResourceList()`を使用したワークフローを大幅に高速化する新しいAPIです。
+New APIs dramatically speed up the traditional `getResourceList()` workflow.
 
 #### `getOptimizedResources(from:preferVendorResources:)`
 
-デバイスのベンダーを自動検出し、可能な場合は最適化されたパスを使用してリソース情報を取得します。
+Auto-detects device vendor and uses optimized path when available to fetch resource information.
 
 ```swift
 import MIDI2Kit
@@ -18,192 +18,192 @@ import MIDI2Kit
 let client = try MIDI2Client(name: "MyApp")
 try await client.start()
 
-// デバイス検出後
+// After device discovery
 let result = try await client.getOptimizedResources(from: device.muid)
 
 if result.usedOptimizedPath {
-    // KORG最適化パスが使用された（99%高速化）
+    // KORG optimized path used (99% faster)
     if let params = result.xParameterList {
-        print("取得したパラメータ数: \(params.count)")
+        print("Fetched \(params.count) parameters")
         for param in params {
             print("CC\(param.controlCC): \(param.displayName)")
         }
     }
 } else {
-    // 標準パスが使用された
+    // Standard path used
     if let resources = result.standardResourceList {
-        print("利用可能なリソース: \(resources.map { $0.resource })")
+        print("Available resources: \(resources.map { $0.resource })")
     }
 }
 ```
 
-**パフォーマンス比較:**
+**Performance Comparison:**
 
-| アプローチ | 所要時間 | 説明 |
-|----------|---------|------|
-| 従来の方法（ResourceList経由） | 16.4秒 | DeviceInfo warmup + ResourceList取得 |
-| **最適化パス（v1.0.8）** | **144ms** | **X-ParameterList直接取得（99.1%改善）** |
+| Approach | Duration | Description |
+|----------|----------|-------------|
+| Traditional (via ResourceList) | 16.4s | DeviceInfo warmup + ResourceList fetch |
+| **Optimized Path (v1.0.8)** | **144ms** | **Direct X-ParameterList fetch (99.1% improvement)** |
 
-### 2. KORG専用型定義
+### 2. KORG-Specific Type Definitions
 
-KORGデバイスが提供する独自のProperty Exchangeリソースを扱うための型定義が追加されました。
+Type definitions for handling KORG-proprietary Property Exchange resources.
 
-#### PEXParameter - X-ParameterList エントリ
+#### PEXParameter - X-ParameterList Entry
 
-KORG Module Proなどのデバイスでは、`X-ParameterList`リソースでCC番号とパラメータ名のマッピングを提供します。
+KORG devices like Module Pro provide CC number to parameter name mapping via `X-ParameterList` resource.
 
 ```swift
 let params = try await client.getXParameterList(from: device.muid)
 
 for param in params {
     print("\(param.displayName) (CC\(param.controlCC))")
-    print("  範囲: \(param.effectiveMinValue) - \(param.effectiveMaxValue)")
+    print("  Range: \(param.effectiveMinValue) - \(param.effectiveMaxValue)")
     if let defaultValue = param.defaultValue {
-        print("  デフォルト: \(defaultValue)")
+        print("  Default: \(defaultValue)")
     }
 }
 ```
 
-**便利な拡張メソッド:**
+**Convenient Extension Methods:**
 
 ```swift
-// CC番号からパラメータを検索
+// Find parameter by CC number
 if let level = params.parameter(for: 11) {
-    print("CC11 は \(level.displayName)")
+    print("CC11 is \(level.displayName)")
 }
 
-// CC番号から表示名を取得
+// Get display name for CC number
 let name = params.displayName(for: 11) // "Inst Level" or "CC11"
 
-// CC -> パラメータの辞書を作成
+// Create CC → parameter dictionary
 let dict = params.byControlCC
 if let param = dict[11] {
     print(param.displayName)
 }
 ```
 
-#### PEXProgramEdit - X-ProgramEdit データ
+#### PEXProgramEdit - X-ProgramEdit Data
 
-現在のプログラム情報と全パラメータの現在値を取得します。
+Fetch current program information and all parameter values.
 
 ```swift
 let program = try await client.getXProgramEdit(from: device.muid)
 
-print("プログラム名: \(program.displayName)")
+print("Program: \(program.displayName)")
 if let category = program.category {
-    print("カテゴリ: \(category)")
+    print("Category: \(category)")
 }
 
-// 全パラメータ値を取得
+// Get all parameter values
 for (cc, value) in program.parameterValues {
     print("CC\(cc) = \(value)")
 }
 
-// 特定のCCの値を取得
+// Get specific CC value
 if let level = program.value(for: 11) {
     print("Inst Level: \(level)")
 }
 ```
 
-**チャンネル指定での取得:**
+**Channel-Specific Fetch:**
 
 ```swift
-// MIDI チャンネル 0 (Ch.1) のプログラムを取得
+// Get program for MIDI channel 0 (Ch.1)
 let ch1Program = try await client.getXProgramEdit(channel: 0, from: device.muid)
 ```
 
-#### PEXParameterValue - パラメータ値
+#### PEXParameterValue - Parameter Value
 
-`PEXProgramEdit`内で使用される個々のパラメータ値を表します。
+Represents individual parameter values within `PEXProgramEdit`.
 
 ```swift
 public struct PEXParameterValue: Sendable, Codable {
-    public let controlCC: Int  // CC番号
-    public let value: Int      // 現在値 (0-127)
+    public let controlCC: Int  // CC number
+    public let value: Int      // Current value (0-127)
 }
 ```
 
-### 3. Adaptive Warm-Up戦略
+### 3. Adaptive Warm-Up Strategy
 
-デバイスとの接続状態に応じて、自動的にwarm-upの必要性を判断する戦略が追加されました。
+Auto-determines warm-up necessity based on connection state.
 
 #### WarmUpStrategy
 
-BLE MIDI接続では、最初のリクエストが不安定になることがあります。warm-up戦略により、必要な場合のみwarm-upを実行して信頼性とパフォーマンスを両立します。
+BLE MIDI connections can be unstable on first request. Warm-up strategy balances reliability and performance by executing warm-up only when needed.
 
 ```swift
 var config = MIDI2ClientConfiguration()
 
-// Adaptive戦略（推奨・デフォルト）
+// Adaptive strategy (recommended, default)
 config.warmUpStrategy = .adaptive
 
 let client = try MIDI2Client(name: "MyApp", configuration: config)
 ```
 
-**利用可能な戦略:**
+**Available Strategies:**
 
-| 戦略 | 動作 | 用途 |
-|-----|------|-----|
-| `.always` | 常にwarm-upを実行 | 最も信頼性が高いが遅い。接続問題が既知のデバイス向け |
-| `.never` | warm-upを実行しない | 最速だが失敗する可能性。warm-up不要と判明しているデバイス向け |
-| **`.adaptive`** | **初回は試行、失敗を記憶** | **（推奨）初回は高速、必要なデバイスのみ自動学習** |
-| `.vendorBased` | ベンダー固有の最適化を使用 | KORG向けにX-ParameterListをwarmupとして使用 |
+| Strategy | Behavior | Use Case |
+|----------|----------|----------|
+| `.always` | Always warm-up | Most reliable but slower. For devices with known connection issues |
+| `.never` | Never warm-up | Fastest but may fail. For devices known not to need warm-up |
+| **`.adaptive`** | **Try first, remember failures** | **Recommended: Fast initially, auto-learns for devices needing warm-up** |
+| `.vendorBased` | Use vendor-specific optimization | KORG: Use X-ParameterList as warmup |
 
-#### Adaptiveの仕組み
+#### How Adaptive Works
 
 ```
-1回目のリクエスト
-  → warm-upなしで試行
-  → 成功 → 次回もwarm-upなし（高速）
-  → 失敗 → warm-upありで再試行 → 次回からはwarm-upあり（信頼性）
+First Request:
+  → Try without warm-up
+  → Success → Next time no warm-up (fast)
+  → Failure → Retry with warm-up → Next time with warm-up (reliable)
 ```
 
-デバイスごとに成功/失敗パターンを記憶するため、アプリケーション実行中は最適な動作を維持します。
+Device-specific success/failure patterns are remembered for optimal behavior during app runtime.
 
-#### キャッシュ診断
+#### Cache Diagnostics
 
 ```swift
 let cache = await client.warmUpCache
 let diag = await cache.diagnostics
 
 print(diag.description)
-// 出力例: "WarmUpCache: 2 need warm-up, 3 don't, 5 total"
+// Example output: "WarmUpCache: 2 need warm-up, 3 don't, 5 total"
 ```
 
-### 4. ベンダー別最適化設定
+### 4. Vendor-Specific Optimization Settings
 
-デバイスのベンダーごとに異なる最適化を有効化できます。
+Enable different optimizations per device vendor.
 
 #### VendorOptimization
 
 ```swift
 var config = MIDI2ClientConfiguration()
 
-// デフォルト（KORG最適化が有効）
+// Default (KORG optimization enabled)
 config.vendorOptimizations = .default
 
-// 全ての最適化を無効化
+// Disable all optimizations
 config.vendorOptimizations = .none
 
-// カスタム最適化
+// Custom optimization
 config.vendorOptimizations.enable(.skipResourceListWhenPossible, for: .korg)
 config.vendorOptimizations.enable(.useXParameterListAsWarmup, for: .korg)
 
 let client = try MIDI2Client(name: "MyApp", configuration: config)
 ```
 
-**KORGで有効な最適化:**
+**KORG-Enabled Optimizations:**
 
-| 最適化 | 効果 | パフォーマンス影響 |
-|-------|------|-----------------|
-| `.skipResourceListWhenPossible` | ResourceListを飛ばしてX-ParameterListを直接取得 | **99%高速化** |
-| `.useXParameterListAsWarmup` | X-ParameterListをwarm-upとして使用 | BLE接続の安定性向上 |
-| `.preferVendorResources` | 標準リソースよりベンダー固有リソースを優先 | より詳細な情報を取得 |
-| `.extendedMultiChunkTimeout` | マルチチャンクレスポンスのタイムアウトを延長 | BLE環境でのタイムアウト防止 |
+| Optimization | Effect | Performance Impact |
+|--------------|--------|-------------------|
+| `.skipResourceListWhenPossible` | Skip ResourceList, directly fetch X-ParameterList | **99% faster** |
+| `.useXParameterListAsWarmup` | Use X-ParameterList as warm-up | Improves BLE connection stability |
+| `.preferVendorResources` | Prefer vendor-specific over standard resources | Fetch more detailed info |
+| `.extendedMultiChunkTimeout` | Extend timeout for multi-chunk responses | Prevent timeouts in BLE environment |
 
-#### MIDIVendor列挙型
+#### MIDIVendor Enum
 
-サポートされているベンダー:
+Supported vendors:
 
 ```swift
 public enum MIDIVendor: String {
@@ -218,11 +218,11 @@ public enum MIDIVendor: String {
 }
 ```
 
-ベンダーは`DeviceInfo`のmanufacturerNameから自動検出されます。
+Vendor is auto-detected from `DeviceInfo` manufacturerName.
 
-## 実用例
+## Practical Examples
 
-### 例1: KORG Module Proのパラメータ一覧を高速取得
+### Example 1: Quickly Fetch KORG Module Pro Parameter List
 
 ```swift
 import MIDI2Kit
@@ -230,22 +230,22 @@ import MIDI2Kit
 let client = try MIDI2Client(name: "MIDIController")
 try await client.start()
 
-// デバイス検出を待機
+// Wait for device discovery
 for await event in await client.makeEventStream() {
     guard case .deviceDiscovered(let device) = event else { continue }
     guard device.supportsPropertyExchange else { continue }
 
-    // KORG最適化パスで取得（144ms）
+    // Fetch with KORG optimized path (144ms)
     let result = try await client.getOptimizedResources(from: device.muid)
 
     if let params = result.xParameterList {
-        print("✅ KORG最適化: \(params.count)個のパラメータを取得")
+        print("✅ KORG optimized: Fetched \(params.count) parameters")
 
-        // CC別にグループ化して表示
+        // Display grouped by CC
         for param in params.sorted(by: { $0.controlCC < $1.controlCC }) {
             print("  CC\(String(format: "%3d", param.controlCC)): \(param.displayName)")
             if let category = param.category {
-                print("         カテゴリ: \(category)")
+                print("         Category: \(category)")
             }
         }
     }
@@ -256,190 +256,190 @@ for await event in await client.makeEventStream() {
 await client.stop()
 ```
 
-### 例2: 現在のプログラムとパラメータ値を取得
+### Example 2: Fetch Current Program and Parameter Values
 
 ```swift
-// プログラム情報を取得
+// Get program info
 let program = try await client.getXProgramEdit(from: device.muid)
 
-print("📋 現在のプログラム: \(program.displayName)")
+print("📋 Current Program: \(program.displayName)")
 
-// パラメータ定義を取得
+// Get parameter definitions
 let params = try await client.getXParameterList(from: device.muid)
 
-// 現在値と定義を組み合わせて表示
+// Display combined current values and definitions
 for param in params {
     if let currentValue = program.value(for: param.controlCC) {
         let percentage = Double(currentValue - param.effectiveMinValue) /
                         Double(param.effectiveMaxValue - param.effectiveMinValue) * 100
 
         print("\(param.displayName):")
-        print("  現在値: \(currentValue)")
-        print("  範囲: \(param.effectiveMinValue)-\(param.effectiveMaxValue)")
-        print("  割合: \(String(format: "%.1f", percentage))%")
+        print("  Current: \(currentValue)")
+        print("  Range: \(param.effectiveMinValue)-\(param.effectiveMaxValue)")
+        print("  Percentage: \(String(format: "%.1f", percentage))%")
     }
 }
 ```
 
-### 例3: Adaptive戦略でリソースリスト取得を最適化
+### Example 3: Optimize ResourceList Fetch with Adaptive Strategy
 
 ```swift
 var config = MIDI2ClientConfiguration()
-config.warmUpStrategy = .adaptive  // デフォルト
+config.warmUpStrategy = .adaptive  // Default
 
 let client = try MIDI2Client(name: "MyApp", configuration: config)
 try await client.start()
 
-// 初回: warm-upなしで試行（高速）
-// 成功した場合、次回もwarm-upなし
+// First time: Try without warm-up (fast)
+// If successful, next time also no warm-up
 do {
     let resources = try await client.getResourceList(from: device.muid)
-    print("✅ リソースリスト取得成功（warm-upなし）")
+    print("✅ ResourceList fetch succeeded (no warm-up)")
 } catch {
-    // 失敗した場合、自動的にwarm-upありで再試行され、次回から記憶される
-    print("⚠️ 初回失敗、warm-upありで再試行中...")
+    // If failed, auto-retries with warm-up, remembers for next time
+    print("⚠️ First attempt failed, retrying with warm-up...")
 }
 
-// 2回目以降: キャッシュされた戦略を使用（自動最適化）
+// Second time and beyond: Use cached strategy (auto-optimized)
 let resources = try await client.getResourceList(from: device.muid)
 ```
 
-### 例4: ベンダー固有warm-up戦略を使用
+### Example 4: Use Vendor-Specific Warm-Up Strategy
 
 ```swift
 var config = MIDI2ClientConfiguration()
 config.warmUpStrategy = .vendorBased
-config.vendorOptimizations = .default  // KORG最適化を有効化
+config.vendorOptimizations = .default  // Enable KORG optimization
 
 let client = try MIDI2Client(name: "MyApp", configuration: config)
 try await client.start()
 
-// KORGデバイスの場合、X-ParameterListがwarmupとして使用される
-// 他のベンダーの場合、.adaptiveと同じ動作
+// For KORG devices, X-ParameterList is used as warmup
+// For other vendors, behaves like .adaptive
 let resources = try await client.getResourceList(from: device.muid)
 ```
 
-## パフォーマンス比較
+## Performance Comparison
 
-実際のKORG Module Pro (BLE MIDI) での測定結果:
+Measured results with actual KORG Module Pro (BLE MIDI):
 
-| 操作 | v1.0.7以前 | v1.0.8最適化パス | 改善率 |
-|-----|-----------|----------------|-------|
-| リソース情報取得 | 16,400ms | 144ms | **99.1%** |
-| X-ParameterList取得 | 16,400ms（ResourceList経由） | 144ms（直接） | **99.1%** |
-| DeviceInfo取得（warm-up） | 100-300ms | 100-300ms | 変化なし |
+| Operation | v1.0.7 and earlier | v1.0.8 Optimized Path | Improvement |
+|-----------|-------------------|----------------------|-------------|
+| Resource info fetch | 16,400ms | 144ms | **99.1%** |
+| X-ParameterList fetch | 16,400ms (via ResourceList) | 144ms (direct) | **99.1%** |
+| DeviceInfo fetch (warm-up) | 100-300ms | 100-300ms | No change |
 
-**最適化の仕組み:**
+**How Optimization Works:**
 
 ```
-【v1.0.7以前】
-1. DeviceInfo取得（warm-up） - 200ms
-2. ResourceList取得 - 16,200ms (マルチチャンク、BLEで不安定)
-3. 必要なリソースを検索
-合計: 16,400ms
+【v1.0.7 and earlier】
+1. DeviceInfo fetch (warm-up) - 200ms
+2. ResourceList fetch - 16,200ms (multi-chunk, unstable over BLE)
+3. Search for needed resource
+Total: 16,400ms
 
-【v1.0.8最適化】
-1. X-ParameterList直接取得 - 144ms (ResourceListをスキップ)
-合計: 144ms
+【v1.0.8 Optimized】
+1. X-ParameterList direct fetch - 144ms (skip ResourceList)
+Total: 144ms
 
-高速化率: (16,400 - 144) / 16,400 = 99.1%
+Speedup: (16,400 - 144) / 16,400 = 99.1%
 ```
 
-## 設定ガイド
+## Configuration Guide
 
-### KORG Module Pro向け推奨設定
+### Recommended Settings for KORG Module Pro
 
 ```swift
 var config = MIDI2ClientConfiguration()
 
-// Adaptive warm-up（自動学習）
+// Adaptive warm-up (auto-learn)
 config.warmUpStrategy = .adaptive
 
-// KORG最適化を有効化
+// Enable KORG optimization
 config.vendorOptimizations = .default
 
-// BLE環境向けタイムアウト延長
+// Extended timeout for BLE environment
 config.peTimeout = .seconds(5)
 config.multiChunkTimeoutMultiplier = 1.5
 
-// リトライ設定
+// Retry settings
 config.maxRetries = 2
 config.retryDelay = .milliseconds(100)
 
 let client = try MIDI2Client(name: "MyApp", configuration: config)
 ```
 
-### 標準MIDI 2.0デバイス向け推奨設定
+### Recommended Settings for Standard MIDI 2.0 Devices
 
 ```swift
-// デフォルト設定で十分
+// Default settings are sufficient
 let config = MIDI2ClientConfiguration()
-// または
+// or
 let client = try MIDI2Client(name: "MyApp", preset: .standard)
 ```
 
-### デバッグ・開発向け設定
+### Development/Debug Settings
 
 ```swift
 var config = MIDI2ClientConfiguration(preset: .explorer)
 
-// ロギングを有効化
+// Enable logging
 MIDI2Logger.isEnabled = true
 MIDI2Logger.isVerbose = true
 
 let client = try MIDI2Client(name: "MyApp", configuration: config)
 try await client.start()
 
-// 診断情報を確認
+// Check diagnostic info
 let diag = await client.diagnostics
 print(diag)
 ```
 
-## トラブルシューティング
+## Troubleshooting
 
-### 最適化パスが使用されない
+### Optimized Path Not Used
 
-**症状:** `result.usedOptimizedPath`が`false`になる
+**Symptom:** `result.usedOptimizedPath` is `false`
 
-**原因:**
-- デバイスがKORGとして認識されていない
-- ベンダー最適化が無効化されている
-- X-ParameterListリソースが利用できない
+**Causes:**
+- Device not recognized as KORG
+- Vendor optimization disabled
+- X-ParameterList resource unavailable
 
-**解決方法:**
+**Solution:**
 
 ```swift
-// 1. ベンダー検出を確認
+// 1. Check vendor detection
 let info = try await client.getDeviceInfo(from: device.muid)
 let vendor = MIDIVendor.detect(from: info.manufacturerName)
-print("検出されたベンダー: \(vendor)")
+print("Detected vendor: \(vendor)")
 
-// 2. 最適化設定を確認
+// 2. Check optimization settings
 let config = await client.configuration
 print("vendorOptimizations: \(config.vendorOptimizations)")
 
-// 3. ログを確認
+// 3. Check logs
 MIDI2Logger.isVerbose = true
 let result = try await client.getOptimizedResources(from: device.muid)
 ```
 
-### Adaptive戦略が学習しない
+### Adaptive Strategy Not Learning
 
-**症状:** 毎回warm-upが実行される、または実行されない
+**Symptom:** Warm-up always executed or never executed
 
-**原因:**
-- キャッシュがクリアされた
-- デバイスキーの生成に失敗している
+**Causes:**
+- Cache cleared
+- Device key generation failed
 
-**解決方法:**
+**Solution:**
 
 ```swift
-// キャッシュの状態を確認
+// Check cache status
 let cache = await client.warmUpCache
 let diag = await cache.diagnostics
 print(diag)
 
-// 特定デバイスのキャッシュをクリア
+// Clear cache for specific device
 if let info = try await client.getDeviceInfo(from: device.muid) {
     let key = WarmUpCache.deviceKey(
         manufacturer: info.manufacturerName,
@@ -449,67 +449,67 @@ if let info = try await client.getDeviceInfo(from: device.muid) {
 }
 ```
 
-### X-ParameterListのデコードエラー
+### X-ParameterList Decode Error
 
-**症状:** `MIDI2Error.invalidResponse`でX-ParameterListのデコードに失敗
+**Symptom:** `MIDI2Error.invalidResponse` when decoding X-ParameterList
 
-**原因:**
-- デバイスが非標準のJSON形式を返している
-- controlccフィールドが欠落している
+**Causes:**
+- Device returning non-standard JSON format
+- Missing controlcc field
 
-**解決方法:**
+**Solution:**
 
 ```swift
-// 生データを確認
+// Check raw data
 let response = try await client.get("X-ParameterList", from: device.muid)
 print("Status: \(response.statusCode)")
 print("Body: \(response.bodyString ?? "(empty)")")
 
-// RobustJSONDecoderの診断情報を確認
+// Check RobustJSONDecoder diagnostic info
 if let diag = await client.peManager.lastDecodingDiagnostics {
     print("Raw: \(diag.rawData)")
     print("Error: \(diag.parseError ?? "(none)")")
 }
 ```
 
-## 後方互換性
+## Backward Compatibility
 
-v1.0.8では以下の後方互換性が維持されています:
+v1.0.8 maintains the following backward compatibility:
 
-### 非推奨API
+### Deprecated API
 
 ```swift
-// 非推奨（v1.0.8+）
+// Deprecated (v1.0.8+)
 config.warmUpBeforeResourceList = true
 
-// 推奨
+// Recommended
 config.warmUpStrategy = .always
 ```
 
-`warmUpBeforeResourceList`プロパティは引き続き使用できますが、内部的には`warmUpStrategy`にマッピングされます。
+The `warmUpBeforeResourceList` property is still available but internally maps to `warmUpStrategy`.
 
-### 既存コードへの影響
+### Impact on Existing Code
 
-v1.0.8の新機能はオプトイン方式のため、既存のコードは変更なしで動作します:
+v1.0.8 new features are opt-in, so existing code works without modification:
 
-- デフォルトで`.adaptive`戦略が有効（warm-up動作は自動最適化）
-- デフォルトでKORG最適化が有効（`getOptimizedResources()`を使用しない限り影響なし）
-- 既存の`getResourceList()`は引き続き動作（warm-up戦略のみ影響）
+- Default `.adaptive` strategy enabled (warm-up behavior auto-optimized)
+- Default KORG optimization enabled (no impact unless using `getOptimizedResources()`)
+- Existing `getResourceList()` continues working (only affected by warm-up strategy)
 
-## まとめ
+## Summary
 
-MIDI2Kit v1.0.8では、以下の新機能によりKORGデバイスとのやり取りが大幅に高速化されました:
+MIDI2Kit v1.0.8 significantly speeds up KORG device interactions with these new features:
 
-✅ **99%高速化** - `getOptimizedResources()`で16.4秒→144ms
-✅ **KORG専用型** - `PEXParameter`, `PEXProgramEdit`でタイプセーフなAPI
-✅ **Adaptive戦略** - デバイスごとに自動学習して最適化
-✅ **ベンダー最適化** - KORGに特化した最適化をデフォルトで有効化
+✅ **99% faster** - `getOptimizedResources()` reduces 16.4s → 144ms
+✅ **KORG-specific types** - Type-safe APIs with `PEXParameter`, `PEXProgramEdit`
+✅ **Adaptive strategy** - Auto-learn optimal per device
+✅ **Vendor optimization** - KORG-specific optimizations enabled by default
 
-既存のアプリケーションも、設定変更なしでadaptive戦略の恩恵を受けられます。さらにパフォーマンスを追求する場合は、`getOptimizedResources()`の使用を検討してください。
+Existing apps benefit from adaptive strategy without configuration changes. For maximum performance, consider using `getOptimizedResources()`.
 
-## 関連ドキュメント
+## Related Documentation
 
-- [README.md](../README.md) - MIDI2Kitの基本的な使い方
-- [CHANGELOG.md](../CHANGELOG.md) - v1.0.8の詳細な変更履歴
-- [KORG-Module-Pro-Limitations.md](./KORG-Module-Pro-Limitations.md) - KORGデバイスの既知の制限
-- [MigrationGuide.md](./MigrationGuide.md) - 低レベルAPIからの移行ガイド
+- [README.md](../README.md) - MIDI2Kit basic usage
+- [CHANGELOG.md](../CHANGELOG.md) - Detailed v1.0.8 changes
+- [KORG-Module-Pro-Limitations.md](./KORG-Module-Pro-Limitations.md) - Known KORG device limitations
+- [MigrationGuide.md](./MigrationGuide.md) - Migration guide from low-level API

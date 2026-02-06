@@ -640,6 +640,37 @@ public actor MIDI2Client {
         }
         return .unknown
     }
+
+    // MARK: - Private: BLE Timeout Adjustment
+
+    /// Calculate effective timeout, adjusting for BLE connections when configured
+    ///
+    /// When `autoAdjustBLETimeout` is enabled and the destination is a BLE MIDI
+    /// connection, returns `max(base, blePETimeout)`.
+    ///
+    /// - Parameters:
+    ///   - muid: Device MUID (to resolve destination for transport detection)
+    ///   - base: Base timeout to use
+    /// - Returns: Adjusted timeout
+    func effectiveTimeout(for muid: MUID, base: Duration) async -> Duration {
+        guard configuration.autoAdjustBLETimeout else { return base }
+
+        // Try to detect transport type from the resolved destination
+        guard let destination = try? await resolveDestination(for: muid) else {
+            return base
+        }
+
+        let transportType = await transport.transportType(for: destination)
+        if transportType == .ble {
+            let adjusted = max(base, configuration.blePETimeout)
+            if adjusted != base {
+                MIDI2Logger.pe.midi2Debug("BLE timeout adjustment: \(base) → \(adjusted) for \(muid)")
+            }
+            return adjusted
+        }
+
+        return base
+    }
     
     /// Get a property from a device
     ///

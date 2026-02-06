@@ -54,6 +54,13 @@ public enum PEError: Error, Sendable {
     /// payload fails validation before being sent to the device.
     /// This prevents sending invalid data to MIDI devices.
     case payloadValidationFailed(PEPayloadValidationError)
+
+    /// Device returned an empty response body
+    ///
+    /// The device responded with a success status but the body was empty.
+    /// For array-type resources, this typically means "no items".
+    /// For single-object resources, this is an error.
+    case emptyResponse(resource: String)
 }
 
 // MARK: - PEError Description
@@ -86,6 +93,8 @@ extension PEError: CustomStringConvertible {
             return details.description
         case .payloadValidationFailed(let error):
             return "Payload validation failed: \(error)"
+        case .emptyResponse(let resource):
+            return "Empty response for resource: \(resource)"
         }
     }
 }
@@ -120,7 +129,7 @@ extension PEError {
             return details.isTransient
         case .transportError:
             return true
-        case .cancelled, .requestIDExhausted, .validationFailed, .deviceNotFound, .noDestination, .payloadValidationFailed:
+        case .cancelled, .requestIDExhausted, .validationFailed, .deviceNotFound, .noDestination, .payloadValidationFailed, .emptyResponse:
             return false
         case .deviceError(let status, _):
             // 5xx errors are typically server-side and may be transient

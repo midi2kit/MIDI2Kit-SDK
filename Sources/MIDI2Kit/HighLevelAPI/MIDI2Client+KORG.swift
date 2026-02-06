@@ -308,21 +308,11 @@ extension MIDI2Client {
         from muid: MUID,
         timeout: Duration = .seconds(5)
     ) async throws -> [PEChannelInfo] {
-        // Detect vendor
-        let vendor = await detectVendor(for: muid)
-
-        // Try vendor-specific resource first for KORG
-        if vendor == .korg {
-            do {
-                let response = try await get("X-ChannelList", from: muid, timeout: timeout)
-                return try decodeChannelList(from: response)
-            } catch {
-                MIDI2Logger.pe.midi2Debug("X-ChannelList failed, trying ChannelList: \(error)")
-            }
-        }
-
-        // Standard ChannelList
-        let response = try await get("ChannelList", from: muid, timeout: timeout)
+        let response = try await getWithXFallback(
+            resource: "ChannelList",
+            from: muid,
+            timeout: timeout
+        )
         return try decodeChannelList(from: response)
     }
 
@@ -350,11 +340,91 @@ extension MIDI2Client {
         from muid: MUID,
         timeout: Duration = .seconds(5)
     ) async throws -> [PEProgramDef] {
-        let response = try await get("ProgramList", from: muid, timeout: timeout)
+        let response = try await getWithXFallback(
+            resource: "ProgramList",
+            from: muid,
+            timeout: timeout
+        )
         return try decodeProgramList(from: response)
     }
 
+    // MARK: - X-ProgramEdit
+
+    /// Get program edit data from device
+    ///
+    /// For KORG devices, tries `X-ProgramEdit` first, falling back to `ProgramEdit`.
+    /// For other devices, fetches `ProgramEdit` directly.
+    ///
+    /// - Parameters:
+    ///   - muid: The device MUID
+    ///   - channel: Optional MIDI channel (0-15)
+    ///   - timeout: Optional custom timeout
+    /// - Returns: Program edit data
+    /// - Throws: `MIDI2Error` on failure
+    public func getProgramEdit(
+        from muid: MUID,
+        channel: Int? = nil,
+        timeout: Duration = .seconds(5)
+    ) async throws -> PEXProgramEdit {
+        let response: PEResponse
+        if channel != nil {
+            response = try await getWithXFallback(
+                resource: "ProgramEdit",
+                channel: channel,
+                from: muid,
+                timeout: timeout
+            )
+        } else {
+            response = try await getWithXFallback(
+                resource: "ProgramEdit",
+                from: muid,
+                timeout: timeout
+            )
+        }
+        return try decodeXProgramEdit(from: response)
+    }
+
     // MARK: - Private Helpers
+
+    /// Fetch a resource with X-prefixed fallback for KORG devices
+    ///
+    /// For KORG devices, tries `X-{resource}` first, falling back to `{resource}`.
+    /// For non-KORG devices, fetches `{resource}` directly.
+    ///
+    /// - Parameters:
+    ///   - resource: Base resource name (e.g., "ChannelList", "ProgramList", "ProgramEdit")
+    ///   - channel: Optional channel for channel-specific resources
+    ///   - muid: The device MUID
+    ///   - timeout: Request timeout
+    /// - Returns: PE response from whichever resource succeeded
+    private func getWithXFallback(
+        resource: String,
+        channel: Int? = nil,
+        from muid: MUID,
+        timeout: Duration
+    ) async throws -> PEResponse {
+        let vendor = await detectVendor(for: muid)
+
+        if vendor == .korg {
+            do {
+                let xResource = "X-\(resource)"
+                if let ch = channel {
+                    return try await get(xResource, channel: ch, from: muid, timeout: timeout)
+                } else {
+                    return try await get(xResource, from: muid, timeout: timeout)
+                }
+            } catch {
+                MIDI2Logger.pe.midi2Debug("X-\(resource) failed, trying \(resource): \(error)")
+            }
+        }
+
+        // Standard resource
+        if let ch = channel {
+            return try await get(resource, channel: ch, from: muid, timeout: timeout)
+        } else {
+            return try await get(resource, from: muid, timeout: timeout)
+        }
+    }
 
     private func detectVendor(for muid: MUID) async -> MIDIVendor {
         if let cachedInfo = getCachedDeviceInfo(for: muid) {

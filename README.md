@@ -204,6 +204,25 @@ if let trace = await client.lastCommunicationTrace {
 
 If you're using `CIManager` or `PEManager` directly, see the [Migration Guide](docs/MigrationGuide.md) for step-by-step instructions to migrate to `MIDI2Client`.
 
+## Recent Updates
+
+### v1.0.9 (2026-02-06)
+- **KORG ChannelList/ProgramList Auto-Conversion**: Auto-convert KORG proprietary format (`bankPC: [Int]` array) to standard format
+- **New APIs**: `getChannelList()`, `getProgramList()` - Auto-detect vendor and select appropriate resource
+
+### v1.0.8 (2026-02-06)
+- **KORG Optimization**: Skip ResourceList, directly fetch X-ParameterList (99% faster, 16.4s → 144ms)
+- **Adaptive WarmUp Strategy**: Learn success/failure per device, auto-select optimal warmup strategy
+- **KORG Extension APIs**: `getOptimizedResources()`, `getXParameterList()`, `getXProgramEdit()`
+
+### v1.0.7 (2026-02-06)
+- **AsyncStream fixes**: Race condition fixes in CoreMIDITransport, MockMIDITransport, LoopbackTransport, PESubscriptionManager
+
+### v1.0.6 (2026-02-06)
+- **Critical bug fix**: Fixed CIManager.events not firing (AsyncStream continuation race condition)
+
+See [CHANGELOG.md](CHANGELOG.md) for details.
+
 ## Changelog
 
 See [CHANGELOG.md](CHANGELOG.md) for version history and recent updates.

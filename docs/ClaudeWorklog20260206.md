@@ -994,3 +994,391 @@
   - テスト実行
   - コミット・タグ・リリース
 ---
+
+---
+2026-02-06 12:29
+作業項目: v1.0.9リリース完了
+追加機能の説明:
+  【完了したタスク】
+  1. swift test - 全458テストパス
+  2. hakaru/MIDI2Kit コミット・タグ・リリース
+     - コミット: 359f5cc
+     - https://github.com/hakaru/MIDI2Kit/releases/tag/v1.0.9
+  3. XCFrameworkビルド（5モジュール）
+     - MIDI2Core, MIDI2Transport, MIDI2CI, MIDI2PE, MIDI2Kit
+     - getChannelList/getProgramList APIがswiftinterfaceに含まれていることを確認
+  4. midi2kit/MIDI2Kit-SDK v1.0.9リリース
+     - https://github.com/midi2kit/MIDI2Kit-SDK/releases/tag/v1.0.9
+     - 5つのXCFramework ZIPアップロード
+  5. Package.swift更新（新チェックサム）
+     - コミット: 0a0cdf7
+
+  【チェックサム】
+  - MIDI2Core: 88d6b5cfca5f2563f9154c2f26ee7884d760f07ba8f768c6746bf49250b379f2
+  - MIDI2Transport: 7bedcb3ccf57997b3e986c9445bb08bc6122c13a217cebf40edf05dc83c353bb
+  - MIDI2CI: b1515272d0efae65b31e3098c6d8ee49cecd5ddbcef52dbe698e57cd1b7f7154
+  - MIDI2PE: 4eea5c8bc42906f2276c78018edc904e2892c28c5d8d27b6dbe684b0139afebf
+  - MIDI2Kit: fe0fd5ea24c53e8024012c76f2326eaf2584be4a8edc6bfa8d73f25ad46afefc
+
+決定事項:
+  - v1.0.9リリース完了
+  - KORG ChannelList/ProgramList自動変換機能が利用可能
+  - SDKユーザーは from: "1.0.9" で最新版を取得可能
+次のTODO:
+  - なし（完了）
+---
+
+---
+2026-02-06 12:34
+作業項目: v1.0.9 SDKバイナリ検証
+追加機能の説明:
+  前回v1.0.8で古いバイナリをアップロードしてしまった反省から、徹底検証を実施。
+
+  【検証項目と結果】
+  1. swiftinterface確認（ローカルビルド）
+     - MIDI2Kit: getChannelList, getProgramList, getOptimizedResources, getXParameterList ✅ 全5 API確認
+     - MIDI2PE: PEProgramDef encode(to:), PEChannelInfo更新 ✅ 確認
+
+  2. チェックサム比較（v1.0.8 vs v1.0.9）
+     - MIDI2Core: 異なる ✅ (73b4... → 88d6...)
+     - MIDI2PE: 異なる ✅ (6aa6... → 4eea...)
+     - MIDI2Kit: 異なる ✅ (48a6... → fe0f...)
+     - 全5モジュールでv1.0.8と異なるチェックサム ✅
+
+  3. GitHubリリースアセット確認
+     - 5つのZIPが正しくアップロード ✅
+
+  4. Package.swift URL/チェックサム一致
+     - 全5モジュールのURL: v1.0.9を指定 ✅
+     - チェックサム: ビルド出力と一致 ✅
+
+  5. ダウンロード検証（実際にGitHubからダウンロード）
+     - MIDI2Kit.xcframework.zip: チェックサム一致 ✅ fe0fd5ea...
+     - MIDI2PE.xcframework.zip: チェックサム一致 ✅ 4eea5c8b...
+
+  6. ダウンロードZIP展開後のAPI確認
+     - MIDI2Kit: getChannelList/getProgramList ✅ 確認
+     - MIDI2PE: PEProgramDef ✅ 確認
+
+決定事項:
+  - v1.0.9 SDKバイナリは正しい（新API含む）ことを確認
+  - 前回v1.0.8のような古いバイナリ問題は発生していない
+次のTODO:
+  - なし（完了）
+---
+
+---
+2026-02-06 12:55
+作業項目: ドキュメント作成リクエスト
+追加機能の説明:
+  - ユーザーからドキュメント作成の依頼
+  - document-writerエージェントを起動してドキュメントを作成
+決定事項:
+  - 対象ドキュメントを確認してからエージェント起動
+次のTODO:
+  - ドキュメント作成対象の確認
+  - document-writerエージェント起動
+---
+
+---
+2026-02-06 12:57
+作業項目: ドキュメント一括作成開始
+追加機能の説明:
+  - document-writerエージェントを起動して以下4つのドキュメントを作成
+  1. README更新 - v1.0.6〜v1.0.9の機能を反映
+  2. API リファレンス - MIDI2Kit APIの詳細リファレンス
+  3. CHANGELOG更新 - v1.0.6〜v1.0.9のリリースノート
+  4. 新機能ガイド（v1.0.9） - KORG最適化機能の使い方
+決定事項:
+  - 4つのドキュメントをdocument-writerエージェントで作成
+次のTODO:
+  - エージェント起動
+  - ドキュメント作成完了待ち
+---
+---
+2026-02-06 12:58
+作業項目: ドキュメント一括作成開始（document-writer）
+追加機能の説明:
+  【作成対象ドキュメント】
+  1. README.md更新
+     - v1.0.6〜v1.0.9の新機能を反映
+     - AsyncStream race condition修正（v1.0.6, v1.0.7）
+     - KORG最適化機能（v1.0.8）
+     - KORG ChannelList/ProgramList自動変換（v1.0.9）
+  2. docs/API-Reference.md（新規作成）
+     - MIDI2Client、MIDI2ClientConfiguration、MIDI2Device
+     - KORG拡張API（getOptimizedResources, getXParameterList, getChannelList, getProgramList）
+     - WarmUpStrategy、PEXParameter、PEXParameterValue、PEXProgramEdit
+     - PEProgramDef、PEChannelInfo（KORGフォーマット自動変換含む）
+  3. CHANGELOG.md更新
+     - v1.0.6〜v1.0.9のエントリを追加・整理
+  4. docs/v1.0.9-Migration-Guide.md（新規作成）
+     - v1.0.9への移行ガイド
+     - 新APIの使い方、WarmUpStrategyの設定方法
+     - ベンダー最適化設定（VendorOptimizationConfig）
+
+  【参照ファイル】
+  - Sources/MIDI2Kit/HighLevelAPI/MIDI2Client.swift
+  - Sources/MIDI2Kit/HighLevelAPI/MIDI2Client+KORG.swift
+  - Sources/MIDI2Kit/HighLevelAPI/MIDI2ClientConfiguration.swift
+  - Sources/MIDI2Kit/HighLevelAPI/WarmUpStrategy.swift
+  - Sources/MIDI2PE/PEKORGTypes.swift
+  - Sources/MIDI2PE/PETypes.swift（PEChannelInfo/PEProgramDef）
+  - docs/ClaudeWorklog20260206.md（変更履歴）
+  - docs/KORG-Optimization.md（既存KORGガイド）
+  - README.md、CHANGELOG.md
+
+決定事項:
+  - 日本語でドキュメント作成
+  - 技術的に正確で実用的なコード例を含める
+次のTODO:
+  - 参照ファイルを読み込み
+  - 4つのドキュメント作成
+---
+---
+2026-02-06 13:04
+作業項目: ドキュメント一括作成完了
+追加機能の説明:
+  【完了したドキュメント】
+  1. README.md（更新）
+     - Recent Updatesセクション追加（v1.0.6〜v1.0.9）
+     - 各バージョンの主要機能を簡潔に説明
+
+  2. CHANGELOG.md（更新）
+     - v1.0.9エントリ追加（KORG ChannelList/ProgramList自動変換）
+     - v1.0.8エントリ追加（KORG最適化、Adaptive WarmUp）
+     - v1.0.7エントリ追加（AsyncStream修正 4ファイル）
+     - v1.0.6エントリ追加（CIManager.events修正）
+
+  3. docs/API-Reference.md（新規作成、日本語）
+     - MIDI2Client、MIDI2ClientConfiguration、MIDI2Device
+     - KORG拡張API（getOptimizedResources, getXParameterList, getChannelList, getProgramList）
+     - WarmUpStrategy、PEXParameter、PEXParameterValue、PEXProgramEdit
+     - PEProgramDef、PEChannelInfo（KORGフォーマット自動変換含む）
+     - エラー処理、ロギング、診断情報
+     - 実用的なコード例を豊富に掲載
+
+  4. docs/v1.0.9-Migration-Guide.md（新規作成、日本語）
+     - v1.0.6〜v1.0.9の変更点サマリー
+     - 新機能の詳細な使い方（コード例付き）
+     - 移行チェックリスト
+     - 推奨設定（KORGデバイス向け、標準デバイス向け）
+     - トラブルシューティング
+
+  5. docs/document-writer-20260206.md（作業レポート）
+     - ドキュメント作成のサマリー
+     - 技術的ハイライト
+     - 推奨される次のステップ
+
+  【ドキュメント品質】
+  - 全て日本語で作成
+  - 技術的に正確（ソースコード参照）
+  - 実用的なコード例を豊富に掲載
+  - バージョン情報を明記（v1.0.8+、v1.0.9+）
+  - テーブル形式で見やすく整理
+
+決定事項:
+  - v1.0.6〜v1.0.9のドキュメント整備完了
+  - SDKユーザーは新機能を理解・活用可能に
+次のTODO:
+  - なし（完了）
+---
+
+---
+2026-02-06 13:16
+作業項目: MIDI2Kit-SDK ドキュメント英語化
+追加機能の説明:
+  - 日本語で作成したドキュメントを英語版に変換
+  - 対象: docs/API-Reference.md, docs/v1.0.9-Migration-Guide.md, docs/KORG-Optimization.md
+  - README.md、CHANGELOG.mdも英語版として確認・整備
+決定事項:
+  - 英語のみでドキュメント整備
+  - document-writerエージェントで一括作成
+次のTODO:
+  - 現在の日本語ドキュメントを確認
+  - 英語版ドキュメント作成
+---
+---
+2026-02-06 13:17
+作業項目: 英語版ドキュメント作成開始（日本語ドキュメント確認）
+追加機能の説明:
+  - 現在の日本語ドキュメント内容確認
+  - 英語版への変換準備
+決定事項:
+  - API-Reference.md, v1.0.9-Migration-Guide.md, KORG-Optimization.md を確認
+  - README.md, CHANGELOG.md の英語対応状況確認
+次のTODO:
+  - 英語版ドキュメント作成
+---
+---
+2026-02-06 13:17
+作業項目: 英語版ドキュメント作成開始
+追加機能の説明:
+  - 日本語ドキュメント確認完了（API-Reference.md, v1.0.9-Migration-Guide.md, KORG-Optimization.md）
+  - README.md, CHANGELOG.mdは既に英語対応済み（部分的に日本語混在）
+決定事項:
+  - 全ドキュメントを英語で書き直す
+  - API Reference, Migration Guide, KORG Optimization Guideの3ファイルを作成
+  - README.md, CHANGELOG.mdの日本語部分を英語に修正
+次のTODO:
+  - 英語版ドキュメント作成（API-Reference.md, v1.0.9-Migration-Guide.md, KORG-Optimization.md）
+  - README.md, CHANGELOG.mdの日本語部分修正
+---
+---
+2026-02-06 13:22
+作業項目: 英語版ドキュメント作成完了
+追加機能の説明:
+  - docs/API-Reference.md: 英語版完全リライト（MIDI2Client, KORG拡張API, WarmUpStrategy等）
+  - docs/v1.0.9-Migration-Guide.md: 英語版完全リライト（v1.0.6-v1.0.9変更点、移行手順）
+  - docs/KORG-Optimization.md: 英語版完全リライト（KORG最適化機能詳細）
+  - CHANGELOG.md: v1.0.9, v1.0.7, v1.0.6の日本語部分を英語に修正
+  - README.md: Recent Updatesセクションの日本語部分を英語に修正
+決定事項:
+  - 全ドキュメントを英語で統一完了
+  - 技術的に正確な内容を維持
+  - 実用的なコード例を豊富に掲載
+次のTODO:
+  - なし（完了）
+---
+
+---
+2026-02-06 13:37
+作業項目: midi2kit/MIDI2Kit-SDK ドキュメント英語版更新
+追加機能の説明:
+  - https://github.com/midi2kit/MIDI2Kit-SDK/ のドキュメントを更新
+  - 現状のv1.0.9に即した英語ドキュメントに更新
+決定事項:
+  - ghコマンドでリポジトリ確認
+  - 英語版ドキュメントで更新
+次のTODO:
+  - MIDI2Kit-SDKリポジトリの現状確認
+  - READMEおよびドキュメント更新
+---
+
+---
+2026-02-06 13:39
+作業項目: midi2kit/MIDI2Kit-SDK ドキュメント英語版更新完了
+追加機能の説明:
+  【更新したドキュメント】
+  1. README.md (英語で完全書き直し)
+     - v1.0.9の新機能を反映
+     - Recent Updates セクション追加（v1.0.6〜v1.0.9）
+     - KORG Optimization セクション追加（99%高速化）
+     - ChannelList/ProgramList Auto-Conversion セクション追加
+     - Adaptive WarmUp Strategy セクション追加
+     - Migration Guides 更新
+     - コード例を豊富に掲載
+
+  2. CHANGELOG.md (英語で完全書き直し)
+     - v1.0.9エントリ追加
+     - 全エントリを英語に統一
+     - 日本語部分を全て英語に変換
+
+  【コミット】
+  - README.md: eabb370b35ee00b91da9fb25088528bbf69578ed
+  - CHANGELOG.md: 0b0cac1d3300e339ea11a8f2c1ad99e3c433ca5e
+
+決定事項:
+  - MIDI2Kit-SDKドキュメント英語版更新完了
+  - https://github.com/midi2kit/MIDI2Kit-SDK で確認可能
+次のTODO:
+  - なし（完了）
+---
+
+---
+2026-02-06 15:22
+作業項目: v1.0.10 SDK要件リスト（7件）の実装計画策定
+追加機能の説明:
+  【要件一覧】
+  1. bankPC配列フォーマット自動変換 - [MSB,LSB,PC] → 個別フィールド (Critical)
+  2. currentValues対応 - PEXProgramEditにPEXCurrentValue追加 (Critical)
+  3. X-ProgramEdit bankPC対応 - ProgramEditでもbankPC配列変換 (High)
+  4. X-リソース フォールバック - X-ChannelList → ChannelList自動試行 (High)
+  5. BLE MIDIタイムアウト最適化 - トランスポート検出で自動15秒 (High)
+  6. AnyCodableValue内蔵 - 混在型パラメータの柔軟デコード (Medium)
+  7. 空リソース ハンドリング - 0バイトレスポンスでエラーを出さない (Medium)
+
+  まずコードベースを調査して実装計画を策定
+決定事項:
+  - 7件の要件をv1.0.10として実装
+  - まず現状のコードベースを調査
+次のTODO:
+  - コードベース調査
+  - 実装計画策定
+  - EnterPlanModeで計画提示
+---
+
+---
+2026-02-06 15:34
+作業項目: v1.0.10 実装開始（6要件）
+追加機能の説明:
+  承認済み計画に基づき、以下6要件の実装を開始:
+  1. AnyCodableValue内蔵 (#6) - MIDI2Core
+  2. PEXProgramEdit bankPC配列変換 (#1+#3) - MIDI2PE
+  3. currentValues対応 (#2) - MIDI2PE
+  4. 空リソースハンドリング (#7) - MIDI2PE
+  5. X-リソースフォールバック (#4) - MIDI2Kit
+  6. BLE MIDIタイムアウト最適化 (#5) - MIDI2Transport+MIDI2Kit
+
+  コードベース確認完了:
+  - PEKORGTypes.swift: 現在bankMSBはInt型のみ対応（bankPC配列未対応）
+  - PETypes.swift: PEProgramDef/PEChannelInfoは既にbankPC配列対応済み
+  - PEError.swift: emptyResponseケース未定義
+  - CoreMIDITransport.swift: トランスポートタイプ検出なし
+  - MIDI2ClientConfiguration.swift: BLE専用タイムアウト設定なし
+決定事項:
+  - 計画通りに6要件を順次実装
+  - テスト駆動で実装（各要件のテストを先に作成）
+次のTODO:
+  - 要件1: AnyCodableValue.swift新規作成
+  - 要件2: PEKORGTypes.swift bankPC配列対応
+  - 要件3: PEXCurrentValue追加
+---
+
+---
+2026-02-06 15:46
+作業項目: v1.0.10 ビルドエラー修正 - AnyCodableValue重複定義問題
+追加機能の説明:
+  【根本原因】
+  PEResource.swift（MIDI2PE内）に簡易版AnyCodableValueが既に定義されていた。
+  新しいMIDI2Core版AnyCodableValueがこのローカル定義にシャドーイングされ、
+  Hashable非準拠・coercedIntValue/coercedStringValue未定義エラーが発生。
+
+  【修正内容】
+  1. PEResource.swiftの重複AnyCodableValue定義を削除
+  2. PEResource.swiftに `import MIDI2Core` を追加
+  3. MIDI2Core版AnyCodableValue（Hashable, array/dictionary対応、coerced*）を使用
+
+  【ビルド結果】
+  - swift build: Build complete!
+  - swift test: 509テスト全パス（目標値達成）
+
+決定事項:
+  - 重複定義が根本原因だった（クロスモジュール可視性問題ではない）
+  - PEResource.swiftはMIDI2Core版を使用するように統一
+次のTODO:
+  - 実機ビルド確認
+  - v1.0.10リリース準備
+---
+
+---
+2026-02-06 17:15
+作業項目: v1.0.10 MIDI2Kit-SDKリリース開始
+追加機能の説明:
+  【リリース手順（慎重に実施）】
+  1. hakaru/MIDI2Kit コミット・タグ作成
+  2. XCFrameworkビルド（build-xcframework.sh）
+  3. swiftinterfaceで新API含有を検証
+  4. midi2kit/MIDI2Kit-SDK リリース作成・アセットアップロード
+  5. Package.swift チェックサム更新
+  6. ダウンロード検証（GitHubからDL→チェックサム照合→API確認）
+
+  【過去の問題と対策】
+  - v1.0.8: 古いバイナリをアップロードしてしまった
+  - 対策: swiftinterface確認、チェックサム比較、DL後のAPI確認を必須化
+
+決定事項:
+  - 6段階の検証プロセスで慎重にリリース
+次のTODO:
+  - ステップ1: コミット・タグ作成
+---

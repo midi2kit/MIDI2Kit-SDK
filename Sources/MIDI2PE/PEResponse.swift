@@ -244,3 +244,30 @@ public struct PEResponse: Sendable {
         self.body = body
     }
 }
+
+// MARK: - Empty Response Representable
+
+/// Protocol for types that have a meaningful "empty" representation.
+///
+/// Types conforming to this protocol can be returned when a PE response
+/// body is empty (0 bytes), avoiding unnecessary errors for array-type resources.
+///
+/// ## Built-in Conformances
+///
+/// - `Array` where Element: Decodable — returns `[]`
+///
+/// ## Usage
+///
+/// ```swift
+/// extension MyResourceList: PEEmptyResponseRepresentable {
+///     static var emptyResponse: MyResourceList { MyResourceList(items: []) }
+/// }
+/// ```
+public protocol PEEmptyResponseRepresentable {
+    /// The value to return when the response body is empty
+    static var emptyResponse: Self { get }
+}
+
+extension Array: PEEmptyResponseRepresentable where Element: Decodable {
+    public static var emptyResponse: [Element] { [] }
+}

@@ -10,6 +10,7 @@
 //
 
 import Foundation
+import MIDI2Core
 
 // MARK: - X-ParameterList Types
 
@@ -239,6 +240,12 @@ public struct PEXProgramEdit: Sendable, Codable {
     /// Raw parameter values array
     public let params: [PEXParameterValue]?
 
+    /// Current values with mixed-type support (AnyCodableValue)
+    ///
+    /// Some devices return parameter values as mixed types (Int, String, etc.)
+    /// in a `currentValues` array. This property captures them with full type fidelity.
+    public let currentValues: [PEXCurrentValue]?
+
     enum CodingKeys: String, CodingKey {
         case name
         case category
@@ -251,6 +258,7 @@ public struct PEXProgramEdit: Sendable, Codable {
     // Alternative keys for decoding only
     private enum AlternativeKeys: String, CodingKey {
         case parameters
+        case currentValues
     }
 
     public init(from decoder: Decoder) throws {
@@ -259,17 +267,56 @@ public struct PEXProgramEdit: Sendable, Codable {
 
         name = try container.decodeIfPresent(String.self, forKey: .name)
         category = try container.decodeIfPresent(String.self, forKey: .category)
-        bankMSB = try container.decodeIfPresent(Int.self, forKey: .bankMSB)
-        bankLSB = try container.decodeIfPresent(Int.self, forKey: .bankLSB)
-        programNumber = try container.decodeIfPresent(Int.self, forKey: .programNumber)
 
-        // Try different key names for params
+        // Handle bankPC: can be Int (standard) or [Int] (KORG format)
+        var tempProgramNumber = try container.decodeIfPresent(Int.self, forKey: .programNumber)
+        var tempBankMSB: Int?
+        var tempBankLSB: Int?
+
+        if let bankPCInt = try? container.decode(Int.self, forKey: .bankMSB) {
+            // Standard format: bankPC as single Int for bankMSB
+            tempBankMSB = bankPCInt
+            tempBankLSB = try container.decodeIfPresent(Int.self, forKey: .bankLSB)
+        } else if let bankPCArray = try? container.decode([Int].self, forKey: .bankMSB) {
+            // KORG format: bankPC: [bankMSB, bankLSB, program]
+            if bankPCArray.count >= 3 {
+                tempBankMSB = bankPCArray[0]
+                tempBankLSB = bankPCArray[1]
+                // Use program from array ONLY if .programNumber field is absent
+                if tempProgramNumber == nil {
+                    tempProgramNumber = bankPCArray[2]
+                }
+            } else if bankPCArray.count == 2 {
+                tempBankMSB = bankPCArray[0]
+                tempBankLSB = bankPCArray[1]
+            } else if bankPCArray.count == 1 {
+                tempBankMSB = bankPCArray[0]
+            }
+            // Empty array: keep defaults (nil)
+        } else {
+            tempBankLSB = try container.decodeIfPresent(Int.self, forKey: .bankLSB)
+        }
+
+        self.bankMSB = tempBankMSB
+        self.bankLSB = tempBankLSB
+        self.programNumber = tempProgramNumber
+
+        // Try different key names for params: "params", "parameters", "currentValues"
         if let paramsValue = try? container.decode([PEXParameterValue].self, forKey: .params) {
             params = paramsValue
         } else if let paramsValue = try? altContainer?.decode([PEXParameterValue].self, forKey: .parameters) {
             params = paramsValue
+        } else if let paramsValue = try? altContainer?.decode([PEXParameterValue].self, forKey: .currentValues) {
+            params = paramsValue
         } else {
             params = nil
+        }
+
+        // Decode currentValues as AnyCodableValue-based entries
+        if let cvValues = try? altContainer?.decode([PEXCurrentValue].self, forKey: .currentValues) {
+            currentValues = cvValues
+        } else {
+            currentValues = nil
         }
     }
 
@@ -279,7 +326,8 @@ public struct PEXProgramEdit: Sendable, Codable {
         bankMSB: Int? = nil,
         bankLSB: Int? = nil,
         programNumber: Int? = nil,
-        params: [PEXParameterValue]? = nil
+        params: [PEXParameterValue]? = nil,
+        currentValues: [PEXCurrentValue]? = nil
     ) {
         self.name = name
         self.category = category
@@ -287,6 +335,7 @@ public struct PEXProgramEdit: Sendable, Codable {
         self.bankLSB = bankLSB
         self.programNumber = programNumber
         self.params = params
+        self.currentValues = currentValues
     }
 
     /// Display name (name or "Unknown Program")
@@ -303,6 +352,113 @@ public struct PEXProgramEdit: Sendable, Codable {
     /// Get value for a specific CC
     public func value(for cc: Int) -> Int? {
         params?.first { $0.controlCC == cc }?.value
+    }
+
+    /// All parameter values merged from params and currentValues
+    ///
+    /// Returns a dictionary mapping CC number to AnyCodableValue.
+    /// If the same CC exists in both `params` and `currentValues`,
+    /// the `currentValues` entry takes precedence.
+    public var allValues: [Int: AnyCodableValue] {
+        var result: [Int: AnyCodableValue] = [:]
+
+        // Add params as Int values
+        if let params = params {
+            for p in params {
+                result[p.controlCC] = .int(p.value)
+            }
+        }
+
+        // Override/add currentValues (takes precedence)
+        if let cv = currentValues {
+            for v in cv {
+                result[v.controlCC] = v.value
+            }
+        }
+
+        return result
+    }
+}
+
+// MARK: - PEXCurrentValue
+
+/// KORG X-ProgramEdit current value with mixed-type support
+///
+/// Some devices return current parameter values as mixed types:
+/// - Integer values (e.g., CC value 0-127)
+/// - String values (e.g., program names, enum labels)
+///
+/// This type uses `AnyCodableValue` to handle any JSON value type.
+///
+/// ## JSON Format
+///
+/// ```json
+/// {"controlcc": 11, "current": 100}
+/// {"controlcc": 12, "current": "High"}
+/// ```
+public struct PEXCurrentValue: Sendable, Codable, Identifiable, Hashable {
+    public var id: Int { controlCC }
+
+    /// CC number
+    public let controlCC: Int
+
+    /// Current value (may be Int, String, etc.)
+    public let value: AnyCodableValue
+
+    enum CodingKeys: String, CodingKey {
+        case controlCC = "controlcc"
+        case value = "current"
+    }
+
+    // Alternative keys
+    private enum AlternativeKeys: String, CodingKey {
+        case cc
+        case val
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let altContainer = try? decoder.container(keyedBy: AlternativeKeys.self)
+
+        // Try different key names for controlCC (required field)
+        if let intValue = try? container.decode(Int.self, forKey: .controlCC) {
+            controlCC = intValue
+        } else if let intValue = try? altContainer?.decode(Int.self, forKey: .cc) {
+            controlCC = intValue
+        } else if let stringValue = try? container.decode(String.self, forKey: .controlCC),
+                  let parsed = Int(stringValue) {
+            controlCC = parsed
+        } else {
+            throw DecodingError.dataCorruptedError(
+                forKey: .controlCC,
+                in: container,
+                debugDescription: "controlcc or cc must be present as Int or String"
+            )
+        }
+
+        // Try different key names for value
+        if let v = try? container.decode(AnyCodableValue.self, forKey: .value) {
+            value = v
+        } else if let v = try? altContainer?.decode(AnyCodableValue.self, forKey: .val) {
+            value = v
+        } else {
+            value = .null
+        }
+    }
+
+    public init(controlCC: Int, value: AnyCodableValue) {
+        self.controlCC = controlCC
+        self.value = value
+    }
+
+    /// Value as Int (convenience)
+    public var intValue: Int? {
+        value.coercedIntValue
+    }
+
+    /// Value as String (convenience)
+    public var stringValue: String? {
+        value.coercedStringValue
     }
 }
 

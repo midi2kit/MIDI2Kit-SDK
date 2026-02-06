@@ -213,6 +213,24 @@ public struct MIDI2ClientConfiguration: Sendable {
 
     // MARK: - Vendor Optimizations
 
+    // MARK: - BLE MIDI Settings
+
+    /// Whether to automatically adjust timeouts for BLE MIDI connections
+    ///
+    /// When enabled, the client detects BLE MIDI connections and applies
+    /// longer timeouts to accommodate the wireless transport latency.
+    ///
+    /// Default: true
+    public var autoAdjustBLETimeout: Bool
+
+    /// PE timeout for BLE MIDI connections
+    ///
+    /// When `autoAdjustBLETimeout` is enabled and a BLE MIDI connection
+    /// is detected, this timeout is used instead of `peTimeout` if it's larger.
+    ///
+    /// Default: 15 seconds
+    public var blePETimeout: Duration
+
     /// Vendor-specific PE optimizations
     ///
     /// Enable performance optimizations for specific vendors:
@@ -259,6 +277,8 @@ public struct MIDI2ClientConfiguration: Sendable {
         self.deviceIdentity = .default
         self.categorySupport = .propertyExchange
         self.logger = MIDI2Core.NullMIDI2Logger()
+        self.autoAdjustBLETimeout = true
+        self.blePETimeout = .seconds(15)
         self.vendorOptimizations = .default
     }
     

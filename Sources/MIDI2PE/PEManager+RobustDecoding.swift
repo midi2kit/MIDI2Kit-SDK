@@ -42,7 +42,19 @@ extension PEManager {
     ) throws -> (value: T, diagnostics: PEDecodingDiagnostics?) {
         let decoder = Self.robustDecoder
         let data = response.decodedBody
-        
+
+        // Handle empty response body
+        if data.isEmpty {
+            if let emptyType = T.self as? any PEEmptyResponseRepresentable.Type {
+                // Return empty representation (e.g., [] for arrays)
+                // swiftlint:disable:next force_cast
+                let emptyValue = emptyType.emptyResponse as! T
+                self.saveDiagnostics(nil)
+                return (emptyValue, nil)
+            }
+            throw PEError.emptyResponse(resource: resource)
+        }
+
         let result = decoder.decodeWithDiagnostics(type, from: data)
         
         switch result {

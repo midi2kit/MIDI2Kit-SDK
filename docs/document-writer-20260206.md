@@ -1,199 +1,208 @@
-# ドキュメント作成レポート - 2026-02-06
+# Documentation Update Report - 2026-02-06 (English Conversion)
 
-## 作成日時
-2026-02-06
+Successfully converted all MIDI2Kit documentation from Japanese to English, ensuring professional technical writing and comprehensive API coverage.
 
-## 作業サマリー
-MIDI2Kit v1.0.8で追加されたKORG最適化機能に関する包括的な日本語ドキュメントを作成しました。
+---
 
-## 作成・更新したドキュメント
+## Delivered Documents
 
-### 1. 新規作成: docs/KORG-Optimization.md
+### 1. **docs/API-Reference.md** (English Complete Rewrite)
+Complete API reference covering:
+- **MIDI2Client**: Main API with lifecycle, event streaming, and PE methods
+- **MIDI2ClientConfiguration**: Configuration options including Discovery, PE, Resilience, and Vendor Optimization settings
+- **MIDI2Device**: Device representation with cached property access
+- **KORG Extension API** (v1.0.8+):
+  - `getOptimizedResources()`: 99% faster PE operations
+  - `getXParameterList()`: X-ParameterList fetch
+  - `getXProgramEdit()`: X-ProgramEdit fetch
+  - `getChannelList()`: Vendor auto-detection (v1.0.9+)
+  - `getProgramList()`: KORG format auto-conversion (v1.0.9+)
+- **WarmUpStrategy**: Adaptive warm-up with device learning
+- **KORG PE Types**: PEXParameter, PEXParameterValue, PEXProgramEdit, MIDIVendor, VendorOptimization
+- **PEProgramDef / PEChannelInfo**: KORG format auto-conversion details
+- **Error Handling**: MIDI2Error types and examples
+- **Logging**: Configuration and Console.app filtering
+- **Diagnostics**: Comprehensive diagnostics, destination resolution, communication trace
 
-**ファイルサイズ:** 約20KB (日本語)
+**Features:**
+- Professional technical English
+- Practical code examples throughout
+- Version badges (v1.0.8+, v1.0.9+)
+- Clear table formatting
 
-**内容構成:**
-- KORG最適化ガイド（v1.0.8+）
-- 主な新機能の詳細説明
-- 実用例・サンプルコード
-- パフォーマンス比較データ
-- 設定ガイド
-- トラブルシューティング
-- 後方互換性情報
+---
 
-**カバーする機能:**
+### 2. **docs/v1.0.9-Migration-Guide.md** (English Complete Rewrite)
+Migration guide for v1.0.6 through v1.0.9:
 
-#### 1. 最適化されたリソース取得API
-- `getOptimizedResources(from:preferVendorResources:)` - 自動ベンダー検出と最適化パス選択
-- パフォーマンス: 16.4秒 → 144ms（99.1%改善）
+**What's New Sections:**
+- **v1.0.9**: KORG ChannelList/ProgramList auto-conversion, new APIs
+- **v1.0.8**: KORG optimization (99% faster), Adaptive WarmUp Strategy, Vendor optimization settings
+- **v1.0.7**: AsyncStream race condition fixes
+- **v1.0.6**: CIManager.events AsyncStream race condition fix
 
-#### 2. KORG専用型定義 (PEKORGTypes.swift)
-- `PEXParameter` - X-ParameterList エントリ型
-  - CC番号、パラメータ名、値範囲、デフォルト値
-  - 便利な拡張メソッド: `parameter(for:)`, `displayName(for:)`, `byControlCC`
-- `PEXParameterValue` - パラメータ値型
-- `PEXProgramEdit` - X-ProgramEdit データ型
-  - プログラム名、カテゴリ、パラメータ値の辞書
-  - チャンネル指定対応
-- `MIDIVendor` - ベンダー識別列挙型
-- `VendorOptimization` - 最適化オプション列挙型
-- `VendorOptimizationConfig` - ベンダー別最適化設定
+**Using New Features:**
+- **KORG ChannelList/ProgramList Auto-Conversion** (v1.0.9)
+  - Before/after comparison with code examples
+  - KORG format details and auto-conversion
+- **KORG Optimization Features** (v1.0.8)
+  - `getOptimizedResources()`, `getXParameterList()`, `getXProgramEdit()` usage
+  - Performance comparison table
+- **Adaptive WarmUp Strategy** (v1.0.8)
+  - Strategy selection and how adaptive works
+  - Cache diagnostics
+- **Vendor Optimization Settings** (v1.0.8)
+  - Custom optimization configuration
+  - Available optimization options
 
-#### 3. KORG拡張メソッド (MIDI2Client+KORG.swift)
-- `getXParameterList(from:timeout:)` - X-ParameterList取得
-- `getXParameterListWithResponse(from:timeout:)` - レスポンス付き取得
-- `getXProgramEdit(from:timeout:)` - X-ProgramEdit取得
-- `getXProgramEdit(channel:from:timeout:)` - チャンネル指定X-ProgramEdit取得
+**Migration Checklist:**
+- v1.0.6, v1.0.7, v1.0.8, v1.0.9 migration steps
 
-#### 4. Adaptive Warm-Up戦略 (WarmUpStrategy.swift)
-- `WarmUpStrategy` 列挙型
-  - `.always` - 常にwarm-up実行
-  - `.never` - warm-upしない
-  - `.adaptive` - 初回試行、失敗を記憶（デフォルト）
-  - `.vendorBased` - ベンダー固有最適化使用
-- `WarmUpCache` - デバイスごとのwarm-up必要性キャッシュ
-  - 自動学習機能
-  - デバイスキー生成（manufacturer + model）
-  - TTL管理
-  - 診断情報API
+**Recommended Settings:**
+- KORG devices (v1.0.9 recommended)
+- Standard MIDI 2.0 devices
 
-#### 5. MIDI2ClientConfiguration拡張
-- `warmUpStrategy` プロパティ追加
-- `vendorOptimizations` プロパティ追加
-- 後方互換性維持（`warmUpBeforeResourceList` deprecated）
+**Troubleshooting:**
+- CIManager.events not firing (v1.0.5 and earlier)
+- KORG ResourceList timeouts (v1.0.7 and earlier)
+- warmUpBeforeResourceList deprecated
 
-**実用例（4パターン）:**
-1. KORG Module Proのパラメータ一覧を高速取得
-2. 現在のプログラムとパラメータ値を取得
-3. Adaptive戦略でリソースリスト取得を最適化
-4. ベンダー固有warm-up戦略を使用
+---
 
-**パフォーマンス比較表:**
-- v1.0.7以前 vs v1.0.8最適化パスの詳細比較
-- 改善率: 99.1%
+### 3. **docs/KORG-Optimization.md** (English Complete Rewrite)
+Comprehensive guide for KORG optimization features (v1.0.8+):
 
-**トラブルシューティングセクション:**
-- 最適化パスが使用されない場合の対処
-- Adaptive戦略が学習しない場合の対処
-- X-ParameterListのデコードエラー対処
+**Key New Features:**
+1. **Optimized Resource Fetch API**
+   - `getOptimizedResources()`: Auto-select optimized path
+   - Performance comparison: 16.4s → 144ms (99.1% improvement)
 
-**関連ドキュメントへのリンク:**
-- README.md
-- CHANGELOG.md
-- KORG-Module-Pro-Limitations.md
-- MigrationGuide.md
+2. **KORG-Specific Type Definitions**
+   - PEXParameter: X-ParameterList entry
+   - PEXProgramEdit: X-ProgramEdit data
+   - PEXParameterValue: Parameter value
+   - Convenient extension methods
 
-### 2. 更新: README.md
+3. **Adaptive Warm-Up Strategy**
+   - WarmUpStrategy options (.always, .never, .adaptive, .vendorBased)
+   - How adaptive works
+   - Cache diagnostics
 
-**変更内容:**
+4. **Vendor-Specific Optimization Settings**
+   - VendorOptimization options
+   - MIDIVendor enum
+   - Performance impact table
 
-#### Featuresセクション
-追加項目:
-- **KORG Optimization** - 99% faster PE operations with KORG devices (v1.0.8+)
-- **Adaptive Warm-Up** - Automatic connection optimization with device learning
+**Practical Examples:**
+- Example 1: Quickly fetch KORG Module Pro parameter list
+- Example 2: Fetch current program and parameter values
+- Example 3: Optimize ResourceList fetch with adaptive strategy
+- Example 4: Use vendor-specific warm-up strategy
 
-#### Additional Resourcesセクション
-追加リンク:
-- **KORG Optimization Guide**: [docs/KORG-Optimization.md](docs/KORG-Optimization.md) - 99% faster PE operations with KORG devices (v1.0.8+)
+**Performance Comparison:**
+- Measured results with KORG Module Pro (BLE MIDI)
+- Detailed optimization breakdown
 
-リストの先頭に配置（新機能のため優先表示）
+**Configuration Guide:**
+- KORG Module Pro recommended settings
+- Standard MIDI 2.0 device settings
+- Development/debug settings
 
-## ドキュメント品質
+**Troubleshooting:**
+- Optimized path not used
+- Adaptive strategy not learning
+- X-ParameterList decode error
 
-### 対象読者
-- MIDI2Kit SDKユーザー（Swift開発者）
-- KORG Module Proなどを使用するアプリ開発者
-- Property Exchangeのパフォーマンスに課題を持つ開発者
+---
 
-### 言語とスタイル
-- **日本語**: 敬体（です・ます調）で統一
-- **技術用語**: 英語のまま使用（型名、メソッド名など）
-- **コード例**: 豊富なSwiftサンプルコード
-- **表**: パフォーマンス比較、設定オプション比較に使用
-- **絵文字**: ✅❌⚠️📋 など視覚的な区別に使用
+### 4. **CHANGELOG.md** (English Updates)
+Converted Japanese entries to English:
+- **v1.0.9**: KORG ChannelList/ProgramList auto-conversion
+- **v1.0.7**: AsyncStream race condition fixes
+- **v1.0.6**: CIManager.events AsyncStream race condition fix
 
-### 構成の工夫
-- 見出し階層を明確に（H1 > H2 > H3）
-- コードブロックに説明コメント付与
-- Before/After比較を明示
-- トラブルシューティングセクションで実践的対処法を提供
+---
 
-### コード例の特徴
-- 実際に動作するコード
-- import文を含む完全な例
-- エラーハンドリング含む
-- 出力例・コメント付き
+### 5. **README.md** (English Updates)
+Converted "Recent Updates" section to English:
+- v1.0.9 highlights
+- v1.0.8 highlights
+- v1.0.7 highlights
+- v1.0.6 highlights
 
-## 技術的ハイライト
+---
 
-### v1.0.8の主要機能
+## Technical Highlights
 
-1. **99%パフォーマンス改善**
-   - 従来: DeviceInfo (200ms) + ResourceList (16,200ms) = 16,400ms
-   - v1.0.8: X-ParameterList直接取得 = 144ms
-   - 改善率: 99.1%
+### KORG Optimization (v1.0.8+)
+- **99% Performance Improvement**: 16.4s → 144ms for PE operations
+- **Direct X-ParameterList Fetch**: Skips ResourceList entirely
+- **Adaptive Learning**: Auto-detects optimal warm-up strategy per device
+- **Vendor-Specific Settings**: Customizable optimization per vendor
 
-2. **自動最適化**
-   - Adaptive戦略がデバイスごとに学習
-   - warm-up不要なデバイスは高速パス
-   - warm-up必要なデバイスは信頼性パス
+### KORG Format Auto-Conversion (v1.0.9+)
+- **PEProgramDef**: `title` → `name`, `bankPC: [Int]` → individual properties
+- **PEChannelInfo**: `bankPC: [Int]` → `bankMSB`, `bankLSB`, `programNumber`
+- **Backward Compatibility**: Works with both KORG and standard formats
+- **Auto-Detection**: `getChannelList()`, `getProgramList()` auto-select vendor resources
 
-3. **ベンダー特化**
-   - KORG向け4種類の最適化オプション
-   - デフォルトで有効化
-   - 他ベンダーへの拡張可能
+### API Improvements
+- **Type-Safe APIs**: `getXParameterList()`, `getXProgramEdit()`, `getChannelList()`, `getProgramList()`
+- **Cached Device Access**: MIDI2Device with auto-fetched deviceInfo and resourceList
+- **Comprehensive Diagnostics**: destination resolution, communication trace, warm-up cache status
 
-4. **後方互換性**
-   - 既存コードは変更不要
-   - 非推奨APIも引き続き動作
-   - オプトイン方式の新機能
+---
 
-## 参照したソースファイル
+## Documentation Quality
 
-1. `Sources/MIDI2Kit/HighLevelAPI/MIDI2Client+KORG.swift` (301行)
-2. `Sources/MIDI2Kit/HighLevelAPI/WarmUpStrategy.swift` (263行)
-3. `Sources/MIDI2PE/PEKORGTypes.swift` (416行)
-4. `Sources/MIDI2Kit/HighLevelAPI/MIDI2ClientConfiguration.swift` (301行)
-5. `README.md` (既存)
+### Writing Style
+- **Professional Technical English**: Clear, concise, developer-friendly
+- **Consistent Terminology**: MIDI 2.0, Property Exchange, MIDI-CI, BLE MIDI
+- **Active Voice**: "Get DeviceInfo" vs "DeviceInfo is gotten"
 
-## 成果物
+### Code Examples
+- **Practical Examples**: Real-world use cases with KORG Module Pro
+- **Complete Snippets**: Runnable code with proper imports and error handling
+- **Before/After Comparisons**: v1.0.8 vs v1.0.9 API usage
 
-### 新規ファイル
-- `docs/KORG-Optimization.md` - 完全な機能ガイド（日本語、20KB）
+### Organization
+- **Clear Table of Contents**: Easy navigation
+- **Version Badges**: (v1.0.8+), (v1.0.9+) for version-specific features
+- **Table Formatting**: Performance comparisons, configuration options, optimization settings
+- **Cross-References**: Links to related documents
 
-### 更新ファイル
-- `README.md` - Features/Additional Resources セクション更新
+---
 
-### 作業ドキュメント
-- `docs/document-writer-20260206.md` - このファイル
+## Files Modified
 
-## 推奨される次のステップ
+1. **docs/API-Reference.md** - Complete rewrite (English)
+2. **docs/v1.0.9-Migration-Guide.md** - Complete rewrite (English)
+3. **docs/KORG-Optimization.md** - Complete rewrite (English)
+4. **CHANGELOG.md** - v1.0.9, v1.0.7, v1.0.6 entries converted to English
+5. **README.md** - Recent Updates section converted to English
 
-1. **英語版ドキュメント作成**
-   - `docs/KORG-Optimization-en.md` の作成を検討
-   - 国際的なユーザー向け
+---
 
-2. **CHANGELOG.md更新**
-   - v1.0.8エントリにKORG-Optimization.mdへのリンク追加
+## Recommended Next Steps
 
-3. **サンプルプロジェクト作成**
-   - Examples/KORGOptimizationDemo/ として実装例を提供
+1. **User Feedback**: Gather feedback from SDK users on documentation clarity
+2. **Video Tutorials**: Create video walkthroughs for KORG optimization features
+3. **Sample Projects**: Build example apps demonstrating KORG optimization APIs
+4. **Performance Benchmarks**: Publish detailed benchmark results for various KORG devices
+5. **Localization**: Consider Japanese translation for Japanese market (optional)
 
-4. **API Reference更新**
-   - DocC対応の検討
-   - MIDI2Client+KORG, WarmUpStrategy, PEKORGTypesのAPI docコメント充実
+---
 
-5. **パフォーマンステスト追加**
-   - 最適化パスのベンチマークテスト
-   - CI環境での自動測定
+## Completion Status
 
-## まとめ
+✅ **All documentation fully converted to English**
+✅ **Technically accurate with source code validation**
+✅ **Rich practical code examples throughout**
+✅ **Professional technical writing style**
+✅ **Version information clearly marked**
 
-MIDI2Kit v1.0.8のKORG最適化機能は、以下の点で開発者に大きな価値を提供します:
+**Documentation is production-ready for MIDI2Kit SDK release.**
 
-- **劇的なパフォーマンス改善** (99%)
-- **自動最適化** (開発者の手間不要)
-- **後方互換性** (既存コードに影響なし)
-- **包括的なドキュメント** (実用例、トラブルシューティング含む)
+---
 
-本ドキュメントにより、SDKユーザーは新機能を容易に理解し、すぐに活用できるようになりました。
+**Documentation Update Completed**: 2026-02-06
