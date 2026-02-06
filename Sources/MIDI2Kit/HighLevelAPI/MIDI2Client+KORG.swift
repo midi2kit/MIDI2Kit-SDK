@@ -280,6 +280,150 @@ public struct OptimizedResourceResult: Sendable {
     }
 }
 
+// MARK: - Channel List / Program List
+
+extension MIDI2Client {
+
+    /// Get channel list from device
+    ///
+    /// This method fetches the `ChannelList` or `X-ChannelList` resource and returns
+    /// normalized channel information. KORG-specific formats (bankPC: [Int]) are
+    /// automatically converted to standard format.
+    ///
+    /// - Parameters:
+    ///   - muid: The device MUID
+    ///   - timeout: Optional custom timeout (default: 5 seconds)
+    /// - Returns: Array of channel information
+    /// - Throws: `MIDI2Error` on failure
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// let channels = try await client.getChannelList(from: device.muid)
+    /// for ch in channels {
+    ///     print("Ch \(ch.channel): \(ch.programTitle ?? "No Program")")
+    /// }
+    /// ```
+    public func getChannelList(
+        from muid: MUID,
+        timeout: Duration = .seconds(5)
+    ) async throws -> [PEChannelInfo] {
+        // Detect vendor
+        let vendor = await detectVendor(for: muid)
+
+        // Try vendor-specific resource first for KORG
+        if vendor == .korg {
+            do {
+                let response = try await get("X-ChannelList", from: muid, timeout: timeout)
+                return try decodeChannelList(from: response)
+            } catch {
+                MIDI2Logger.pe.midi2Debug("X-ChannelList failed, trying ChannelList: \(error)")
+            }
+        }
+
+        // Standard ChannelList
+        let response = try await get("ChannelList", from: muid, timeout: timeout)
+        return try decodeChannelList(from: response)
+    }
+
+    /// Get program list from device
+    ///
+    /// This method fetches the `ProgramList` resource and returns normalized program
+    /// definitions. KORG-specific formats (title, bankPC: [Int]) are automatically
+    /// converted to standard format.
+    ///
+    /// - Parameters:
+    ///   - muid: The device MUID
+    ///   - timeout: Optional custom timeout (default: 5 seconds)
+    /// - Returns: Array of program definitions
+    /// - Throws: `MIDI2Error` on failure
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// let programs = try await client.getProgramList(from: device.muid)
+    /// for prog in programs {
+    ///     print("\(prog.bankMSB)-\(prog.bankLSB)-\(prog.programNumber): \(prog.displayName)")
+    /// }
+    /// ```
+    public func getProgramList(
+        from muid: MUID,
+        timeout: Duration = .seconds(5)
+    ) async throws -> [PEProgramDef] {
+        let response = try await get("ProgramList", from: muid, timeout: timeout)
+        return try decodeProgramList(from: response)
+    }
+
+    // MARK: - Private Helpers
+
+    private func detectVendor(for muid: MUID) async -> MIDIVendor {
+        if let cachedInfo = getCachedDeviceInfo(for: muid) {
+            return MIDIVendor.detect(from: cachedInfo.manufacturerName)
+        }
+
+        // Try to fetch DeviceInfo
+        if let info = try? await getDeviceInfo(from: muid) {
+            return MIDIVendor.detect(from: info.manufacturerName)
+        }
+
+        return .unknown
+    }
+
+    private func decodeChannelList(from response: PEResponse) throws -> [PEChannelInfo] {
+        let decoder = JSONDecoder()
+
+        // Try decoding from decodedBody first
+        if let channels = try? decoder.decode([PEChannelInfo].self, from: response.decodedBody) {
+            return channels
+        }
+
+        // Try from bodyString
+        if let bodyStr = response.bodyString,
+           let data = bodyStr.data(using: .utf8),
+           let channels = try? decoder.decode([PEChannelInfo].self, from: data) {
+            return channels
+        }
+
+        // Return empty array if body is empty
+        if response.decodedBody.isEmpty || response.bodyString?.isEmpty == true {
+            return []
+        }
+
+        throw MIDI2Error.invalidResponse(
+            muid: nil,
+            resource: "ChannelList",
+            details: "Failed to decode ChannelList response"
+        )
+    }
+
+    private func decodeProgramList(from response: PEResponse) throws -> [PEProgramDef] {
+        let decoder = JSONDecoder()
+
+        // Try decoding from decodedBody first
+        if let programs = try? decoder.decode([PEProgramDef].self, from: response.decodedBody) {
+            return programs
+        }
+
+        // Try from bodyString
+        if let bodyStr = response.bodyString,
+           let data = bodyStr.data(using: .utf8),
+           let programs = try? decoder.decode([PEProgramDef].self, from: data) {
+            return programs
+        }
+
+        // Return empty array if body is empty
+        if response.decodedBody.isEmpty || response.bodyString?.isEmpty == true {
+            return []
+        }
+
+        throw MIDI2Error.invalidResponse(
+            muid: nil,
+            resource: "ProgramList",
+            details: "Failed to decode ProgramList response"
+        )
+    }
+}
+
 // MARK: - Convenience Extensions
 
 extension Array where Element == PEXParameter {

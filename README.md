@@ -8,7 +8,8 @@ A Swift library for MIDI 2.0 / MIDI-CI / Property Exchange on Apple platforms.
 - **Property Exchange** - Get and set device properties via PE protocol
 - **Advanced SET Operations** - Payload validation, batch SET, and pipeline workflows
 - **High-Level API** - Simple `MIDI2Client` actor for common use cases
-- **KORG Compatibility** - Works with KORG Module Pro and similar devices
+- **KORG Optimization** - 99% faster PE operations with KORG devices (v1.0.8+)
+- **Adaptive Warm-Up** - Automatic connection optimization with device learning
 - **Swift Concurrency** - Built with async/await and Sendable types
 
 ## Requirements
@@ -292,6 +293,7 @@ Contributions welcome! Please open an issue first to discuss proposed changes.
 
 ## Additional Resources
 
+- **KORG Optimization Guide**: [docs/KORG-Optimization.md](docs/KORG-Optimization.md) - 99% faster PE operations with KORG devices (v1.0.8+)
 - **Migration Guide**: [docs/MigrationGuide.md](docs/MigrationGuide.md) - Migrate from low-level API to MIDI2Client
 - **MIDI-CI Ecosystem Analysis**: [docs/MIDI-CI-Ecosystem-Analysis.md](docs/MIDI-CI-Ecosystem-Analysis.md) - Comparison with other MIDI-CI implementations
 - **KORG Compatibility Notes**: [docs/KORG-Module-Pro-Limitations.md](docs/KORG-Module-Pro-Limitations.md) - Known issues and workarounds

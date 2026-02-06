@@ -455,15 +455,52 @@ public struct PEProgramDef: Sendable, Codable, Identifiable {
         case bankMSB = "bankPC"
         case bankLSB = "bankCC"
         case name
+        // KORG alternative keys
+        case title
     }
-    
+
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        
-        programNumber = try container.decodeIfPresent(Int.self, forKey: .programNumber) ?? 0
-        bankMSB = try container.decodeIfPresent(Int.self, forKey: .bankMSB) ?? 0
-        bankLSB = try container.decodeIfPresent(Int.self, forKey: .bankLSB) ?? 0
-        name = try container.decodeIfPresent(String.self, forKey: .name)
+
+        // Use local variables to compute final values
+        // Keep as Optional to distinguish between "program: 0" and missing field
+        var tempProgramNumber = try container.decodeIfPresent(Int.self, forKey: .programNumber)
+        var tempBankMSB = 0
+        var tempBankLSB = 0
+
+        // Handle bankPC: can be Int (standard) or [Int] (KORG format)
+        if let bankPCInt = try? container.decode(Int.self, forKey: .bankMSB) {
+            // Standard format: bankPC as single Int for bankMSB
+            tempBankMSB = bankPCInt
+            tempBankLSB = try container.decodeIfPresent(Int.self, forKey: .bankLSB) ?? 0
+        } else if let bankPCArray = try? container.decode([Int].self, forKey: .bankMSB) {
+            // KORG format: bankPC: [bankMSB, bankLSB, program]
+            if bankPCArray.count >= 3 {
+                tempBankMSB = bankPCArray[0]
+                tempBankLSB = bankPCArray[1]
+                // Use program from array ONLY if .programNumber field is absent
+                if tempProgramNumber == nil {
+                    tempProgramNumber = bankPCArray[2]
+                }
+            } else if bankPCArray.count == 2 {
+                tempBankMSB = bankPCArray[0]
+                tempBankLSB = bankPCArray[1]
+            } else if bankPCArray.count == 1 {
+                tempBankMSB = bankPCArray[0]
+            }
+            // Empty array: keep defaults (0, 0)
+        } else {
+            tempBankLSB = try container.decodeIfPresent(Int.self, forKey: .bankLSB) ?? 0
+        }
+
+        // Assign to properties with default fallback
+        self.programNumber = tempProgramNumber ?? 0
+        self.bankMSB = tempBankMSB
+        self.bankLSB = tempBankLSB
+
+        // Name: try "name" first, then "title" (KORG format)
+        self.name = try container.decodeIfPresent(String.self, forKey: .name)
+            ?? container.decodeIfPresent(String.self, forKey: .title)
     }
     
     public init(
@@ -477,7 +514,15 @@ public struct PEProgramDef: Sendable, Codable, Identifiable {
         self.bankLSB = bankLSB
         self.name = name
     }
-    
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(programNumber, forKey: .programNumber)
+        try container.encode(bankMSB, forKey: .bankMSB)
+        try container.encode(bankLSB, forKey: .bankLSB)
+        try container.encodeIfPresent(name, forKey: .name)
+    }
+
     /// Display name (name or program number)
     public var displayName: String {
         name ?? "Program \(programNumber)"
@@ -796,7 +841,7 @@ public struct PEChannelInfo: Sendable, Codable, Identifiable {
     
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        
+
         // Channel can be Int or String
         if let intValue = try? container.decode(Int.self, forKey: .channel) {
             channel = intValue
@@ -806,17 +851,46 @@ public struct PEChannelInfo: Sendable, Codable, Identifiable {
         } else {
             channel = 0
         }
-        
+
         title = try container.decodeIfPresent(String.self, forKey: .title)
-        programNumber = try container.decodeIfPresent(Int.self, forKey: .programNumber)
-        bankMSB = try container.decodeIfPresent(Int.self, forKey: .bankMSB)
-        bankLSB = try container.decodeIfPresent(Int.self, forKey: .bankLSB)
         programTitle = try container.decodeIfPresent(String.self, forKey: .programTitle)
         clusterType = try container.decodeIfPresent(String.self, forKey: .clusterType)
         clusterIndex = try container.decodeIfPresent(Int.self, forKey: .clusterIndex)
         clusterLength = try container.decodeIfPresent(Int.self, forKey: .clusterLength)
         mute = try container.decodeIfPresent(Bool.self, forKey: .mute)
         solo = try container.decodeIfPresent(Bool.self, forKey: .solo)
+
+        // Handle bankPC: can be Int (standard) or [Int] (KORG format)
+        var tempProgramNumber = try container.decodeIfPresent(Int.self, forKey: .programNumber)
+        var tempBankMSB: Int?
+        var tempBankLSB: Int?
+
+        if let bankPCInt = try? container.decode(Int.self, forKey: .bankMSB) {
+            // Standard format: bankPC as single Int for bankMSB
+            tempBankMSB = bankPCInt
+            tempBankLSB = try container.decodeIfPresent(Int.self, forKey: .bankLSB)
+        } else if let bankPCArray = try? container.decode([Int].self, forKey: .bankMSB) {
+            // KORG format: bankPC: [bankMSB, bankLSB, program]
+            if bankPCArray.count >= 3 {
+                tempBankMSB = bankPCArray[0]
+                tempBankLSB = bankPCArray[1]
+                // Use program from array if not specified separately
+                if tempProgramNumber == nil {
+                    tempProgramNumber = bankPCArray[2]
+                }
+            } else if bankPCArray.count == 2 {
+                tempBankMSB = bankPCArray[0]
+                tempBankLSB = bankPCArray[1]
+            } else if bankPCArray.count == 1 {
+                tempBankMSB = bankPCArray[0]
+            }
+        } else {
+            tempBankLSB = try container.decodeIfPresent(Int.self, forKey: .bankLSB)
+        }
+
+        self.programNumber = tempProgramNumber
+        self.bankMSB = tempBankMSB
+        self.bankLSB = tempBankLSB
     }
     
     public init(
