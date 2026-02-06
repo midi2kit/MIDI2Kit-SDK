@@ -489,3 +489,20 @@
 次のTODO:
   - 必要に応じてドキュメントの微調整
 ---
+
+---
+2026-02-07 08:28
+作業項目: ドキュメント更新のコミット
+追加機能の説明:
+  4つのドキュメント作成/更新をコミット:
+  - CLAUDE.md: SysEx7/RPN/NRPN機能、テスト数564、Recent Fixes (227行追加)
+  - README.md: Features追加、UMP Conversionセクション、v1.1.0リリースノート (98行追加)
+  - docs/api-reference-ump-sysex7.md: 新規APIリファレンス (604行)
+  - docs/code-review-20260207-final.md: コードレビュー最終レポート
+  - docs/code-review-20260207-supplement.md: コードレビュー補足
+  - docs/code-review-20260207.md: コードレビュー初版
+決定事項:
+  - 全ドキュメントを1コミットでまとめる
+次のTODO:
+  - なし
+---

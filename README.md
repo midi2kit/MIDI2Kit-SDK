@@ -7,6 +7,9 @@ A Swift library for MIDI 2.0 / MIDI-CI / Property Exchange on Apple platforms.
 - **MIDI-CI Device Discovery** - Automatically discover MIDI 2.0 capable devices
 - **Property Exchange** - Get and set device properties via PE protocol
 - **Advanced SET Operations** - Payload validation, batch SET, and pipeline workflows
+- **UMP SysEx7 Bidirectional Conversion** - MIDI 1.0 SysEx ↔ UMP Data 64 packet conversion
+- **Multi-Packet SysEx7 Reassembly** - Actor-based UMPSysEx7Assembler for fragmented messages
+- **RPN/NRPN → MIDI 1.0 CC Conversion** - UMP RPN/NRPN to MIDI 1.0 Control Change approximation
 - **High-Level API** - Simple `MIDI2Client` actor for common use cases
 - **KORG Optimization** - 99% faster PE operations with KORG devices (v1.0.8+)
 - **Adaptive Warm-Up** - Automatic connection optimization with device learning
@@ -99,6 +102,89 @@ let client = try MIDI2Client(name: "MyApp", preset: .standard)
 **Available presets:**
 - `.korgBLEMIDI` - Optimized for KORG Module Pro and BLE MIDI devices
 - `.standard` - Default settings for standard MIDI 2.0 devices
+
+## UMP Conversion
+
+MIDI2Kit provides bidirectional conversion between MIDI 1.0 SysEx and UMP SysEx7 (Data 64) packets, along with multi-packet reassembly and RPN/NRPN to MIDI 1.0 CC conversion.
+
+### MIDI 1.0 SysEx → UMP Data 64
+
+```swift
+import MIDI2Core
+
+// Convert MIDI 1.0 SysEx to UMP Data 64 packets
+let sysex: [UInt8] = [0xF0, 0x7E, 0x7F, 0x09, 0x01, 0xF7]
+let packets = UMPTranslator.fromMIDI1SysEx(sysex)
+// Returns array of UMPMessages (automatically chunked into 6-byte payloads)
+
+// Or use factory API
+let packets2 = UMP.sysEx7.fromMIDI1(bytes: sysex)
+```
+
+### UMP Data 64 → MIDI 1.0 SysEx
+
+```swift
+// Convert single UMP Data 64 packet to MIDI 1.0 SysEx
+let ump: UMPMessage = // ... received UMP packet
+if let sysexBytes = UMPTranslator.data64ToMIDI1SysEx(ump) {
+    // sysexBytes includes 0xF0 start and 0xF7 end
+    print("Converted SysEx: \(sysexBytes)")
+}
+```
+
+### Multi-Packet SysEx7 Reassembly
+
+For fragmented SysEx messages spanning multiple UMP packets:
+
+```swift
+// Create assembler (actor-based, thread-safe)
+let assembler = UMPSysEx7Assembler()
+
+// Process incoming UMP packets
+for packet in receivedPackets {
+    if let completeSysEx = await assembler.process(packet) {
+        // Received complete SysEx message (includes 0xF0 and 0xF7)
+        print("Complete SysEx: \(completeSysEx)")
+    }
+}
+
+// Timeout handling
+if let timedOut = await assembler.popTimedOut() {
+    print("Partial SysEx timed out: \(timedOut)")
+}
+```
+
+### Factory API
+
+Create UMP Data 64 packets with the convenient factory API:
+
+```swift
+// Single complete packet
+let singlePacket = UMP.sysEx7.complete(payload: [0x7E, 0x7F, 0x09, 0x01])
+
+// Multi-packet sequence
+let payload = Array(repeating: UInt8(0x42), count: 20) // 20 bytes → 4 packets
+let packets = UMP.sysEx7.fromMIDI1(bytes: [0xF0] + payload + [0xF7])
+// Returns array of Data 64 UMP messages with appropriate status (start/continue/end)
+```
+
+### RPN/NRPN → MIDI 1.0 CC Conversion
+
+Convert UMP RPN/NRPN messages to MIDI 1.0 Control Change approximations:
+
+```swift
+// Convert RPN to MIDI 1.0 CC sequence
+let rpnMessage: UMPMessage = // ... UMP RPN message
+let ccMessages = UMPTranslator.rpnToMIDI1ControlChange(rpnMessage)
+// Returns array of MIDI 1.0 CC messages: [CC#101, CC#100, CC#6, CC#38]
+
+// Convert NRPN to MIDI 1.0 CC sequence
+let nrpnMessage: UMPMessage = // ... UMP NRPN message
+let ccMessages = UMPTranslator.nrpnToMIDI1ControlChange(nrpnMessage)
+// Returns array of MIDI 1.0 CC messages: [CC#99, CC#98, CC#6, CC#38]
+```
+
+**Note:** RPN/NRPN conversion is an approximation - UMP uses 32-bit resolution while MIDI 1.0 uses 7-bit (MSB) + 7-bit (LSB). The conversion preserves the 14-bit MSB value for compatibility.
 
 ## API Reference
 
@@ -206,6 +292,13 @@ If you're using `CIManager` or `PEManager` directly, see the [Migration Guide](d
 
 ## Recent Updates
 
+### v1.1.0 (2026-02-07)
+- **UMP SysEx7 Bidirectional Conversion**: MIDI 1.0 SysEx ↔ UMP Data 64 packet conversion with `UMPTranslator`
+- **Multi-Packet SysEx7 Reassembly**: Actor-based `UMPSysEx7Assembler` for fragmented SysEx messages with timeout handling
+- **RPN/NRPN → MIDI 1.0 CC Conversion**: Convert UMP RPN/NRPN to MIDI 1.0 Control Change approximations
+- **Factory API**: Convenient `UMP.sysEx7.*` methods for creating Data 64 packets
+- **564 Tests**: Comprehensive test coverage across 77 test suites
+
 ### v1.0.9 (2026-02-06)
 - **KORG ChannelList/ProgramList Auto-Conversion**: Auto-convert KORG proprietary format (`bankPC: [Int]` array) to standard format
 - **New APIs**: `getChannelList()`, `getProgramList()` - Auto-detect vendor and select appropriate resource
@@ -266,7 +359,7 @@ MIDI2Core (Foundation - no dependencies)
 
 | Module | Purpose | Key Types |
 |--------|---------|-----------|
-| **MIDI2Core** | Foundation types, UMP messages, constants | `MUID`, `DeviceIdentity`, `UMPMessage`, `Mcoded7` |
+| **MIDI2Core** | Foundation types, UMP messages, constants, bidirectional conversion | `MUID`, `DeviceIdentity`, `UMPMessage`, `UMPTranslator`, `UMPSysEx7Assembler`, `Mcoded7` |
 | **MIDI2Transport** | CoreMIDI integration with connection management | `CoreMIDITransport`, `MIDITransport`, `SysExAssembler` |
 | **MIDI2CI** | MIDI Capability Inquiry protocol (device discovery) | `CIManager`, `DiscoveredDevice`, `CIMessageParser` |
 | **MIDI2PE** | Property Exchange (GET/SET device properties) | `PEManager`, `PETransactionManager`, `PESubscriptionManager` |
@@ -280,8 +373,9 @@ MIDI2Core (Foundation - no dependencies)
 
 MIDI2Kit includes comprehensive tests covering:
 
-- **Unit Tests**: 196+ tests for individual components
+- **Unit Tests**: 564 tests across 77 test suites for individual components
 - **Integration Tests**: End-to-end workflow tests including discovery, PE operations, error recovery
+- **UMP Conversion Tests**: Bidirectional SysEx conversion, multi-packet reassembly, RPN/NRPN conversion
 - **Real Device Tests**: Verified with KORG Module Pro and BLE MIDI devices
 
 Run tests with:

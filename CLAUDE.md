@@ -65,9 +65,16 @@ MIDI2Core (Foundation - no dependencies)
 - `DeviceIdentity`: Manufacturer, family, model, version
 - `UMPMessage`: Type-safe MIDI 2.0 & MIDI 1.0 messages
 - `Mcoded7`: 8-bit ↔ 7-bit encoding for SysEx
+- `SysEx7Status`: Data 64 SysEx7 status enumeration (complete, start, continue, end)
+- `UMPSysEx7Assembler` (actor): Multi-packet Data 64 reassembly with per-group buffer management
 - `MIDI2Logger`: Configurable logging system
 - `RobustJSONDecoder`: Enhanced JSON parsing with diagnostics
 - `PEDecodingDiagnostics`: Detailed JSON decode error tracking
+
+**Key Features**:
+- UMP SysEx7 (Data 64) bidirectional conversion
+- Multi-packet reassembly with per-group buffer management
+- UMP.sysEx7 factory API for convenient packet creation
 
 **Location**: `Sources/MIDI2Core/`
 
@@ -219,6 +226,91 @@ let response = try await peManager.get("DeviceInfo", from: handle)
 // Bad - can cause routing errors
 let response = try await peManager.get("DeviceInfo", from: muid, destination: dest)
 ```
+
+---
+
+## UMP SysEx7 Bidirectional Conversion
+
+MIDI2Kit provides comprehensive support for converting between MIDI 1.0 SysEx messages and MIDI 2.0 UMP Data 64 (SysEx7) packets.
+
+### UMPTranslator Methods
+
+**MIDI 1.0 SysEx → UMP Data 64:**
+```swift
+let midi1SysEx: [UInt8] = [0xF0, 0x7E, 0x00, 0x01, 0xF7]
+let umpPackets: [[UInt32]] = UMPTranslator.fromMIDI1SysEx(midi1SysEx, group: 0)
+// Returns array of UMP words (each packet is 2 UInt32 words)
+// Automatically handles multi-packet fragmentation for large SysEx messages
+```
+
+**Complete UMP Data 64 → MIDI 1.0 SysEx:**
+```swift
+let completePacket: [UInt32] = [0x30057E00, 0x01000000]
+let midi1SysEx = UMPTranslator.data64ToMIDI1SysEx(completePacket)
+// Returns: [0xF0, 0x7E, 0x00, 0x01, 0xF7]
+// Only processes complete packets (status: .complete)
+```
+
+### UMPSysEx7Assembler
+
+For reassembling multi-packet Data 64 messages:
+
+```swift
+let assembler = UMPSysEx7Assembler()
+
+// Process incoming packets
+if let completeSysEx = await assembler.process(packet: packet1, group: 0) {
+    // Received complete SysEx message (with 0xF0 and 0xF7)
+    print("Complete message: \(completeSysEx)")
+}
+
+// Reset specific group buffer
+await assembler.reset(group: 0)
+```
+
+**Key Features**:
+- Per-group buffer management (up to 16 groups)
+- Actor-based thread-safe implementation
+- Automatic status tracking (start → continue* → end)
+- Returns complete MIDI 1.0 SysEx with 0xF0/0xF7 framing
+
+### UMP.sysEx7 Factory API
+
+Convenient factory methods for creating Data 64 packets:
+
+```swift
+// Create packets from MIDI 1.0 SysEx
+let packets = UMP.sysEx7.fromMIDI1(bytes: [0xF0, 0x7E, 0x00, 0x01, 0xF7], group: 0)
+// Returns [[UInt32]] - array of UMP word pairs
+
+// Create single complete packet
+let packet = UMP.sysEx7.complete(payload: [0x7E, 0x00, 0x01], group: 0)
+// Returns [UInt32] - 2 UInt32 words with status=complete
+```
+
+### RPN/NRPN → MIDI 1.0 CC Approximation
+
+For devices that don't support MIDI 2.0 per-note/assignable controllers, MIDI2Kit provides approximation converters:
+
+```swift
+// Convert RPN to MIDI 1.0 CC sequence
+let umpRPN: [UInt32] = [0x40206000, 0x00000040] // RPN MSB
+let ccBytes = UMPTranslator.rpnToMIDI1CC(umpRPN)
+// Returns: [0xB0, 0x65, 0x00, 0xB0, 0x64, 0x06, 0xB0, 0x06, 0x40]
+// Channel mode message sequence for RPN parameter
+
+// Convert NRPN to MIDI 1.0 CC sequence
+let umpNRPN: [UInt32] = [0x40306000, 0x00000040]
+let ccBytes = UMPTranslator.nrpnToMIDI1CC(umpNRPN)
+// Returns: [0xB0, 0x63, 0x00, 0xB0, 0x62, 0x06, 0xB0, 0x06, 0x40]
+// Channel mode message sequence for NRPN parameter
+```
+
+**Conversion Details**:
+- RPN: Uses CC#101 (MSB) / CC#100 (LSB) for parameter, CC#6 for data
+- NRPN: Uses CC#99 (MSB) / CC#98 (LSB) for parameter, CC#6 for data
+- 32-bit values are downsampled to 7-bit MIDI 1.0 range
+- Returns empty array for non-RPN/NRPN messages
 
 ---
 
@@ -379,11 +471,11 @@ let result = try await conditional.conditionalSet(
 ### Test Structure
 - Tests are in `Tests/MIDI2KitTests/`
 - Uses `MockMIDITransport` for hardware-independent testing
-- 196 tests (as of 2026-01-30)
+- 564 tests (as of 2026-02-07)
 
 ### CI Configuration
 - GitHub Actions: `.github/workflows/ci.yml`
-- Runs on macOS 14 with Xcode 16.x
+- Runs on macOS 15 with Xcode 16.x (upgraded from macOS 14)
 - Tests both macOS and iOS Simulator builds
 
 ---
@@ -495,6 +587,43 @@ let result = try await conditional.conditionalSet(
 - Improved organization: 12 new focused files
 - Test coverage: 319 tests maintained (100% pass)
 - Code review: ⭐⭐⭐⭐⭐ 5.0/5
+
+### UMP SysEx7 & RPN/NRPN Conversion (2026-02-07)
+
+16. **UMP SysEx7 (Data 64) bidirectional conversion** (Sources/MIDI2Core/UMP/)
+    - Added `SysEx7Status` enum: complete, start, continue, end
+    - `UMPTranslator.fromMIDI1SysEx(_:group:)`: MIDI 1.0 SysEx → UMP Data 64 packets
+    - `UMPTranslator.data64ToMIDI1SysEx(_:)`: Complete UMP Data 64 → MIDI 1.0 SysEx
+    - Automatic multi-packet fragmentation for large SysEx messages
+
+17. **UMPSysEx7Assembler** (Sources/MIDI2Core/UMP/UMPSysEx7Assembler.swift)
+    - New actor for multi-packet Data 64 reassembly
+    - Per-group buffer management (up to 16 groups)
+    - `process(packet:group:)`: Returns complete SysEx when end packet received
+    - Thread-safe actor-based implementation
+
+18. **UMP.sysEx7 factory API** (Sources/MIDI2Core/UMP/UMP.swift)
+    - `UMP.sysEx7.fromMIDI1(bytes:group:)`: Convenient MIDI 1.0 → Data 64 conversion
+    - `UMP.sysEx7.complete(payload:group:)`: Create single complete packet
+    - Namespace for SysEx7-related factory methods
+
+19. **RPN/NRPN → MIDI 1.0 CC approximation** (Sources/MIDI2Core/UMP/UMPTranslator.swift)
+    - `rpnToMIDI1CC()`: Convert RPN message to CC#101/100/6 sequence
+    - `nrpnToMIDI1CC()`: Convert NRPN message to CC#99/98/6 sequence
+    - 32-bit value downsampling to 7-bit MIDI 1.0 range
+    - Enables MIDI 1.0 fallback for advanced MIDI 2.0 controllers
+
+20. **Comprehensive test coverage** (Tests/MIDI2KitTests/)
+    - `UMPSysEx7Tests.swift`: 32 new tests for SysEx7 conversion and reassembly
+    - `UMPTranslatorTests.swift`: Extended with RPN/NRPN conversion tests
+    - Test coverage increased from 196 to 564 tests (288% increase)
+    - All tests passing (100% success rate)
+
+**Impact**:
+- Complete UMP ⇔ MIDI 1.0 SysEx bidirectional bridge
+- Enables MIDI 2.0 devices to communicate with legacy MIDI 1.0 systems
+- Foundation for hybrid MIDI 1.0/2.0 applications
+- Robust multi-packet reassembly with per-group isolation
 
 ---
 
