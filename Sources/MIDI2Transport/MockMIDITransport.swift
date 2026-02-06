@@ -24,12 +24,26 @@ public actor MockMIDITransport: MIDITransport {
     }
     
     // MARK: - Mock State
-    
+
     /// Mock sources to report
     public var mockSources: [MIDISourceInfo] = []
-    
+
     /// Mock destinations to report
     public var mockDestinations: [MIDIDestinationInfo] = []
+
+    // MARK: - Virtual Endpoint State
+
+    /// Next ID for virtual endpoints (starts at 1000 to avoid collisions with mock IDs)
+    private var virtualNextID: UInt32 = 1000
+
+    /// Created virtual destinations
+    public private(set) var virtualDestinations: Set<MIDIDestinationID> = []
+
+    /// Created virtual sources
+    public private(set) var virtualSources: Set<MIDISourceID> = []
+
+    /// Messages sent via sendFromVirtualSource
+    public private(set) var virtualSourceSentMessages: [SentMessage] = []
     
     // MARK: - Streams
     
@@ -187,6 +201,88 @@ public actor MockMIDITransport: MIDITransport {
         sentMessages.contains { message in
             message.data.count >= 5 && message.data[4] == ciMessageType
         }
+    }
+}
+
+// MARK: - VirtualEndpointCapable
+
+extension MockMIDITransport: VirtualEndpointCapable {
+
+    public func createVirtualDestination(name: String) async throws -> MIDIDestinationID {
+        let id = MIDIDestinationID(virtualNextID)
+        virtualNextID += 1
+        virtualDestinations.insert(id)
+        // Add to mockDestinations so it appears in the destinations list
+        mockDestinations.append(MIDIDestinationInfo(
+            destinationID: id,
+            name: name,
+            isOnline: true
+        ))
+        return id
+    }
+
+    public func createVirtualSource(name: String) async throws -> MIDISourceID {
+        let id = MIDISourceID(virtualNextID)
+        virtualNextID += 1
+        virtualSources.insert(id)
+        // Add to mockSources so it appears in the sources list
+        mockSources.append(MIDISourceInfo(
+            sourceID: id,
+            name: name,
+            isOnline: true
+        ))
+        return id
+    }
+
+    public func removeVirtualDestination(_ id: MIDIDestinationID) async throws {
+        guard virtualDestinations.remove(id) != nil else {
+            throw MIDITransportError.virtualEndpointNotFound(id.value)
+        }
+        mockDestinations.removeAll { $0.destinationID == id }
+    }
+
+    public func removeVirtualSource(_ id: MIDISourceID) async throws {
+        guard virtualSources.remove(id) != nil else {
+            throw MIDITransportError.virtualEndpointNotFound(id.value)
+        }
+        mockSources.removeAll { $0.sourceID == id }
+    }
+
+    public func sendFromVirtualSource(_ data: [UInt8], source: MIDISourceID) async throws {
+        guard virtualSources.contains(source) else {
+            throw MIDITransportError.virtualEndpointNotFound(source.value)
+        }
+        let message = SentMessage(
+            data: data,
+            destination: MIDIDestinationID(source.value), // Record source as destination for tracking
+            timestamp: Date()
+        )
+        virtualSourceSentMessages.append(message)
+    }
+}
+
+// MARK: - Virtual Endpoint Test Helpers
+
+extension MockMIDITransport {
+
+    /// Get all created virtual destinations
+    public var createdVirtualDestinations: Set<MIDIDestinationID> {
+        virtualDestinations
+    }
+
+    /// Get all created virtual sources
+    public var createdVirtualSources: Set<MIDISourceID> {
+        virtualSources
+    }
+
+    /// Get messages sent via virtual sources
+    public var virtualSourceMessages: [SentMessage] {
+        virtualSourceSentMessages
+    }
+
+    /// Clear virtual source sent messages
+    public func clearVirtualSourceMessages() {
+        virtualSourceSentMessages.removeAll()
     }
 }
 

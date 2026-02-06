@@ -11,6 +11,68 @@ import Foundation
 import CoreMIDI
 import MIDI2Core
 
+/// Thread-safe virtual endpoint state management
+private final class VirtualEndpointState: @unchecked Sendable {
+    private let lock = NSLock()
+    private var virtualDestinations: [MIDIDestinationID: MIDIEndpointRef] = [:]
+    private var virtualSources: [MIDISourceID: MIDIEndpointRef] = [:]
+
+    func addDestination(_ id: MIDIDestinationID, ref: MIDIEndpointRef) {
+        lock.lock()
+        defer { lock.unlock() }
+        virtualDestinations[id] = ref
+    }
+
+    func addSource(_ id: MIDISourceID, ref: MIDIEndpointRef) {
+        lock.lock()
+        defer { lock.unlock() }
+        virtualSources[id] = ref
+    }
+
+    func removeDestination(_ id: MIDIDestinationID) -> MIDIEndpointRef? {
+        lock.lock()
+        defer { lock.unlock() }
+        return virtualDestinations.removeValue(forKey: id)
+    }
+
+    func removeSource(_ id: MIDISourceID) -> MIDIEndpointRef? {
+        lock.lock()
+        defer { lock.unlock() }
+        return virtualSources.removeValue(forKey: id)
+    }
+
+    func sourceRef(for id: MIDISourceID) -> MIDIEndpointRef? {
+        lock.lock()
+        defer { lock.unlock() }
+        return virtualSources[id]
+    }
+
+    func isVirtualDestination(_ id: MIDIDestinationID) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return virtualDestinations[id] != nil
+    }
+
+    func allDestinations() -> [MIDIDestinationID: MIDIEndpointRef] {
+        lock.lock()
+        defer { lock.unlock() }
+        return virtualDestinations
+    }
+
+    func allSources() -> [MIDISourceID: MIDIEndpointRef] {
+        lock.lock()
+        defer { lock.unlock() }
+        return virtualSources
+    }
+
+    func clear() {
+        lock.lock()
+        defer { lock.unlock() }
+        virtualDestinations.removeAll()
+        virtualSources.removeAll()
+    }
+}
+
 /// Thread-safe connection state management (sync + async compatible)
 private final class ConnectionState: @unchecked Sendable {
     private let lock = NSLock()
@@ -74,6 +136,9 @@ public final class CoreMIDITransport: MIDITransport, @unchecked Sendable {
     
     /// Connection state (thread-safe, sync accessible for deinit)
     private let connectionState = ConnectionState()
+
+    /// Virtual endpoint state (thread-safe)
+    private let virtualEndpointState = VirtualEndpointState()
 
     /// Shutdown state (thread-safe)
     private let shutdownLock = NSLock()
@@ -158,13 +223,16 @@ public final class CoreMIDITransport: MIDITransport, @unchecked Sendable {
         }
         self.outputPort = outPort
         
-        // Create input port with source tracking via connRefCon
+        // Create input port using protocol-aware API (supports MIDI 2.0 devices)
+        // Using ._1_0 so CoreMIDI translates all incoming data to MIDI 1.0 byte stream,
+        // which is compatible with the existing handlePacketList/handleReceivedData path.
         var inPort: MIDIPortRef = 0
-        let inStatus = MIDIInputPortCreateWithBlock(
+        let inStatus = MIDIInputPortCreateWithProtocol(
             client,
             "Input" as CFString,
+            ._1_0,
             &inPort
-        ) { [weak self] packetList, srcConnRefCon in
+        ) { [weak self] eventList, srcConnRefCon in
             // Extract source from connRefCon (passed via MIDIPortConnectSource)
             let sourceRef: MIDIEndpointRef?
             if let refCon = srcConnRefCon {
@@ -172,9 +240,9 @@ public final class CoreMIDITransport: MIDITransport, @unchecked Sendable {
             } else {
                 sourceRef = nil
             }
-            self?.handlePacketList(packetList, from: sourceRef)
+            self?.handleEventList(eventList, from: sourceRef)
         }
-        
+
         guard inStatus == noErr else {
             throw MIDITransportError.portCreationFailed(inStatus)
         }
@@ -199,6 +267,17 @@ public final class CoreMIDITransport: MIDITransport, @unchecked Sendable {
         defer { shutdownLock.unlock() }
         guard !didShutdown else { return }
         didShutdown = true
+
+        // Dispose all virtual endpoints before ports
+        let virtualDests = virtualEndpointState.allDestinations()
+        for (_, ref) in virtualDests {
+            MIDIEndpointDispose(ref)
+        }
+        let virtualSrcs = virtualEndpointState.allSources()
+        for (_, ref) in virtualSrcs {
+            MIDIEndpointDispose(ref)
+        }
+        virtualEndpointState.clear()
 
         // Disconnect all sources synchronously
         let connected = connectionState.getConnected()
@@ -371,6 +450,8 @@ public final class CoreMIDITransport: MIDITransport, @unchecked Sendable {
             let destRef = MIDIGetDestination(i)
             if destRef != 0 {
                 let destID = MIDIDestinationID(UInt32(destRef))
+                // Skip our own virtual destinations to prevent feedback loops
+                guard !virtualEndpointState.isVirtualDestination(destID) else { continue }
                 try await send(data, to: destID)
             }
         }
@@ -440,6 +521,71 @@ public final class CoreMIDITransport: MIDITransport, @unchecked Sendable {
     
     // MARK: - Private Helpers
     
+    /// Handle MIDIEventList from MIDIInputPortCreateWithProtocol
+    private func handleEventList(_ eventList: UnsafePointer<MIDIEventList>, from sourceRef: MIDIEndpointRef?) {
+        let sourceID: MIDISourceID?
+        if let ref = sourceRef, ref != 0 {
+            sourceID = MIDISourceID(UInt32(ref))
+        } else {
+            sourceID = nil
+        }
+
+        // Extract MIDI 1.0 bytes from UMP words in the event list
+        var allPacketData: [[UInt8]] = []
+        for packet in eventList.unsafeSequence() {
+            let wordCount = Int(packet.pointee.wordCount)
+            guard wordCount > 0 else { continue }
+
+            // Access UMP words from the packet
+            let words: [UInt32] = withUnsafePointer(to: packet.pointee.words) { wordsPtr in
+                wordsPtr.withMemoryRebound(to: UInt32.self, capacity: wordCount) { ptr in
+                    Array(UnsafeBufferPointer(start: ptr, count: wordCount))
+                }
+            }
+
+            for word in words {
+                let messageType = (word >> 28) & 0x0F
+
+                switch messageType {
+                case 0x1:
+                    // System Real-Time / System Common (1 word)
+                    let status = UInt8((word >> 16) & 0xFF)
+                    if status >= 0xF0 {
+                        allPacketData.append([status])
+                    }
+
+                case 0x2:
+                    // MIDI 1.0 Channel Voice (1 word)
+                    let status = UInt8((word >> 16) & 0xFF)
+                    let data1 = UInt8((word >> 8) & 0xFF)
+                    let data2 = UInt8(word & 0xFF)
+                    let statusNibble = status >> 4
+                    if statusNibble == 0xC || statusNibble == 0xD {
+                        // Program Change, Channel Pressure: 2 bytes
+                        allPacketData.append([status, data1])
+                    } else {
+                        // Note On/Off, CC, Pitch Bend, etc.: 3 bytes
+                        allPacketData.append([status, data1, data2])
+                    }
+
+                case 0x3:
+                    // Data / SysEx (64-bit, 2 words)
+                    // Extract SysEx bytes from word pair
+                    break
+
+                default:
+                    break
+                }
+            }
+        }
+
+        Task { [weak self, allPacketData, sourceID] in
+            for data in allPacketData {
+                await self?.processReceivedData(data, from: sourceID)
+            }
+        }
+    }
+
     private func handlePacketList(_ packetList: UnsafePointer<MIDIPacketList>, from sourceRef: MIDIEndpointRef?) {
         // Convert sourceRef to MIDISourceID
         let sourceID: MIDISourceID?
@@ -775,6 +921,137 @@ private func getEndpointName(_ endpoint: MIDIEndpointRef) -> String {
     /// - Returns: Detected transport type
     public func transportType(for destination: MIDIDestinationID) -> MIDITransportType {
         MIDITransportType.detect(for: MIDIEndpointRef(destination.value))
+    }
+}
+
+// MARK: - VirtualEndpointCapable
+
+extension CoreMIDITransport: VirtualEndpointCapable {
+
+    public func createVirtualDestination(name: String) async throws -> MIDIDestinationID {
+        let isShutdown = shutdownLock.withLock { didShutdown }
+        guard !isShutdown else {
+            throw MIDITransportError.notInitialized
+        }
+
+        var endpointRef: MIDIEndpointRef = 0
+        let status = MIDIDestinationCreateWithBlock(
+            client,
+            name as CFString,
+            &endpointRef
+        ) { [weak self] packetList, _ in
+            self?.handleVirtualDestinationPacketList(packetList)
+        }
+
+        guard status == noErr else {
+            throw MIDITransportError.virtualEndpointCreationFailed(status)
+        }
+
+        let destID = MIDIDestinationID(UInt32(endpointRef))
+        virtualEndpointState.addDestination(destID, ref: endpointRef)
+        return destID
+    }
+
+    public func createVirtualSource(name: String) async throws -> MIDISourceID {
+        let isShutdown = shutdownLock.withLock { didShutdown }
+        guard !isShutdown else {
+            throw MIDITransportError.notInitialized
+        }
+
+        var endpointRef: MIDIEndpointRef = 0
+        let status = MIDISourceCreate(client, name as CFString, &endpointRef)
+
+        guard status == noErr else {
+            throw MIDITransportError.virtualEndpointCreationFailed(status)
+        }
+
+        let sourceID = MIDISourceID(UInt32(endpointRef))
+        virtualEndpointState.addSource(sourceID, ref: endpointRef)
+        return sourceID
+    }
+
+    public func removeVirtualDestination(_ id: MIDIDestinationID) async throws {
+        guard let ref = virtualEndpointState.removeDestination(id) else {
+            throw MIDITransportError.virtualEndpointNotFound(id.value)
+        }
+
+        let status = MIDIEndpointDispose(ref)
+        guard status == noErr else {
+            throw MIDITransportError.virtualEndpointDisposeFailed(status)
+        }
+    }
+
+    public func removeVirtualSource(_ id: MIDISourceID) async throws {
+        guard let ref = virtualEndpointState.removeSource(id) else {
+            throw MIDITransportError.virtualEndpointNotFound(id.value)
+        }
+
+        let status = MIDIEndpointDispose(ref)
+        guard status == noErr else {
+            throw MIDITransportError.virtualEndpointDisposeFailed(status)
+        }
+    }
+
+    public func sendFromVirtualSource(_ data: [UInt8], source: MIDISourceID) async throws {
+        guard let sourceRef = virtualEndpointState.sourceRef(for: source) else {
+            throw MIDITransportError.virtualEndpointNotFound(source.value)
+        }
+
+        // Trace send
+        if let tracer = tracer {
+            let label = MIDITraceEntry.detectLabel(for: data)
+            tracer.recordSend(to: source.value, data: data, label: "VS:\(label ?? "Unknown")")
+        }
+
+        let bufferSize = 1024 + data.count
+        let buffer = UnsafeMutablePointer<UInt8>.allocate(capacity: bufferSize)
+        defer { buffer.deallocate() }
+
+        let packetList = UnsafeMutableRawPointer(buffer).bindMemory(to: MIDIPacketList.self, capacity: 1)
+        let packet = MIDIPacketListInit(packetList)
+
+        _ = MIDIPacketListAdd(packetList, bufferSize, packet, 0, data.count, data)
+
+        guard packetList.pointee.numPackets > 0 else {
+            throw MIDITransportError.packetListAddFailed(dataSize: data.count, bufferSize: bufferSize)
+        }
+
+        // MIDIReceived under shutdownLock to prevent use-after-dispose
+        let status: OSStatus = try shutdownLock.withLock {
+            guard !didShutdown else {
+                throw MIDITransportError.notInitialized
+            }
+            return MIDIReceived(sourceRef, packetList)
+        }
+
+        guard status == noErr else {
+            throw MIDITransportError.sendFailed(status)
+        }
+    }
+
+    // MARK: - Virtual Destination Packet Handling
+
+    /// Handle packets received on a virtual destination.
+    ///
+    /// Called from CoreMIDI's internal thread when another app sends data
+    /// to one of our virtual destinations.
+    private func handleVirtualDestinationPacketList(_ packetList: UnsafePointer<MIDIPacketList>) {
+        var allPacketData: [[UInt8]] = []
+        for packet in packetList.unsafeSequence() {
+            let length = Int(packet.pointee.length)
+            guard length > 0 else { continue }
+            let data: [UInt8] = withUnsafeBytes(of: packet.pointee.data) { ptr in
+                Array(ptr.prefix(length))
+            }
+            allPacketData.append(data)
+        }
+
+        // Process on async context; sourceID is nil for virtual destinations
+        Task { [weak self, allPacketData] in
+            for data in allPacketData {
+                await self?.processReceivedData(data, from: nil)
+            }
+        }
     }
 }
 

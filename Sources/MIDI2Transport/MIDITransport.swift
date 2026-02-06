@@ -263,6 +263,12 @@ public enum MIDITransportError: Error, Sendable {
     case sourceNotFound(UInt32)
     /// MIDIPacketListAdd failed (buffer too small or invalid parameters)
     case packetListAddFailed(dataSize: Int, bufferSize: Int)
+    /// Virtual endpoint creation failed (MIDIDestinationCreateWithBlock or MIDISourceCreate)
+    case virtualEndpointCreationFailed(Int32)
+    /// Virtual endpoint not found (not created by this transport)
+    case virtualEndpointNotFound(UInt32)
+    /// Virtual endpoint dispose failed (MIDIEndpointDispose)
+    case virtualEndpointDisposeFailed(Int32)
 }
 
 extension MIDITransportError: CustomStringConvertible {
@@ -284,6 +290,12 @@ extension MIDITransportError: CustomStringConvertible {
             return "MIDI source not found (ID: \(id))"
         case .packetListAddFailed(let dataSize, let bufferSize):
             return "MIDIPacketListAdd failed (data: \(dataSize) bytes, buffer: \(bufferSize) bytes)"
+        case .virtualEndpointCreationFailed(let status):
+            return "Failed to create virtual endpoint (OSStatus: \(status))"
+        case .virtualEndpointNotFound(let id):
+            return "Virtual endpoint not found (ID: \(id))"
+        case .virtualEndpointDisposeFailed(let status):
+            return "Failed to dispose virtual endpoint (OSStatus: \(status))"
         }
     }
 }

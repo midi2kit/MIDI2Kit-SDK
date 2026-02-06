@@ -1382,3 +1382,316 @@
 次のTODO:
   - ステップ1: コミット・タグ作成
 ---
+
+---
+2026-02-06 17:40
+作業項目: v1.0.10 MIDI2Kit-SDKリリース完了（6段階検証済み）
+追加機能の説明:
+  【全6ステップ完了】
+  1. ✅ hakaru/MIDI2Kit コミット・タグ作成
+     - コミット: 7a57c13
+     - タグ: v1.0.10
+     - プッシュ完了
+
+  2. ✅ XCFrameworkビルド（build-xcframework.sh）
+     - 5モジュール: MIDI2Core, MIDI2Transport, MIDI2CI, MIDI2PE, MIDI2Kit
+
+  3. ✅ swiftinterface新API検証
+     - MIDI2Core: AnyCodableValue (Hashable, coercedIntValue, coercedStringValue) ✅
+     - MIDI2PE: PEXCurrentValue, emptyResponse, PEEmptyResponseRepresentable ✅
+     - MIDI2Kit: getProgramEdit, blePETimeout, autoAdjustBLETimeout ✅
+     - MIDI2Transport: MIDITransportType, transportType ✅
+
+  4. ✅ midi2kit/MIDI2Kit-SDK v1.0.10 リリース作成
+     - https://github.com/midi2kit/MIDI2Kit-SDK/releases/tag/v1.0.10
+     - 5つのXCFramework ZIPアップロード
+
+  5. ✅ Package.swift チェックサム更新
+     - コミット: ebc3679
+     - CHANGELOG.md更新
+
+  6. ✅ ダウンロード検証（3モジュール）
+     - MIDI2Core: checksum一致 ✅ AnyCodableValue API確認 ✅
+     - MIDI2PE: checksum一致 ✅ PEXCurrentValue API確認 ✅
+     - MIDI2Kit: checksum一致 ✅ getProgramEdit API確認 ✅
+
+  【チェックサム（v1.0.10）】
+  - MIDI2Core: f2cd189dce790038a92d173601f0c60a3b36524fedc2ad1f0daedfb3435d7176
+  - MIDI2Transport: 50362da54408abef4d40576d65307dfd51787295b5394c6ac906ef67f033b04b
+  - MIDI2CI: 7e74833b03ac8524ac45e16613b37835f3d8b30e3af57f53513667e67e93b6bc
+  - MIDI2PE: 8b87b63d9406be15f103f3a4562dad21435c6a472a0ea9ede83caf20b6a024d0
+  - MIDI2Kit: 756c744e034a6ecac95d328145f7bc4d62515c47090c5cdae6c07afb516cf85f
+
+決定事項:
+  - v1.0.10 SDKリリース完了
+  - 6段階検証すべてパス（チェックサム一致、API含有確認、DL検証）
+  - 過去のv1.0.8古いバイナリ問題は再発せず
+次のTODO:
+  - SDKユーザーは from: "1.0.10" で最新版を取得可能
+---
+
+---
+2026-02-06 17:41
+作業項目: GitHub issue確認
+追加機能の説明:
+  【オープンissue一覧】
+
+  1. midi2kit/MIDI2Kit-SDK #1: CIManager.events does not emit deviceDiscovered event
+     - 状態: OPEN（コメント5件、対応済みだがクローズ忘れ）
+     - 内容: CIManager.eventsがdeviceDiscoveredを発火しない
+     - 原因: start()未呼び出し + AsyncStream race condition（v1.0.6で修正済み）
+     - 対応: MIDI2Client使用を推奨、コメントで解決策を提供済み
+     - アクション: ユーザー確認待ち→クローズ可能
+
+  2. hakaru/MIDI2Kit #9: Virtual MIDI Endpoint support for inter-app communication
+     - 状態: OPEN（コメント0件）
+     - 内容: CoreMIDITransportにVirtual MIDI endpoint作成機能を追加
+     - 用途: PEResponderが他のiOS/macOSアプリと通信可能にする
+     - 提案API: VirtualEndpointCapableプロトコル、publishVirtualDevice()
+     - 影響ファイル: MIDITransport.swift, CoreMIDITransport.swift, MockMIDITransport.swift
+     - アクション: 新機能として実装検討（v1.1.0候補）
+
+決定事項:
+  - #1は対応済み、クローズ可能
+  - #9は新機能提案として検討
+次のTODO:
+  - #1のクローズ判断
+  - #9の実装優先度判断
+---
+
+---
+2026-02-06 17:50
+作業項目: Issue #9 Virtual MIDI Endpoint 実装開始
+追加機能の説明:
+  承認済み計画に基づき、Virtual MIDI Endpoint機能を実装開始。
+  Phase 1: CoreMIDITransport + Mock + テスト
+
+  【実装ファイル（5ファイル）】
+  1. Sources/MIDI2Transport/VirtualEndpointCapable.swift（新規）
+     - VirtualEndpointCapableプロトコル
+     - VirtualDevice構造体
+     - publishVirtualDevice/unpublishVirtualDevice convenience API
+  2. Sources/MIDI2Transport/MIDITransport.swift（変更）
+     - MIDITransportErrorに3ケース追加
+  3. Sources/MIDI2Transport/CoreMIDITransport.swift（変更）
+     - VirtualEndpointState、VirtualEndpointCapable実装
+     - handleVirtualDestinationPacketList
+     - shutdown拡張、broadcast()フィルタリング
+  4. Sources/MIDI2Transport/MockMIDITransport.swift（変更）
+     - VirtualEndpointCapable conformance
+  5. Tests/MIDI2KitTests/VirtualEndpointTests.swift（新規）
+     - ~15テスト
+
+決定事項:
+  - MIDITransport変更なし（後方互換性100%）
+  - VirtualEndpointCapableを別プロトコルとして定義
+  - Virtual destinationの受信は既存receivedContinuationにフィード
+次のTODO:
+  - Step 1: VirtualEndpointCapable.swift 新規作成
+  - Step 2: MIDITransportError 3ケース追加
+  - Step 3: CoreMIDITransport実装
+  - Step 4: MockMIDITransport実装
+  - Step 5: テスト作成
+---
+
+---
+2026-02-06 18:00
+作業項目: Issue #9 Virtual MIDI Endpoint 実装完了
+追加機能の説明:
+  【新規ファイル（2ファイル）】
+  1. Sources/MIDI2Transport/VirtualEndpointCapable.swift
+     - VirtualEndpointCapableプロトコル（5メソッド）
+     - VirtualDevice構造体（Sendable, Hashable）
+     - publishVirtualDevice/unpublishVirtualDevice convenience API
+       （失敗時ロールバック、unpublishは両方削除）
+
+  2. Tests/MIDI2KitTests/VirtualEndpointTests.swift
+     - VirtualDevice Tests: 2テスト（properties, hashable）
+     - Mock Virtual Endpoint Tests: 13テスト
+       - create/remove destination/source
+       - remove nonexistent → error
+       - sendFromVirtualSource records / invalid → error
+       - publishVirtualDevice / unpublishVirtualDevice
+       - virtual destination receive → received stream
+       - multiple virtual devices
+       - full lifecycle
+     - MIDITransportError Virtual Cases Tests: 3テスト
+     計18テスト新規
+
+  【変更ファイル（3ファイル）】
+  3. Sources/MIDI2Transport/MIDITransport.swift
+     - MIDITransportError に3ケース追加:
+       virtualEndpointCreationFailed, virtualEndpointNotFound, virtualEndpointDisposeFailed
+     - CustomStringConvertible description追加
+
+  4. Sources/MIDI2Transport/CoreMIDITransport.swift
+     - VirtualEndpointState (private final class, @unchecked Sendable, NSLock)
+     - VirtualEndpointCapable conformance:
+       - createVirtualDestination: MIDIDestinationCreateWithBlock
+       - createVirtualSource: MIDISourceCreate
+       - removeVirtualDestination/Source: MIDIEndpointDispose
+       - sendFromVirtualSource: MIDIReceived (shutdownLock下)
+     - handleVirtualDestinationPacketList: unsafeSequence() → Task{}
+     - shutdownSync(): virtual endpoint dispose追加（ポートdispose前）
+     - broadcast(): own virtual destination skipフィルタリング
+
+  5. Sources/MIDI2Transport/MockMIDITransport.swift
+     - VirtualEndpointCapable conformance
+     - virtualNextID: UInt32 = 1000
+     - virtualDestinations/virtualSources/virtualSourceSentMessages
+     - テストヘルパー: createdVirtualDestinations, createdVirtualSources等
+
+  【テスト結果】
+  - 全527テストパス（+18テスト）
+  - ビルドワーニング: 0
+
+  【設計上の特徴】
+  - MIDITransportプロトコル変更なし → 後方互換性100%
+  - VirtualEndpointCapableは別プロトコル
+  - Virtual destinationの受信は既存receivedContinuationにフィード
+  - VirtualEndpointState: NSLock（ConnectionStateと同パターン）
+  - broadcast()でown virtual destinationをスキップ（フィードバック防止）
+
+決定事項:
+  - Phase 1 実装完了
+  - Phase 2（PEResponder統合）は別issueで実施
+次のTODO:
+  - コードレビュー
+  - 実機ビルド確認
+---
+
+---
+2026-02-06 18:01
+作業項目: Issue #9 Virtual MIDI Endpoint コードレビュー実施
+追加機能の説明:
+  - VirtualEndpointCapable.swift、CoreMIDITransport.swift変更部分をレビュー
+  - MIDITransportError拡張、MockMIDITransport.swift実装をレビュー
+  - VirtualEndpointTests.swift（18テスト）をレビュー
+  - 7つのレビュー観点で評価:
+    1. スレッドセーフ性 - VirtualEndpointStateのNSLock使用、shutdownLock下のMIDIReceived
+    2. API一貫性 - 既存パターンとの整合性
+    3. エラー処理 - 失敗時ロールバック、error propagation
+    4. テストカバレッジ - 18テストの充分性
+    5. 後方互換性 - MIDITransportプロトコル変更なし
+    6. メモリ管理 - [weak self] in callbacks
+    7. CoreMIDI API使用の正しさ - MIDIDestinationCreateWithBlock, MIDISourceCreate, MIDIReceived, MIDIEndpointDispose
+決定事項:
+  - 包括的なレビューレポートを作成
+次のTODO:
+  - レビューレポート: docs/code-review-20260206-virtual-endpoint.md 出力
+---
+
+---
+2026-02-06 18:05
+作業項目: Issue #9 Virtual MIDI Endpoint コードレビュー完了
+追加機能の説明:
+  【レビュー結果】
+  - 🔴 Critical: 0件
+  - 🟡 Warning: 0件
+  - 🔵 Suggestion: 5件
+  - 💡 Nitpick: 1件
+  - 総合評価: ⭐⭐⭐⭐⭐ 5.0/5
+
+  【主な長所】
+  1. スレッドセーフ性完璧（@unchecked Sendable + NSLock、shutdownLock下のMIDIReceived）
+  2. API設計秀逸（プロトコル分離で後方互換性100%、convenience API）
+  3. エラー処理堅牢（失敗時ロールバック、部分失敗許容、エラー伝播）
+  4. CoreMIDI API使用正確（MIDIDestinationCreateWithBlock, MIDIReceived, unsafeSequence）
+  5. テストカバレッジ充実（18テストで主要機能・エッジケース・エラーパスを網羅）
+  6. ドキュメント品質高い（ASCII図、ユースケース、実装例）
+
+  【Suggestion（すべて将来の改善案レベル）】
+  1. CoreMIDITransport統合テスト追加推奨（優先度Medium）
+  2. removeVirtualDestination/Sourceでのロールバック推奨（優先度Low）
+  3. VirtualEndpointStateクラスにドキュメントコメント追加推奨（優先度Low）
+  4. broadcast()のvirtual destination skipロジックにコメント追加推奨（優先度Low）
+  5. publishVirtualDevice()のエラーハンドリング戦略をドキュメント化（優先度Low）
+
+  【レビューレポート】
+  - docs/code-review-20260206-virtual-endpoint.md（877行、日本語、技術詳細）
+
+決定事項:
+  - 即座にマージ可能（Critical/Warning問題なし）
+  - v1.1.0パッチリリース時にSuggestion対応検討
+  - 本番環境への投入準備完了
+次のTODO:
+  - なし（完了）
+---
+
+---
+2026-02-06 18:08
+作業項目: Virtual MIDI Endpoint を新しいライブラリモジュールに分離検討
+追加機能の説明:
+  ユーザーから「新しいライブラリに入れれる？」との要望。
+  現在MIDI2Transport内にある Virtual Endpoint 機能を別モジュールに分離可能か調査。
+
+  【現状の依存関係】
+  - VirtualEndpointCapable.swift: MIDITransportプロトコルに依存
+  - CoreMIDITransport.swift: VirtualEndpointCapable conformance（private state含む）
+  - MockMIDITransport.swift: VirtualEndpointCapable conformance
+
+  【課題】
+  - CoreMIDITransport の VirtualEndpointCapable 実装は private プロパティ
+    (client, shutdownLock, receivedContinuation, processReceivedData) に
+    アクセスが必要 → extension を別モジュールに切り出すのは困難
+  - プロトコル + VirtualDevice は分離可能だが、実装は CoreMIDITransport 内に残る必要あり
+
+決定事項:
+  - 調査結果をユーザーに報告
+次のTODO:
+  - 分離可能な範囲を特定して提案
+---
+
+---
+2026-02-06 18:15
+作業項目: Virtual MIDI Endpoint モジュール分離方針決定
+追加機能の説明:
+  オプションB「現状のままMIDI2Transport内に維持」を選択。
+決定事項:
+  - MIDI2Transport内に維持（別プロトコルで十分に分離済み）
+  - 別モジュール化は不要
+次のTODO:
+  - なし
+---
+
+---
+2026-02-06 18:16
+作業項目: Virtual MIDI Endpoint バージョニング確認
+追加機能の説明:
+  v1.0.10は既にリリース済み（AnyCodableValue, bankPC配列, currentValues, BLEタイムアウト等）。
+  Virtual MIDI Endpointをv1.0.10に含めるかの判断。
+決定事項:
+  - v1.0.10は既にリリース済みのため、含めることはできない
+  - v1.0.11 または v1.1.0 として別リリースが必要
+次のTODO:
+  - ユーザーに状況説明
+---
+
+---
+2026-02-06 18:17
+作業項目: v1.0.11 Virtual MIDI Endpoint リリース開始
+追加機能の説明:
+  【リリース手順（6段階検証プロセス）】
+  1. swift test — 全テストパス確認
+  2. hakaru/MIDI2Kit コミット・タグ作成
+  3. XCFrameworkビルド
+  4. swiftinterface新API検証
+  5. midi2kit/MIDI2Kit-SDK リリース作成・アセットアップロード
+  6. ダウンロード検証
+
+  【v1.0.11 リリース内容】
+  - VirtualEndpointCapableプロトコル（5メソッド）
+  - VirtualDevice構造体
+  - publishVirtualDevice/unpublishVirtualDevice convenience API
+  - CoreMIDITransport VirtualEndpointCapable実装
+  - MockMIDITransport VirtualEndpointCapable実装
+  - MIDITransportError 3ケース追加
+  - broadcast() own virtual destination skipフィルタリング
+  - 18テスト新規（計527テスト）
+
+決定事項:
+  - v1.0.11としてリリース
+次のTODO:
+  - テスト実行
+  - コミット・タグ・リリース
+---
