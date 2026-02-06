@@ -6,6 +6,19 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [1.0.11] - 2026-02-06
+
+### Added
+- **Virtual MIDI Endpoint** (MIDI2Transport): Inter-app MIDI communication support (Issue #9)
+  - `VirtualEndpointCapable` protocol with 5 methods for creating/removing virtual endpoints
+  - `VirtualDevice` struct for paired source+destination
+  - `publishVirtualDevice(name:)` / `unpublishVirtualDevice(_:)` convenience API
+  - `sendFromVirtualSource(_:source:)` using `MIDIReceived()`
+  - `broadcast()` filtering to skip own virtual destinations (feedback prevention)
+  - `MIDITransportError`: 3 new virtual endpoint error cases
+  - `MIDITransport` protocol unchanged (100% backwards compatible)
+  - 18 new tests (527 total)
+
 ## [1.0.10] - 2026-02-06
 
 ### Added
