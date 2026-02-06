@@ -16,16 +16,16 @@ env:
 jobs:
   # ─── Job 1: Run tests ───
   test:
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
 
       - name: Select Xcode
         run: |
-          sudo xcode-select -s /Applications/Xcode_16.2.app \
-            || sudo xcode-select -s /Applications/Xcode_16.1.app \
-            || sudo xcode-select -s /Applications/Xcode_16.app \
-            || sudo xcode-select -s /Applications/Xcode_15.4.app
+          sudo xcode-select -s /Applications/Xcode_16.4.app \
+            || sudo xcode-select -s /Applications/Xcode_16.3.app \
+            || sudo xcode-select -s /Applications/Xcode_16.2.app \
+            || sudo xcode-select -s /Applications/Xcode_16.1.app
 
       - name: Show versions
         run: |
@@ -38,7 +38,7 @@ jobs:
   # ─── Job 2: Build XCFrameworks ───
   build-xcframework:
     needs: test
-    runs-on: macos-14
+    runs-on: macos-15
     outputs:
       checksums: ${{ steps.checksums.outputs.json }}
     steps:
@@ -46,10 +46,10 @@ jobs:
 
       - name: Select Xcode
         run: |
-          sudo xcode-select -s /Applications/Xcode_16.2.app \
-            || sudo xcode-select -s /Applications/Xcode_16.1.app \
-            || sudo xcode-select -s /Applications/Xcode_16.app \
-            || sudo xcode-select -s /Applications/Xcode_15.4.app
+          sudo xcode-select -s /Applications/Xcode_16.4.app \
+            || sudo xcode-select -s /Applications/Xcode_16.3.app \
+            || sudo xcode-select -s /Applications/Xcode_16.2.app \
+            || sudo xcode-select -s /Applications/Xcode_16.1.app
 
       - name: Build XCFrameworks
         run: bash Scripts/build-xcframework.sh
