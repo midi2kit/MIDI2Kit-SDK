@@ -9,6 +9,9 @@ import Foundation
 import MIDI2Core
 import MIDI2Transport
 import MIDI2CI
+import os
+
+private let peRespLog = Logger(subsystem: "com.example.M2DX", category: "PE-Resp")
 
 /// Property Exchange Responder
 ///
@@ -57,11 +60,18 @@ public actor PEResponder {
     /// Next subscription ID counter
     private var nextSubscriptionId: UInt32 = 1
 
+    /// Specific destinations to reply to (nil = broadcast to all)
+    public var replyDestinations: [MIDIDestinationID]?
+
     /// Running state
     private var isRunning = false
 
     /// Message handling task
     private var handleTask: Task<Void, Never>?
+
+    /// Optional log callback for external diagnostics
+    /// Called with (resource, bodyString, replyByteCount)
+    public var logCallback: (@Sendable (String, String, Int) -> Void)?
 
     // MARK: - Initialization
 
@@ -94,6 +104,21 @@ public actor PEResponder {
     /// Get registered resource names
     public var registeredResources: [String] {
         Array(resources.keys)
+    }
+
+    /// Set specific destinations for PE replies
+    public func setReplyDestinations(_ destinations: [MIDIDestinationID]) {
+        self.replyDestinations = destinations
+    }
+
+    /// Returns the set of all subscriber MUIDs (across all resources)
+    public func subscriberMUIDs() -> Set<MUID> {
+        Set(subscriptions.values.map(\.initiatorMUID))
+    }
+
+    /// Set log callback for external diagnostics
+    public func setLogCallback(_ callback: @Sendable @escaping (String, String, Int) -> Void) {
+        self.logCallback = callback
     }
 
     // MARK: - Lifecycle
@@ -129,6 +154,9 @@ public actor PEResponder {
 
         // Check if message is for us
         guard parsed.destinationMUID == muid || parsed.destinationMUID == MUID.broadcast else {
+            let msg = "[M2DX] PE-Resp: MUID mismatch dest=\(parsed.destinationMUID) ours=\(muid) type=\(parsed.messageType)"
+            print(msg)
+            peRespLog.info("\(msg)")
             return
         }
 
@@ -194,17 +222,31 @@ public actor PEResponder {
 
         // Parse header
         let header = PERequestHeader(data: inquiry.headerData)
+        let reqHeaderStr = String(data: inquiry.headerData, encoding: .utf8) ?? "(non-utf8)"
+        print("[M2DX] PE-Resp: GET \(resourceName) from \(inquiry.sourceMUID) reqHdr=\(reqHeaderStr)")
 
         do {
             let responseData = try await resource.get(header: header)
 
+            let headerJSON = resource.responseHeader(for: header, bodyData: responseData)
             let reply = CIMessageBuilder.peGetReply(
                 sourceMUID: muid,
                 destinationMUID: inquiry.sourceMUID,
                 requestID: inquiry.requestID,
-                headerData: CIMessageBuilder.successResponseHeader(),
+                headerData: headerJSON,
                 propertyData: responseData
             )
+
+            // Debug: log response details
+            let bodyStr = String(data: responseData, encoding: .utf8) ?? "(non-utf8)"
+            let headerStr = String(data: headerJSON, encoding: .utf8) ?? "(non-utf8)"
+            let replyHex = reply.map { String(format: "%02X", $0) }.joined(separator: " ")
+            print("[M2DX] PE-Resp: \(resourceName) body=\(responseData.count)B reply=\(reply.count)B hdr=\(headerStr)")
+            print("[M2DX] PE-Resp: body=\(bodyStr.prefix(120))")
+            print("[M2DX] PE-Resp: hex=\(replyHex)")
+
+            // External log callback
+            logCallback?(resourceName, String(bodyStr.prefix(200)), reply.count)
 
             await sendReply(reply, to: inquiry.sourceMUID)
         } catch {
@@ -290,6 +332,10 @@ public actor PEResponder {
             await handleSubscribeStart(inquiry)
         case "end":
             await handleSubscribeEnd(inquiry)
+        case "notify":
+            // Ignore notify commands received as 0x38 — these are our own
+            // outbound notifications echoed back, or Initiator acknowledgements.
+            break
         default:
             await sendErrorReply(
                 type: .peSubscribeReply,
@@ -325,6 +371,7 @@ public actor PEResponder {
         }
 
         guard resource.supportsSubscription else {
+            print("[M2DX] PE-Resp: Subscribe REJECTED \(resourceName) — supportsSubscription=false")
             await sendErrorReply(
                 type: .peSubscribeReply,
                 requestID: inquiry.requestID,
@@ -337,6 +384,8 @@ public actor PEResponder {
 
         // Generate subscription ID
         let subscribeId = "sub-\(nextSubscriptionId)"
+        print("[M2DX] PE-Resp: Subscribe OK \(resourceName) subscribeId=\(subscribeId)")
+        logCallback?(resourceName, "Subscribe OK subscribeId=\(subscribeId)", 0)
         nextSubscriptionId += 1
 
         // Store subscription
@@ -406,8 +455,15 @@ public actor PEResponder {
     /// - Parameters:
     ///   - resource: Resource name
     ///   - data: Notification data
-    public func notify(resource: String, data: Data) async {
+    ///   - excludeMUIDs: Set of MUIDs to exclude from notification (e.g. macOS entity)
+    public func notify(resource: String, data: Data, excludeMUIDs: Set<MUID> = []) async {
         for (_, subscription) in subscriptions where subscription.resource == resource {
+            // Skip excluded MUIDs (e.g. macOS built-in MIDI-CI entity)
+            if excludeMUIDs.contains(subscription.initiatorMUID) {
+                print("[M2DX] PE-Resp: Notify SKIP \(resource) → \(subscription.initiatorMUID) (excluded)")
+                continue
+            }
+
             let headerData = CIMessageBuilder.notifyHeader(
                 subscribeId: subscription.subscribeId,
                 resource: resource
@@ -428,18 +484,39 @@ public actor PEResponder {
     // MARK: - Helpers
 
     private func sendReply(_ data: [UInt8], to destinationMUID: MUID) async {
-        // Find destination for this MUID
-        // In loopback, we just need any destination
-        let destinations = await transport.destinations
-        guard let dest = destinations.first else { return }
-
-        do {
-            try await transport.send(data, to: dest.destinationID)
-        } catch {
-            // TODO: Add logger parameter to PEResponder for proper logging
-            #if DEBUG
-            print("⚠️ PEResponder: failed to send reply to \(destinationMUID): \(error)")
-            #endif
+        if let targets = replyDestinations, !targets.isEmpty {
+            // Send to specific destinations via UMP SysEx7 if possible, else legacy send
+            print("[M2DX] PE-Resp: sending \(data.count)B to \(targets.count) targeted dests → \(destinationMUID)")
+            if let coreMIDI = transport as? CoreMIDITransport {
+                // Use UMP SysEx7 API for reliable delivery on MIDI 2.0 connections
+                for dest in targets {
+                    do {
+                        try await coreMIDI.sendSysEx7AsUMP(data, to: dest)
+                    } catch {
+                        print("[M2DX] PE-Resp: UMP send to \(dest.value) FAILED: \(error)")
+                    }
+                }
+                print("[M2DX] PE-Resp: UMP targeted send OK")
+            } else {
+                for dest in targets {
+                    do {
+                        try await transport.send(data, to: dest)
+                    } catch {
+                        print("[M2DX] PE-Resp: send to \(dest.value) FAILED: \(error)")
+                    }
+                }
+                print("[M2DX] PE-Resp: targeted send OK")
+            }
+        } else {
+            // Broadcast reply to all destinations
+            let dests = await transport.destinations
+            print("[M2DX] PE-Resp: broadcasting \(data.count)B to \(dests.count) dests → \(destinationMUID)")
+            do {
+                try await transport.broadcast(data)
+                print("[M2DX] PE-Resp: broadcast OK")
+            } catch {
+                print("[M2DX] PE-Resp: broadcast FAILED: \(error)")
+            }
         }
     }
 

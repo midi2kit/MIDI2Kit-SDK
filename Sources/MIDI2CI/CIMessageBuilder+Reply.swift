@@ -53,6 +53,9 @@ extension CIMessageBuilder {
         message.append(UInt8(headerSize & 0x7F))
         message.append(UInt8((headerSize >> 7) & 0x7F))
 
+        // Header data (MUST come before chunks per MIDI-CI PE spec)
+        message.append(contentsOf: headerData)
+
         // Number of chunks (14-bit)
         message.append(UInt8(numChunks & 0x7F))
         message.append(UInt8((numChunks >> 7) & 0x7F))
@@ -65,9 +68,6 @@ extension CIMessageBuilder {
         let dataSize = propertyData.count
         message.append(UInt8(dataSize & 0x7F))
         message.append(UInt8((dataSize >> 7) & 0x7F))
-
-        // Header data
-        message.append(contentsOf: headerData)
 
         // Property data
         message.append(contentsOf: propertyData)
@@ -109,6 +109,9 @@ extension CIMessageBuilder {
         message.append(UInt8(headerSize & 0x7F))
         message.append(UInt8((headerSize >> 7) & 0x7F))
 
+        // Header data (MUST come before chunks per MIDI-CI PE spec)
+        message.append(contentsOf: headerData)
+
         // Number of chunks (14-bit)
         message.append(UInt8(numChunks & 0x7F))
         message.append(UInt8((numChunks >> 7) & 0x7F))
@@ -120,9 +123,6 @@ extension CIMessageBuilder {
         // Property data size (14-bit) - 0 for SET reply
         message.append(0)
         message.append(0)
-
-        // Header data
-        message.append(contentsOf: headerData)
 
         message.append(MIDICIConstants.sysExEnd)
         return message
@@ -186,6 +186,9 @@ extension CIMessageBuilder {
         message.append(UInt8(headerSize & 0x7F))
         message.append(UInt8((headerSize >> 7) & 0x7F))
 
+        // Header data (MUST come before chunks per MIDI-CI PE spec)
+        message.append(contentsOf: headerData)
+
         // Number of chunks (14-bit) = 1
         message.append(1)
         message.append(0)
@@ -198,16 +201,15 @@ extension CIMessageBuilder {
         message.append(0)
         message.append(0)
 
-        // Header data
-        message.append(contentsOf: headerData)
-
         message.append(MIDICIConstants.sysExEnd)
         return message
     }
 
-    // MARK: - PE Notify (0x3F)
+    // MARK: - PE Notify (via 0x38 Subscription with command:notify)
 
     /// Build PE Notify message (for subscription notifications)
+    /// Uses sub-ID2 0x38 (Subscription) with "command":"notify" header per MIDI-CI PE v1.1.
+    /// KORG KeyStage does not recognize 0x3F (PE Notify, CI v1.2+).
     public static func peNotify(
         sourceMUID: MUID,
         destinationMUID: MUID,
@@ -222,7 +224,7 @@ extension CIMessageBuilder {
             MIDICIConstants.sysExNonRealtime,
             0x7F,
             MIDICIConstants.ciSubID1,
-            CIMessageType.peNotify.rawValue,
+            CIMessageType.peSubscribe.rawValue,  // 0x38: KORG KeyStage requires Subscription msg for notify
             MIDICIConstants.ciVersion1_1
         ]
 
@@ -237,6 +239,9 @@ extension CIMessageBuilder {
         message.append(UInt8(headerSize & 0x7F))
         message.append(UInt8((headerSize >> 7) & 0x7F))
 
+        // Header data (MUST come before chunks per MIDI-CI PE spec)
+        message.append(contentsOf: headerData)
+
         // Number of chunks (14-bit)
         message.append(UInt8(numChunks & 0x7F))
         message.append(UInt8((numChunks >> 7) & 0x7F))
@@ -249,9 +254,6 @@ extension CIMessageBuilder {
         let dataSize = propertyData.count
         message.append(UInt8(dataSize & 0x7F))
         message.append(UInt8((dataSize >> 7) & 0x7F))
-
-        // Header data
-        message.append(contentsOf: headerData)
 
         // Property data
         message.append(contentsOf: propertyData)
@@ -288,12 +290,13 @@ extension CIMessageBuilder {
     }
 
     /// Build JSON header for notify message
+    /// Per MIDI-CI PE spec, Notify header includes "command":"notify"
     public static func notifyHeader(subscribeId: String, resource: String? = nil) -> Data {
         if let resource = resource {
-            let json = "{\"subscribeId\":\"\(subscribeId)\",\"resource\":\"\(resource)\"}"
+            let json = "{\"subscribeId\":\"\(subscribeId)\",\"resource\":\"\(resource)\",\"command\":\"notify\"}"
             return Data(json.utf8)
         } else {
-            let json = "{\"subscribeId\":\"\(subscribeId)\"}"
+            let json = "{\"subscribeId\":\"\(subscribeId)\",\"command\":\"notify\"}"
             return Data(json.utf8)
         }
     }

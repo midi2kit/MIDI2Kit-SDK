@@ -106,39 +106,45 @@ extension CIMessageParser {
 
     /// Parse PE SET Inquiry payload
     ///
-    /// MIDI-CI PE SET Inquiry format:
+    /// MIDI-CI PE SET Inquiry format (M2-105-UM):
     /// - requestID (1 byte, 7-bit)
     /// - headerLength (2 bytes, 14-bit)
+    /// - headerData (headerLength bytes)
     /// - numChunks (2 bytes, 14-bit)
     /// - thisChunk (2 bytes, 14-bit)
     /// - dataLength (2 bytes, 14-bit)
-    /// - headerData (headerLength bytes)
     /// - propertyData (dataLength bytes)
     ///
     /// - Parameter payload: Payload bytes (after destination MUID)
     /// - Returns: Parsed PE SET Inquiry, or nil if invalid
     public static func parsePESetInquiry(_ payload: [UInt8]) -> PESetInquiryPayload? {
-        // Minimum: requestID(1) + headerLength(2) + numChunks(2) + thisChunk(2) + dataLength(2) = 9 bytes
-        guard payload.count >= 9 else { return nil }
+        // Minimum: requestID(1) + headerLength(2) = 3 bytes
+        guard payload.count >= 3 else { return nil }
 
         let requestID = payload[0] & 0x7F
         let headerLength = Int(payload[1]) | (Int(payload[2]) << 7)
-        let numChunks = Int(payload[3]) | (Int(payload[4]) << 7)
-        let thisChunk = Int(payload[5]) | (Int(payload[6]) << 7)
-        let dataLength = Int(payload[7]) | (Int(payload[8]) << 7)
 
-        // Validate chunks
-        guard numChunks >= 1, thisChunk >= 1, thisChunk <= numChunks else { return nil }
-
-        // Validate header fits
-        let headerStart = 9
+        // Header data comes immediately after headerLength
+        let headerStart = 3
         let headerEnd = headerStart + headerLength
         guard headerEnd <= payload.count else { return nil }
 
         let headerData = Data(payload[headerStart..<headerEnd])
 
+        // Chunk fields come after headerData
+        // Need at least numChunks(2) + thisChunk(2) + dataLength(2) = 6 bytes
+        let chunkFieldsStart = headerEnd
+        guard chunkFieldsStart + 6 <= payload.count else { return nil }
+
+        let numChunks = Int(payload[chunkFieldsStart]) | (Int(payload[chunkFieldsStart + 1]) << 7)
+        let thisChunk = Int(payload[chunkFieldsStart + 2]) | (Int(payload[chunkFieldsStart + 3]) << 7)
+        let dataLength = Int(payload[chunkFieldsStart + 4]) | (Int(payload[chunkFieldsStart + 5]) << 7)
+
+        // Validate chunks
+        guard numChunks >= 1, thisChunk >= 1, thisChunk <= numChunks else { return nil }
+
         // Validate property data fits
-        let dataStart = headerEnd
+        let dataStart = chunkFieldsStart + 6
         let dataEnd = dataStart + dataLength
         guard dataEnd <= payload.count else { return nil }
 

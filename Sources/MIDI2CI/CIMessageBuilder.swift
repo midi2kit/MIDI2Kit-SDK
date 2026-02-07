@@ -223,35 +223,35 @@ public enum CIMessageBuilder {
         
         // Request ID
         message.append(requestID & 0x7F)
-        
+
         // Header size
         let headerSize = headerData.count
         message.append(UInt8(headerSize & 0x7F))
         message.append(UInt8((headerSize >> 7) & 0x7F))
-        
+
+        // Header data (MUST come before chunks per MIDI-CI PE spec)
+        message.append(contentsOf: headerData)
+
         // Number of chunks
         message.append(UInt8(numChunks & 0x7F))
         message.append(UInt8((numChunks >> 7) & 0x7F))
-        
+
         // This chunk
         message.append(UInt8(thisChunk & 0x7F))
         message.append(UInt8((thisChunk >> 7) & 0x7F))
-        
+
         // Property data size
         let dataSize = propertyData.count
         message.append(UInt8(dataSize & 0x7F))
         message.append(UInt8((dataSize >> 7) & 0x7F))
-        
-        // Header data
-        message.append(contentsOf: headerData)
-        
+
         // Property data
         message.append(contentsOf: propertyData)
-        
+
         message.append(MIDICIConstants.sysExEnd)
         return message
     }
-    
+
     // MARK: - Header Builders
     
     /// Build JSON header for resource request

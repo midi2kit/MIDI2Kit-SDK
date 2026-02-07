@@ -171,6 +171,9 @@ public final class CoreMIDITransport: MIDITransport, @unchecked Sendable {
 
     /// Debug: last raw UMP word (hex)
     public private(set) var debugLastWord: String = "(none)"
+
+    /// Buffer for assembling UMP type 0x3 SysEx fragments across callbacks
+    private var umpSysExBuffer: [UInt8] = []
     
     // MARK: - Public Streams
     
@@ -551,8 +554,6 @@ public final class CoreMIDITransport: MIDITransport, @unchecked Sendable {
         // Extract MIDI bytes from UMP words in the event list
         // Tuple: (MIDI 1.0 bytes, umpWord1, umpWord2)
         var allPacketData: [([UInt8], UInt32, UInt32)] = []
-        // Buffer for assembling UMP type 0x3 SysEx fragments
-        var umpSysExBuffer: [UInt8] = []
         for packet in eventList.unsafeSequence() {
             let wordCount = Int(packet.pointee.wordCount)
             guard wordCount > 0 else { continue }
@@ -1004,6 +1005,86 @@ private func getEndpointName(_ endpoint: MIDIEndpointRef) -> String {
         }
     }
     
+    /// Send SysEx data as UMP type 0x3 (SysEx 7-bit) via MIDISendEventList
+    ///
+    /// Converts a raw SysEx message (F0...F7) into UMP SysEx7 fragments and sends
+    /// them via the MIDI 2.0 event list API. This ensures proper delivery on MIDI 2.0
+    /// protocol connections where MIDISend (MIDI 1.0 API) may not work.
+    ///
+    /// - Parameters:
+    ///   - sysex: Raw SysEx data including F0 and F7
+    ///   - destination: Destination endpoint ID
+    ///   - group: UMP group (default: 0)
+    public func sendSysEx7AsUMP(
+        _ sysex: [UInt8],
+        to destination: MIDIDestinationID,
+        group: UInt8 = 0
+    ) async throws {
+        // Strip F0 and F7
+        guard sysex.count >= 2, sysex.first == 0xF0, sysex.last == 0xF7 else {
+            throw MIDITransportError.invalidData
+        }
+        let payload = Array(sysex[1..<(sysex.count - 1)])
+
+        // Build UMP SysEx7 fragments (2 words each, up to 6 payload bytes per fragment)
+        var umpWords: [[UInt32]] = []
+        let totalBytes = payload.count
+
+        if totalBytes <= 6 {
+            // Complete in one packet (status=0)
+            let word0 = buildSysEx7Word0(status: 0, numBytes: UInt8(totalBytes), group: group, payload: payload, offset: 0)
+            let word1 = buildSysEx7Word1(payload: payload, offset: 0, numBytes: totalBytes)
+            umpWords.append([word0, word1])
+        } else {
+            var offset = 0
+            var isFirst = true
+            while offset < totalBytes {
+                let remaining = totalBytes - offset
+                let chunkSize = min(6, remaining)
+                let isLast = (offset + chunkSize) >= totalBytes
+
+                let status: UInt8
+                if isFirst {
+                    status = 1 // Start
+                    isFirst = false
+                } else if isLast {
+                    status = 3 // End
+                } else {
+                    status = 2 // Continue
+                }
+
+                let word0 = buildSysEx7Word0(status: status, numBytes: UInt8(chunkSize), group: group, payload: payload, offset: offset)
+                let word1 = buildSysEx7Word1(payload: payload, offset: offset, numBytes: chunkSize)
+                umpWords.append([word0, word1])
+                offset += chunkSize
+            }
+        }
+
+        // Send all UMP words
+        try await sendUMPBatch(umpWords, to: destination, protocol: ._2_0)
+    }
+
+    // UMP type 0x3 SysEx7 format (64-bit = 2 words):
+    //   Word0: [31:28]=type(0x3) [27:24]=group [23:20]=status [19:16]=numBytes [15:8]=byte0 [7:0]=byte1
+    //   Word1: [31:24]=byte2 [23:16]=byte3 [15:8]=byte4 [7:0]=byte5
+    //   Up to 6 payload bytes per fragment.
+
+    private func buildSysEx7Word0(status: UInt8, numBytes: UInt8, group: UInt8, payload: [UInt8], offset: Int) -> UInt32 {
+        var word: UInt32 = (0x3 << 28) | (UInt32(group & 0xF) << 24) | (UInt32(status & 0xF) << 20) | (UInt32(numBytes & 0xF) << 16)
+        if offset < payload.count { word |= UInt32(payload[offset]) << 8 }
+        if offset + 1 < payload.count { word |= UInt32(payload[offset + 1]) }
+        return word
+    }
+
+    private func buildSysEx7Word1(payload: [UInt8], offset: Int, numBytes: Int) -> UInt32 {
+        var word: UInt32 = 0
+        if offset + 2 < payload.count && numBytes > 2 { word |= UInt32(payload[offset + 2]) << 24 }
+        if offset + 3 < payload.count && numBytes > 3 { word |= UInt32(payload[offset + 3]) << 16 }
+        if offset + 4 < payload.count && numBytes > 4 { word |= UInt32(payload[offset + 4]) << 8 }
+        if offset + 5 < payload.count && numBytes > 5 { word |= UInt32(payload[offset + 5]) }
+        return word
+    }
+
     /// Check if a destination supports MIDI 2.0 protocol
     ///
     /// - Parameter destination: Destination endpoint ID

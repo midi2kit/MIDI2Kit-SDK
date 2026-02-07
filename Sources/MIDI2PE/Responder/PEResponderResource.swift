@@ -7,6 +7,7 @@
 
 import Foundation
 import MIDI2Core
+import MIDI2CI
 
 // MARK: - Request Header
 
@@ -68,6 +69,12 @@ public protocol PEResponderResource: Sendable {
 
     /// Whether this resource supports subscriptions
     var supportsSubscription: Bool { get }
+
+    /// Build custom response header for GET reply
+    ///
+    /// Override to include additional fields like `totalCount` for paginated resources.
+    /// Default implementation returns `{"status":200}`.
+    func responseHeader(for header: PERequestHeader, bodyData: Data) -> Data
 }
 
 // MARK: - Default Implementation
@@ -77,6 +84,10 @@ extension PEResponderResource {
 
     public func set(header: PERequestHeader, body: Data) async throws -> Data {
         throw PEResponderError.readOnly
+    }
+
+    public func responseHeader(for header: PERequestHeader, bodyData: Data) -> Data {
+        return CIMessageBuilder.successResponseHeader()
     }
 }
 
@@ -202,6 +213,7 @@ public struct ComputedResource: PEResponderResource {
 
     private let getHandler: @Sendable (PERequestHeader) async throws -> Data
     private let setHandler: (@Sendable (PERequestHeader, Data) async throws -> Data)?
+    private let responseHeaderHandler: (@Sendable (PERequestHeader, Data) -> Data)?
     public let supportsSubscription: Bool
 
     /// Create a computed resource
@@ -210,18 +222,28 @@ public struct ComputedResource: PEResponderResource {
     ///   - supportsSubscription: Whether subscriptions are supported
     ///   - get: Handler for GET requests
     ///   - set: Handler for SET requests (nil for read-only)
+    ///   - responseHeader: Custom response header builder (nil for default `{"status":200}`)
     public init(
         supportsSubscription: Bool = false,
         get: @Sendable @escaping (PERequestHeader) async throws -> Data,
-        set: (@Sendable (PERequestHeader, Data) async throws -> Data)? = nil
+        set: (@Sendable (PERequestHeader, Data) async throws -> Data)? = nil,
+        responseHeader: (@Sendable (PERequestHeader, Data) -> Data)? = nil
     ) {
         self.supportsSubscription = supportsSubscription
         self.getHandler = get
         self.setHandler = set
+        self.responseHeaderHandler = responseHeader
     }
 
     public func get(header: PERequestHeader) async throws -> Data {
         return try await getHandler(header)
+    }
+
+    public func responseHeader(for header: PERequestHeader, bodyData: Data) -> Data {
+        if let handler = responseHeaderHandler {
+            return handler(header, bodyData)
+        }
+        return CIMessageBuilder.successResponseHeader()
     }
 
     public func set(header: PERequestHeader, body: Data) async throws -> Data {

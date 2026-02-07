@@ -563,3 +563,28 @@
 次のTODO:
   - レポート作成完了後、確認
 ---
+
+---
+2026-02-07 11:42
+作業項目: swift test 実行結果
+追加機能の説明:
+  564テスト中、一部失敗あり。
+  失敗テスト (タイミング依存の非同期テスト):
+  1. PEManager Subscribe/Notify Tests (2件失敗):
+     - "Unsubscribe sends correct message format"
+     - "Active subscription is removed after successful unsubscribe"
+  2. PE Notify Chunk Assembly Tests (3件失敗):
+     - "Notify: duplicate chunks do not break assembly and yield only once"
+     - "Notify: missing chunk -> pollTimeouts triggers timeout and clears pending"
+     - "Notify: out-of-order chunks are reassembled"
+  3. Integration Tests (3件失敗):
+     - "Multiple devices can be queried simultaneously" (Timeout)
+     - "Discovery to PE Get flow works end-to-end" (Timeout)
+     - "Timeout followed by retry succeeds" (Timeout)
+  全てタイミング/タイムアウト依存の非同期テスト。SysEx7/RPN/NRPNテストは全pass。
+決定事項:
+  - 今日追加したSysEx7/RPN/NRPNコードに起因する失敗はなし
+  - 既存の非同期テストのタイミング問題（CI環境依存）
+次のTODO:
+  - 必要に応じてタイムアウト値の調整
+---

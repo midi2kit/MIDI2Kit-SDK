@@ -281,6 +281,8 @@ public enum MIDITransportError: Error, Sendable {
     case virtualEndpointNotFound(UInt32)
     /// Virtual endpoint dispose failed (MIDIEndpointDispose)
     case virtualEndpointDisposeFailed(Int32)
+    /// Invalid data format (e.g. SysEx without F0/F7)
+    case invalidData
 }
 
 extension MIDITransportError: CustomStringConvertible {
@@ -308,6 +310,8 @@ extension MIDITransportError: CustomStringConvertible {
             return "Virtual endpoint not found (ID: \(id))"
         case .virtualEndpointDisposeFailed(let status):
             return "Failed to dispose virtual endpoint (OSStatus: \(status))"
+        case .invalidData:
+            return "Invalid MIDI data format"
         }
     }
 }
