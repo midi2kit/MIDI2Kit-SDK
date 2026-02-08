@@ -9,9 +9,6 @@ import Foundation
 import MIDI2Core
 import MIDI2Transport
 import MIDI2CI
-import os
-
-private let peRespLog = Logger(subsystem: "com.example.M2DX", category: "PE-Resp")
 
 /// Property Exchange Responder
 ///
@@ -51,6 +48,9 @@ public actor PEResponder {
     /// Transport for sending/receiving messages
     private let transport: any MIDITransport
 
+    /// Logger for debugging
+    private let logger: any MIDI2Logger
+
     /// Registered resources
     private var resources: [String: any PEResponderResource] = [:]
 
@@ -80,9 +80,11 @@ public actor PEResponder {
     /// - Parameters:
     ///   - muid: MUID for this responder
     ///   - transport: MIDI transport for communication
-    public init(muid: MUID, transport: any MIDITransport) {
+    ///   - logger: Logger for diagnostics (defaults to silent)
+    public init(muid: MUID, transport: any MIDITransport, logger: any MIDI2Logger = NullMIDI2Logger()) {
         self.muid = muid
         self.transport = transport
+        self.logger = logger
     }
 
     // MARK: - Resource Management
@@ -154,9 +156,7 @@ public actor PEResponder {
 
         // Check if message is for us
         guard parsed.destinationMUID == muid || parsed.destinationMUID == MUID.broadcast else {
-            let msg = "[M2DX] PE-Resp: MUID mismatch dest=\(parsed.destinationMUID) ours=\(muid) type=\(parsed.messageType)"
-            print(msg)
-            peRespLog.info("\(msg)")
+            logger.debug("DROP dest=\(parsed.destinationMUID) (ours=\(muid)) type=\(parsed.messageType)", category: "PE-Resp")
             return
         }
 
@@ -173,8 +173,11 @@ public actor PEResponder {
         case .peSubscribe:
             await handlePESubscribeInquiry(data)
 
+        case .peSubscribeReply:
+            // Initiator acknowledging our Notify — no action needed
+            logger.debug("ignoring Subscribe Reply (0x39) from \(parsed.sourceMUID)", category: "PE-Resp")
+
         default:
-            // Ignore other message types
             break
         }
     }
@@ -223,7 +226,7 @@ public actor PEResponder {
         // Parse header
         let header = PERequestHeader(data: inquiry.headerData)
         let reqHeaderStr = String(data: inquiry.headerData, encoding: .utf8) ?? "(non-utf8)"
-        print("[M2DX] PE-Resp: GET \(resourceName) from \(inquiry.sourceMUID) reqHdr=\(reqHeaderStr)")
+        logger.debug("GET \(resourceName) from \(inquiry.sourceMUID) reqHdr=\(reqHeaderStr)", category: "PE-Resp")
 
         do {
             let responseData = try await resource.get(header: header)
@@ -240,10 +243,8 @@ public actor PEResponder {
             // Debug: log response details
             let bodyStr = String(data: responseData, encoding: .utf8) ?? "(non-utf8)"
             let headerStr = String(data: headerJSON, encoding: .utf8) ?? "(non-utf8)"
-            let replyHex = reply.map { String(format: "%02X", $0) }.joined(separator: " ")
-            print("[M2DX] PE-Resp: \(resourceName) body=\(responseData.count)B reply=\(reply.count)B hdr=\(headerStr)")
-            print("[M2DX] PE-Resp: body=\(bodyStr.prefix(120))")
-            print("[M2DX] PE-Resp: hex=\(replyHex)")
+            logger.debug("\(resourceName) body=\(responseData.count)B reply=\(reply.count)B hdr=\(headerStr)", category: "PE-Resp")
+            logger.debug("body=\(bodyStr.prefix(120))", category: "PE-Resp")
 
             // External log callback
             logCallback?(resourceName, String(bodyStr.prefix(200)), reply.count)
@@ -371,7 +372,7 @@ public actor PEResponder {
         }
 
         guard resource.supportsSubscription else {
-            print("[M2DX] PE-Resp: Subscribe REJECTED \(resourceName) — supportsSubscription=false")
+            logger.debug("Subscribe REJECTED \(resourceName) — supportsSubscription=false", category: "PE-Resp")
             await sendErrorReply(
                 type: .peSubscribeReply,
                 requestID: inquiry.requestID,
@@ -384,7 +385,7 @@ public actor PEResponder {
 
         // Generate subscription ID
         let subscribeId = "sub-\(nextSubscriptionId)"
-        print("[M2DX] PE-Resp: Subscribe OK \(resourceName) subscribeId=\(subscribeId)")
+        logger.info("Subscribe OK \(resourceName) subscribeId=\(subscribeId)", category: "PE-Resp")
         logCallback?(resourceName, "Subscribe OK subscribeId=\(subscribeId)", 0)
         nextSubscriptionId += 1
 
@@ -460,7 +461,7 @@ public actor PEResponder {
         for (_, subscription) in subscriptions where subscription.resource == resource {
             // Skip excluded MUIDs (e.g. macOS built-in MIDI-CI entity)
             if excludeMUIDs.contains(subscription.initiatorMUID) {
-                print("[M2DX] PE-Resp: Notify SKIP \(resource) → \(subscription.initiatorMUID) (excluded)")
+                logger.debug("Notify SKIP \(resource) → \(subscription.initiatorMUID) (excluded)", category: "PE-Resp")
                 continue
             }
 
@@ -486,36 +487,36 @@ public actor PEResponder {
     private func sendReply(_ data: [UInt8], to destinationMUID: MUID) async {
         if let targets = replyDestinations, !targets.isEmpty {
             // Send to specific destinations via UMP SysEx7 if possible, else legacy send
-            print("[M2DX] PE-Resp: sending \(data.count)B to \(targets.count) targeted dests → \(destinationMUID)")
+            logger.debug("sending \(data.count)B to \(targets.count) targeted dests → \(destinationMUID)", category: "PE-Resp")
             if let coreMIDI = transport as? CoreMIDITransport {
                 // Use UMP SysEx7 API for reliable delivery on MIDI 2.0 connections
                 for dest in targets {
                     do {
                         try await coreMIDI.sendSysEx7AsUMP(data, to: dest)
                     } catch {
-                        print("[M2DX] PE-Resp: UMP send to \(dest.value) FAILED: \(error)")
+                        logger.error("UMP send to \(dest.value) FAILED: \(error)", category: "PE-Resp")
                     }
                 }
-                print("[M2DX] PE-Resp: UMP targeted send OK")
+                logger.debug("UMP targeted send OK", category: "PE-Resp")
             } else {
                 for dest in targets {
                     do {
                         try await transport.send(data, to: dest)
                     } catch {
-                        print("[M2DX] PE-Resp: send to \(dest.value) FAILED: \(error)")
+                        logger.error("send to \(dest.value) FAILED: \(error)", category: "PE-Resp")
                     }
                 }
-                print("[M2DX] PE-Resp: targeted send OK")
+                logger.debug("targeted send OK", category: "PE-Resp")
             }
         } else {
             // Broadcast reply to all destinations
             let dests = await transport.destinations
-            print("[M2DX] PE-Resp: broadcasting \(data.count)B to \(dests.count) dests → \(destinationMUID)")
+            logger.debug("broadcasting \(data.count)B to \(dests.count) dests → \(destinationMUID)", category: "PE-Resp")
             do {
                 try await transport.broadcast(data)
-                print("[M2DX] PE-Resp: broadcast OK")
+                logger.debug("broadcast OK", category: "PE-Resp")
             } catch {
-                print("[M2DX] PE-Resp: broadcast FAILED: \(error)")
+                logger.error("broadcast FAILED: \(error)", category: "PE-Resp")
             }
         }
     }
