@@ -124,6 +124,16 @@ public actor PEResponder {
         Set(subscriptions.values.map(\.initiatorMUID))
     }
 
+    /// Remove all subscriptions for MUIDs NOT in the given set.
+    /// Call this when a device restarts with a new MUID to clean up stale subscriptions.
+    public func removeSubscriptions(notIn activeMUIDs: Set<MUID>) {
+        let stale = subscriptions.filter { !activeMUIDs.contains($0.value.initiatorMUID) }
+        for (key, sub) in stale {
+            logger.debug("Removing stale subscription \(key) for MUID \(sub.initiatorMUID)", category: "PE-Resp")
+            subscriptions.removeValue(forKey: key)
+        }
+    }
+
     /// Set log callback for external diagnostics
     public func setLogCallback(_ callback: @Sendable @escaping (String, String, Int) -> Void) {
         self.logCallback = callback
@@ -386,6 +396,28 @@ public actor PEResponder {
                 status: 405,
                 message: "Resource does not support subscriptions"
             )
+            return
+        }
+
+        // Deduplicate: if this MUID already subscribes to this resource, reuse that subscription
+        if let existing = subscriptions.first(where: {
+            $0.value.resource == resourceName && $0.value.initiatorMUID == inquiry.sourceMUID
+        }) {
+            let subscribeId = existing.key
+            logger.info("Subscribe REUSE \(resourceName) subscribeId=\(subscribeId) (same MUID)", category: "PE-Resp")
+            logCallback?(resourceName, "Subscribe REUSE subscribeId=\(subscribeId)", 0)
+
+            let headerData = CIMessageBuilder.subscribeResponseHeader(
+                status: 200,
+                subscribeId: subscribeId
+            )
+            let reply = CIMessageBuilder.peSubscribeReply(
+                sourceMUID: muid,
+                destinationMUID: inquiry.sourceMUID,
+                requestID: inquiry.requestID,
+                headerData: headerData
+            )
+            await sendReply(reply, to: inquiry.sourceMUID)
             return
         }
 
