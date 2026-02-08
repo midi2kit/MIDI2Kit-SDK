@@ -149,9 +149,17 @@ public actor CIManager {
     
     /// Receive task
     private var receiveTask: Task<Void, Never>?
-    
+
     /// Timeout check task
     private var timeoutTask: Task<Void, Never>?
+
+    /// Specific destinations for CI replies (nil = broadcast to all)
+    public var replyDestinations: [MIDIDestinationID]?
+
+    /// Set specific destinations for CI replies
+    public func setReplyDestinations(_ destinations: [MIDIDestinationID]) {
+        self.replyDestinations = destinations
+    }
     
     // MARK: - Initialization
     
@@ -486,9 +494,17 @@ public actor CIManager {
             functionBlock: 0
         )
 
-        let destinations = await transport.destinations
-        for dest in destinations {
-            try? await transport.send(reply, to: dest.destinationID)
+        if let targets = replyDestinations, !targets.isEmpty {
+            // Targeted: send only to specific destinations
+            for dest in targets {
+                try? await transport.send(reply, to: dest)
+            }
+        } else {
+            // Broadcast to all destinations
+            let destinations = await transport.destinations
+            for dest in destinations {
+                try? await transport.send(reply, to: dest.destinationID)
+            }
         }
     }
     

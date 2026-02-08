@@ -238,18 +238,18 @@ public enum CIMessageParser {
     /// MIDI-CI PE message format (M2-105-UM):
     /// - requestID (1 byte, 7-bit)
     /// - headerLength (2 bytes, 14-bit)
-    /// - headerData (headerLength bytes)       ← immediately after headerLength
     /// - numChunks (2 bytes, 14-bit)
     /// - thisChunk (2 bytes, 14-bit)
     /// - dataLength (2 bytes, 14-bit)
+    /// - headerData (headerLength bytes)
     /// - propertyData (dataLength bytes)
     ///
     /// For subsequent chunks (2, 3, etc.), headerSize is typically 0 and
     /// the dataSize may not match the actual payload length. We handle this
     /// by falling back to using remaining payload as propertyData.
     static func parsePEReplyCI12(_ payload: [UInt8]) -> PEReplyPayload? {
-        // Minimum: requestID(1) + headerSize(2) = 3 bytes
-        guard payload.count >= 3 else { return nil }
+        // Minimum: requestID(1) + headerSize(2) + numChunks(2) + thisChunk(2) + dataSize(2) = 9 bytes
+        guard payload.count >= 9 else { return nil }
 
         let requestID = payload[0] & 0x7F
 
@@ -259,33 +259,28 @@ public enum CIMessageParser {
         // Sanity check
         guard headerSize >= 0 && headerSize <= 0x3FFF else { return nil }
 
-        // Header data comes immediately after headerSize
-        let headerStart = 3
-        let headerEnd = headerStart + headerSize
-        guard headerEnd <= payload.count else { return nil }
-
-        let headerData = Data(payload[headerStart..<headerEnd])
-
-        // Chunk fields come after headerData
-        // Need at least numChunks(2) + thisChunk(2) + dataSize(2) = 6 bytes
-        let chunkFieldsStart = headerEnd
-        guard chunkFieldsStart + 6 <= payload.count else { return nil }
-
         // Number of chunks (14-bit)
-        let numChunks = Int(payload[chunkFieldsStart]) | (Int(payload[chunkFieldsStart + 1]) << 7)
+        let numChunks = Int(payload[3]) | (Int(payload[4]) << 7)
 
         // This chunk (14-bit)
-        let thisChunk = Int(payload[chunkFieldsStart + 2]) | (Int(payload[chunkFieldsStart + 3]) << 7)
+        let thisChunk = Int(payload[5]) | (Int(payload[6]) << 7)
 
         // Property data size (14-bit)
-        let dataSize = Int(payload[chunkFieldsStart + 4]) | (Int(payload[chunkFieldsStart + 5]) << 7)
+        let dataSize = Int(payload[7]) | (Int(payload[8]) << 7)
 
         // Sanity check: numChunks and thisChunk should be reasonable
         guard numChunks >= 1 && numChunks <= 0x3FFF else { return nil }
         guard thisChunk >= 1 && thisChunk <= numChunks else { return nil }
 
+        // Header data starts at position 9
+        let headerStart = 9
+        let headerEnd = headerStart + headerSize
+        guard headerEnd <= payload.count else { return nil }
+
+        let headerData = Data(payload[headerStart..<headerEnd])
+
         // Extract property data
-        let dataStart = chunkFieldsStart + 6
+        let dataStart = headerEnd
         let dataEnd = dataStart + dataSize
 
         let propertyData: Data

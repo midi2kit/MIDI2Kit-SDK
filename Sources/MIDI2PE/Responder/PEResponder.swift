@@ -81,10 +81,16 @@ public actor PEResponder {
     ///   - muid: MUID for this responder
     ///   - transport: MIDI transport for communication
     ///   - logger: Logger for diagnostics (defaults to silent)
-    public init(muid: MUID, transport: any MIDITransport, logger: any MIDI2Logger = NullMIDI2Logger()) {
+    public init(
+        muid: MUID,
+        transport: any MIDITransport,
+        logger: any MIDI2Logger = NullMIDI2Logger(),
+        replyDestinations: [MIDIDestinationID]? = nil
+    ) {
         self.muid = muid
         self.transport = transport
         self.logger = logger
+        self.replyDestinations = replyDestinations
     }
 
     // MARK: - Resource Management
@@ -486,28 +492,17 @@ public actor PEResponder {
 
     private func sendReply(_ data: [UInt8], to destinationMUID: MUID) async {
         if let targets = replyDestinations, !targets.isEmpty {
-            // Send to specific destinations via UMP SysEx7 if possible, else legacy send
+            // Send to specific destinations via legacy SysEx (MIDISend).
+            // UMP SysEx7 was tried but caused KeyStage LCD hangs — legacy API works reliably.
             logger.debug("sending \(data.count)B to \(targets.count) targeted dests → \(destinationMUID)", category: "PE-Resp")
-            if let coreMIDI = transport as? CoreMIDITransport {
-                // Use UMP SysEx7 API for reliable delivery on MIDI 2.0 connections
-                for dest in targets {
-                    do {
-                        try await coreMIDI.sendSysEx7AsUMP(data, to: dest)
-                    } catch {
-                        logger.error("UMP send to \(dest.value) FAILED: \(error)", category: "PE-Resp")
-                    }
+            for dest in targets {
+                do {
+                    try await transport.send(data, to: dest)
+                } catch {
+                    logger.error("send to \(dest.value) FAILED: \(error)", category: "PE-Resp")
                 }
-                logger.debug("UMP targeted send OK", category: "PE-Resp")
-            } else {
-                for dest in targets {
-                    do {
-                        try await transport.send(data, to: dest)
-                    } catch {
-                        logger.error("send to \(dest.value) FAILED: \(error)", category: "PE-Resp")
-                    }
-                }
-                logger.debug("targeted send OK", category: "PE-Resp")
             }
+            logger.debug("targeted send OK", category: "PE-Resp")
         } else {
             // Broadcast reply to all destinations
             let dests = await transport.destinations
