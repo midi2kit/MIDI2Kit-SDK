@@ -36,11 +36,7 @@ mkdir -p "$BUILD_DIR" "$OUTPUT_DIR"
 build_module() {
     local MODULE=$1
     # Use dynamic library schemes for framework generation
-    # Special case: MIDI2Kit uses MIDI2ClientDynamic scheme (legacy naming)
     local SCHEME="${MODULE}Dynamic"
-    if [ "$MODULE" = "MIDI2Kit" ]; then
-        SCHEME="MIDI2ClientDynamic"
-    fi
     local TARGET_NAME="${MODULE}"
 
     echo ""
@@ -140,23 +136,53 @@ HEADER
         # Rename binary if needed
         # SPM names the binary after the product (e.g., MIDI2PEDynamic)
         # We need to rename it to match the module name (e.g., MIDI2PE)
-        if [ -f "$FW/${SCHEME}" ] && [ ! -f "$FW/${MODULE}" ]; then
-            echo "    Renaming binary: ${SCHEME} -> ${MODULE}"
-            mv "$FW/${SCHEME}" "$FW/${MODULE}"
-        elif [ ! -f "$FW/${SCHEME}" ] && [ ! -f "$FW/${MODULE}" ]; then
-            # Binary not found - list contents for debugging
-            echo "    ⚠️ Binary not found: ${SCHEME} or ${MODULE} in $FW"
-            ls -la "$FW/" 2>/dev/null | head -10
-        fi
+        #
+        # macOS frameworks use Versions/A/ structure:
+        #   Versions/A/<binary>  (real binary)
+        #   <binary> -> Versions/Current/<binary>  (symlink)
+        # iOS frameworks are flat:
+        #   <binary>  (real binary)
 
-        # Fix install name (LC_ID_DYLIB) for renamed framework
-        if [ -f "$FW/${MODULE}" ]; then
-            if ! install_name_tool -id "@rpath/${MODULE}.framework/${MODULE}" "$FW/${MODULE}"; then
-                echo "    ⚠️ Warning: Failed to update install name for ${MODULE}"
+        if [ -d "$FW/Versions/A" ]; then
+            # macOS versioned framework
+            local VERSIONED_DIR="$FW/Versions/A"
+            if [ -f "$VERSIONED_DIR/${SCHEME}" ] && [ ! -f "$VERSIONED_DIR/${MODULE}" ]; then
+                echo "    Renaming binary (macOS versioned): ${SCHEME} -> ${MODULE}"
+                mv "$VERSIONED_DIR/${SCHEME}" "$VERSIONED_DIR/${MODULE}"
+            fi
+            # Fix top-level symlink
+            if [ -L "$FW/${SCHEME}" ] || [ -L "$FW/${MODULE}" ]; then
+                rm -f "$FW/${SCHEME}" "$FW/${MODULE}" 2>/dev/null
+            fi
+            ln -sf "Versions/Current/${MODULE}" "$FW/${MODULE}"
+            # Fix install name
+            if [ -f "$VERSIONED_DIR/${MODULE}" ]; then
+                install_name_tool -id "@rpath/${MODULE}.framework/${MODULE}" "$VERSIONED_DIR/${MODULE}" 2>/dev/null || \
+                    echo "    ⚠️ Warning: Failed to update install name for ${MODULE} (macOS)"
+            fi
+            # Update Info.plist in Versions/A/Resources/
+            if [ -f "$VERSIONED_DIR/Resources/Info.plist" ]; then
+                /usr/libexec/PlistBuddy -c "Set :CFBundleExecutable ${MODULE}" "$VERSIONED_DIR/Resources/Info.plist" 2>/dev/null || true
+                /usr/libexec/PlistBuddy -c "Set :CFBundleName ${MODULE}" "$VERSIONED_DIR/Resources/Info.plist" 2>/dev/null || true
+            fi
+        else
+            # iOS flat framework
+            if [ -f "$FW/${SCHEME}" ] && [ ! -f "$FW/${MODULE}" ]; then
+                echo "    Renaming binary: ${SCHEME} -> ${MODULE}"
+                mv "$FW/${SCHEME}" "$FW/${MODULE}"
+            elif [ ! -f "$FW/${SCHEME}" ] && [ ! -f "$FW/${MODULE}" ]; then
+                echo "    ⚠️ Binary not found: ${SCHEME} or ${MODULE} in $FW"
+                ls -la "$FW/" 2>/dev/null | head -10
+            fi
+            # Fix install name (LC_ID_DYLIB) for renamed framework
+            if [ -f "$FW/${MODULE}" ]; then
+                if ! install_name_tool -id "@rpath/${MODULE}.framework/${MODULE}" "$FW/${MODULE}"; then
+                    echo "    ⚠️ Warning: Failed to update install name for ${MODULE}"
+                fi
             fi
         fi
 
-        # Update Info.plist
+        # Update top-level Info.plist
         if [ -f "$FW/Info.plist" ]; then
             /usr/libexec/PlistBuddy -c "Set :CFBundleExecutable ${MODULE}" "$FW/Info.plist" 2>/dev/null || true
             /usr/libexec/PlistBuddy -c "Set :CFBundleName ${MODULE}" "$FW/Info.plist" 2>/dev/null || true
@@ -204,8 +230,18 @@ HEADER
     # Verify install names (LC_ID_DYLIB)
     echo "  🔍 Verifying install names..."
     for FW in "$IOS_FW" "$IOS_SIM_FW" "$MACOS_FW"; do
-        if [ -n "$FW" ] && [ -f "$FW/${MODULE}" ]; then
-            local ACTUAL_ID=$(otool -D "$FW/${MODULE}" 2>/dev/null | tail -1)
+        if [ -z "$FW" ] || [ ! -d "$FW" ]; then
+            continue
+        fi
+        # Find binary path (macOS versioned or iOS flat)
+        local BINARY_PATH=""
+        if [ -f "$FW/Versions/A/${MODULE}" ]; then
+            BINARY_PATH="$FW/Versions/A/${MODULE}"
+        elif [ -f "$FW/${MODULE}" ]; then
+            BINARY_PATH="$FW/${MODULE}"
+        fi
+        if [ -n "$BINARY_PATH" ]; then
+            local ACTUAL_ID=$(otool -D "$BINARY_PATH" 2>/dev/null | tail -1)
             local EXPECTED_ID="@rpath/${MODULE}.framework/${MODULE}"
             if [ "$ACTUAL_ID" = "$EXPECTED_ID" ]; then
                 echo "    ✅ $(basename $(dirname $(dirname $FW))): install name OK"
@@ -214,7 +250,7 @@ HEADER
                 echo "       Expected: $EXPECTED_ID"
                 echo "       Actual:   $ACTUAL_ID"
             fi
-        elif [ -n "$FW" ] && [ -d "$FW" ]; then
+        else
             echo "    ❌ $(basename $(dirname $(dirname $FW))): binary '${MODULE}' NOT FOUND in $FW"
             ls -la "$FW/" 2>/dev/null
         fi

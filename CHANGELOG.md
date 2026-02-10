@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.12] - 2026-02-11
+
+### Fixed
+- **XCFramework macOS Binary Issue**: Fixed CFBundleExecutable mismatch in macOS framework
+  - Root cause: v1.0.12 XCFramework had CFBundleExecutable=MIDI2ClientDynamic instead of MIDI2Kit
+  - Renamed dynamic library product from `MIDI2ClientDynamic` to `MIDI2KitDynamic` in Package.swift
+  - Fixed build-xcframework.sh to properly handle macOS versioned framework (Versions/A/) structure
+  - Ensures binary name, symlink, Info.plist CFBundleExecutable, and install name are all consistent
+  - Resolves xcodebuild link failures when using MIDI2Kit-SDK v1.0.12
+
 ## [1.0.9] - 2026-02-06
 
 ### Added
