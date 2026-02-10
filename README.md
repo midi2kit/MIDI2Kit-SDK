@@ -4,20 +4,20 @@ Pre-built XCFramework binaries for [MIDI2Kit](https://github.com/hakaru/MIDI2Kit
 
 ## Recent Updates
 
-### v1.0.9 (2026-02-06)
-- **KORG ChannelList/ProgramList Auto-Conversion**: Automatically converts KORG proprietary format (`bankPC: [Int]` array) to standard format
-- **New APIs**: `getChannelList()`, `getProgramList()` with automatic vendor detection
+### v1.0.12 (2026-02-10)
+- **PEResponder Enhancements**: Subscribe dedup, stale subscription cleanup, targeted reply destinations
+- **UMP SysEx7 Bidirectional Conversion**: MIDI 1.0 SysEx ⇔ UMP Data 64 with multi-packet fragmentation
+- **RPN/NRPN → MIDI 1.0 CC**: Approximation converters for MIDI 1.0 fallback
+- **PE Notify Fix**: Correct handling for MIDI-CI v1.1 devices
+- **SysEx7 Fragment Reassembly**: CoreMIDITransport receive path reassembly
+- 564 tests passing
 
-### v1.0.8 (2026-02-06)
-- **KORG Optimization**: 99% faster PE operations (16.4s → 144ms) by skipping ResourceList
-- **Adaptive WarmUp Strategy**: Learn success/failure per device, auto-select optimal strategy
-- **New APIs**: `getOptimizedResources()`, `getXParameterList()`, `getXProgramEdit()`
+### v1.0.11 (2026-02-06)
+- **Virtual MIDI Endpoint**: Inter-app MIDI communication support
 
-### v1.0.7 (2026-02-06)
-- **AsyncStream Fix**: Fixed race condition in CoreMIDITransport, MockMIDITransport, LoopbackTransport, PESubscriptionManager
-
-### v1.0.6 (2026-02-06)
-- **Critical Fix**: Fixed CIManager.events not firing (AsyncStream race condition)
+### v1.0.10 (2026-02-06)
+- **AnyCodableValue**: Type-safe container for heterogeneous JSON values
+- **X-Resource Fallback**: Auto-try X-prefixed resources before standard resources
 
 ## Installation
 
@@ -27,7 +27,7 @@ Add to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/midi2kit/MIDI2Kit-SDK.git", from: "1.0.9")
+    .package(url: "https://github.com/midi2kit/MIDI2Kit-SDK.git", from: "1.0.12")
 ]
 ```
 

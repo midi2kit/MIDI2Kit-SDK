@@ -1,0 +1,49 @@
+// swift-tools-version: 5.9
+// The swift-tools-version declares the minimum version of Swift required to build this package.
+
+import PackageDescription
+
+let package = Package(
+    name: "MIDI2Kit-SDK",
+    platforms: [
+        .iOS(.v17),
+        .macOS(.v14)
+    ],
+    products: [
+        // Individual modules for fine-grained dependency control
+        .library(name: "MIDI2Core", targets: ["MIDI2Core"]),
+        .library(name: "MIDI2Transport", targets: ["MIDI2Transport"]),
+        .library(name: "MIDI2CI", targets: ["MIDI2CI"]),
+        .library(name: "MIDI2PE", targets: ["MIDI2PE"]),
+
+        // High-level API (use this for most applications)
+        .library(name: "MIDI2Kit", targets: ["MIDI2Kit"])
+    ],
+    targets: [
+        .binaryTarget(
+            name: "MIDI2Core",
+            url: "https://github.com/midi2kit/MIDI2Kit-SDK/releases/download/v1.0.12/MIDI2Core.xcframework.zip",
+            checksum: "5e82c4c1451439ecb37fb3a63c6b8e4171fde603cc0b83d7783c442515ba4f45"
+        ),
+        .binaryTarget(
+            name: "MIDI2Transport",
+            url: "https://github.com/midi2kit/MIDI2Kit-SDK/releases/download/v1.0.12/MIDI2Transport.xcframework.zip",
+            checksum: "9a99dd8cccacc5310b97957a81584c1157897f7e86dcbf1ed277e170c2e45bb6"
+        ),
+        .binaryTarget(
+            name: "MIDI2CI",
+            url: "https://github.com/midi2kit/MIDI2Kit-SDK/releases/download/v1.0.12/MIDI2CI.xcframework.zip",
+            checksum: "c1c45d7a29c2e0cd87aadd3c2f3a06254a6de4c7c18ca49dfbf06db1618c1bec"
+        ),
+        .binaryTarget(
+            name: "MIDI2PE",
+            url: "https://github.com/midi2kit/MIDI2Kit-SDK/releases/download/v1.0.12/MIDI2PE.xcframework.zip",
+            checksum: "d3ced487ed73cf8d72b38fa7661d54daf039bad2383764fb7078d5663eecb570"
+        ),
+        .binaryTarget(
+            name: "MIDI2Kit",
+            url: "https://github.com/midi2kit/MIDI2Kit-SDK/releases/download/v1.0.12/MIDI2Kit.xcframework.zip",
+            checksum: "ed6e14a85be52f20428be262c563e442220af6c0ad1123d72c110196e13f1f5a"
+        )
+    ]
+)
