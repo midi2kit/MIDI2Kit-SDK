@@ -143,49 +143,79 @@ HEADER
         # iOS frameworks are flat:
         #   <binary>  (real binary)
 
+        # Helper: fix Info.plist fields to use MODULE name
+        fix_info_plist() {
+            local PLIST=$1
+            if [ -f "$PLIST" ]; then
+                /usr/libexec/PlistBuddy -c "Set :CFBundleExecutable ${MODULE}" "$PLIST" 2>/dev/null || true
+                /usr/libexec/PlistBuddy -c "Set :CFBundleName ${MODULE}" "$PLIST" 2>/dev/null || true
+                /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier midi2kit.${MODULE}" "$PLIST" 2>/dev/null || true
+            fi
+        }
+
         if [ -d "$FW/Versions/A" ]; then
             # macOS versioned framework
             local VERSIONED_DIR="$FW/Versions/A"
-            if [ -f "$VERSIONED_DIR/${SCHEME}" ] && [ ! -f "$VERSIONED_DIR/${MODULE}" ]; then
+
+            # Rename binary
+            if [ -f "$VERSIONED_DIR/${SCHEME}" ]; then
                 echo "    Renaming binary (macOS versioned): ${SCHEME} -> ${MODULE}"
+                rm -f "$VERSIONED_DIR/${MODULE}" 2>/dev/null
                 mv "$VERSIONED_DIR/${SCHEME}" "$VERSIONED_DIR/${MODULE}"
             fi
-            # Fix top-level symlink
-            if [ -L "$FW/${SCHEME}" ] || [ -L "$FW/${MODULE}" ]; then
-                rm -f "$FW/${SCHEME}" "$FW/${MODULE}" 2>/dev/null
-            fi
+
+            # Remove any leftover *Dynamic binaries
+            for LEFTOVER in "$VERSIONED_DIR"/*Dynamic; do
+                if [ -f "$LEFTOVER" ]; then
+                    echo "    Removing leftover: $(basename "$LEFTOVER")"
+                    rm -f "$LEFTOVER"
+                fi
+            done
+
+            # Fix top-level symlinks: remove old, create correct
+            rm -f "$FW/${SCHEME}" "$FW/${MODULE}" 2>/dev/null
             ln -sf "Versions/Current/${MODULE}" "$FW/${MODULE}"
+
+            # Remove stale top-level symlinks for old scheme name
+            if [ -L "$FW/${SCHEME}" ]; then
+                rm -f "$FW/${SCHEME}"
+            fi
+
             # Fix install name
             if [ -f "$VERSIONED_DIR/${MODULE}" ]; then
                 install_name_tool -id "@rpath/${MODULE}.framework/${MODULE}" "$VERSIONED_DIR/${MODULE}" 2>/dev/null || \
                     echo "    ⚠️ Warning: Failed to update install name for ${MODULE} (macOS)"
             fi
+
             # Update Info.plist in Versions/A/Resources/
-            if [ -f "$VERSIONED_DIR/Resources/Info.plist" ]; then
-                /usr/libexec/PlistBuddy -c "Set :CFBundleExecutable ${MODULE}" "$VERSIONED_DIR/Resources/Info.plist" 2>/dev/null || true
-                /usr/libexec/PlistBuddy -c "Set :CFBundleName ${MODULE}" "$VERSIONED_DIR/Resources/Info.plist" 2>/dev/null || true
-            fi
+            fix_info_plist "$VERSIONED_DIR/Resources/Info.plist"
         else
             # iOS flat framework
-            if [ -f "$FW/${SCHEME}" ] && [ ! -f "$FW/${MODULE}" ]; then
+            if [ -f "$FW/${SCHEME}" ]; then
                 echo "    Renaming binary: ${SCHEME} -> ${MODULE}"
+                rm -f "$FW/${MODULE}" 2>/dev/null
                 mv "$FW/${SCHEME}" "$FW/${MODULE}"
-            elif [ ! -f "$FW/${SCHEME}" ] && [ ! -f "$FW/${MODULE}" ]; then
+            elif [ ! -f "$FW/${MODULE}" ]; then
                 echo "    ⚠️ Binary not found: ${SCHEME} or ${MODULE} in $FW"
                 ls -la "$FW/" 2>/dev/null | head -10
             fi
-            # Fix install name (LC_ID_DYLIB) for renamed framework
-            if [ -f "$FW/${MODULE}" ]; then
-                if ! install_name_tool -id "@rpath/${MODULE}.framework/${MODULE}" "$FW/${MODULE}"; then
-                    echo "    ⚠️ Warning: Failed to update install name for ${MODULE}"
-                fi
-            fi
-        fi
 
-        # Update top-level Info.plist
-        if [ -f "$FW/Info.plist" ]; then
-            /usr/libexec/PlistBuddy -c "Set :CFBundleExecutable ${MODULE}" "$FW/Info.plist" 2>/dev/null || true
-            /usr/libexec/PlistBuddy -c "Set :CFBundleName ${MODULE}" "$FW/Info.plist" 2>/dev/null || true
+            # Remove any leftover *Dynamic binaries
+            for LEFTOVER in "$FW"/*Dynamic; do
+                if [ -f "$LEFTOVER" ]; then
+                    echo "    Removing leftover: $(basename "$LEFTOVER")"
+                    rm -f "$LEFTOVER"
+                fi
+            done
+
+            # Fix install name (LC_ID_DYLIB)
+            if [ -f "$FW/${MODULE}" ]; then
+                install_name_tool -id "@rpath/${MODULE}.framework/${MODULE}" "$FW/${MODULE}" 2>/dev/null || \
+                    echo "    ⚠️ Warning: Failed to update install name for ${MODULE}"
+            fi
+
+            # Update Info.plist (iOS flat)
+            fix_info_plist "$FW/Info.plist"
         fi
     }
 
@@ -267,10 +297,10 @@ HEADER
         rm -rf "$OUTPUT_DIR/${MODULE}.xcframework"
         xcodebuild -create-xcframework $ARGS -output "$OUTPUT_DIR/${MODULE}.xcframework"
 
-        echo "  🗜️ Creating ZIP..."
+        echo "  🗜️ Creating ZIP (preserving symlinks)..."
         rm -f "$OUTPUT_DIR/${MODULE}.xcframework.zip"
         cd "$OUTPUT_DIR"
-        zip -r -q "${MODULE}.xcframework.zip" "${MODULE}.xcframework"
+        ditto -c -k --keepParent "${MODULE}.xcframework" "${MODULE}.xcframework.zip"
         cd - > /dev/null
 
         local CHECKSUM=$(swift package compute-checksum "$OUTPUT_DIR/${MODULE}.xcframework.zip")
