@@ -58,7 +58,7 @@ let package = Package(
             targets: ["MIDI2PE"]
         ),
         .library(
-            name: "MIDI2ClientDynamic",
+            name: "MIDI2KitDynamic",
             type: .dynamic,
             targets: ["MIDI2Kit"]
         ),
