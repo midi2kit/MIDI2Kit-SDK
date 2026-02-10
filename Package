@@ -43,7 +43,7 @@ let package = Package(
         .binaryTarget(
             name: "MIDI2Kit",
             url: "https://github.com/midi2kit/MIDI2Kit-SDK/releases/download/v1.0.12/MIDI2Kit.xcframework.zip",
-            checksum: "ed6e14a85be52f20428be262c563e442220af6c0ad1123d72c110196e13f1f5a"
+            checksum: "78bb3c669e190c1a16fec22254c56b973d18e12c1976e91cc3e4e033dafce67e"
         )
     ]
 )
