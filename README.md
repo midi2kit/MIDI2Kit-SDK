@@ -35,6 +35,29 @@ dependencies: [
 
 Or in Xcode: File → Add Package Dependencies → Enter the repository URL.
 
+## Local Release Validation (No GitHub Actions)
+
+If GitHub Actions cannot run (for example due to billing limits), you can run the same consumer smoke test locally for every release tag:
+
+```bash
+git clone https://github.com/midi2kit/MIDI2Kit-SDK.git
+cd MIDI2Kit-SDK
+chmod +x Scripts/consumer-smoke-local.sh
+Scripts/consumer-smoke-local.sh 1.0.14
+```
+
+You can also pass a tag with `v` prefix and/or a custom repository URL:
+
+```bash
+Scripts/consumer-smoke-local.sh v1.0.14 https://github.com/midi2kit/MIDI2Kit-SDK.git
+```
+
+Success ends with:
+
+```text
+OK: MIDI2Kit-SDK consumer smoke passed
+```
+
 ## Quick Start
 
 ```swift
