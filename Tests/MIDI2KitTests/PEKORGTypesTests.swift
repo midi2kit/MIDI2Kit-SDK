@@ -561,6 +561,54 @@ struct PEXProgramEditCurrentValuesTests {
         #expect(all[12] == .int(50))        // From currentValues only
     }
 
+    @Test("value(for:) reads Int from currentValues")
+    func valueForUsesCurrentValues() throws {
+        let program = PEXProgramEdit(
+            name: "CurrentValues Only",
+            currentValues: [
+                PEXCurrentValue(controlCC: 11, value: .int(100)),
+                PEXCurrentValue(controlCC: 12, value: .string("High"))
+            ]
+        )
+
+        #expect(program.value(for: 11) == 100)
+        #expect(program.value(for: 12) == nil)
+        #expect(program.value(for: 99) == nil)
+    }
+
+    @Test("parameterValues merges currentValues Int entries")
+    func parameterValuesMergeCurrentValues() throws {
+        let program = PEXProgramEdit(
+            params: [
+                PEXParameterValue(controlCC: 11, value: 64),
+                PEXParameterValue(controlCC: 74, value: 32)
+            ],
+            currentValues: [
+                PEXCurrentValue(controlCC: 11, value: .int(100)),
+                PEXCurrentValue(controlCC: 74, value: .string("Open")),
+                PEXCurrentValue(controlCC: 12, value: .int(50))
+            ]
+        )
+
+        let values = program.parameterValues
+        #expect(values[11] == 100)  // currentValues overrides params when Int
+        #expect(values[74] == 32)   // keep params when currentValues is non-Int
+        #expect(values[12] == 50)   // Int from currentValues only
+    }
+
+    @Test("hasContent treats currentValues as content")
+    func hasContentIncludesCurrentValues() {
+        let onlyCurrentValues = PEXProgramEdit(
+            currentValues: [
+                PEXCurrentValue(controlCC: 11, value: .int(100))
+            ]
+        )
+        #expect(onlyCurrentValues.hasContent)
+
+        let empty = PEXProgramEdit()
+        #expect(!empty.hasContent)
+    }
+
     @Test("allValues is empty when both params and currentValues are nil")
     func allValuesEmpty() {
         let program = PEXProgramEdit(name: "Empty")

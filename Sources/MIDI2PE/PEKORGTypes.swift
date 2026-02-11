@@ -344,14 +344,47 @@ public struct PEXProgramEdit: Sendable, Codable {
     }
 
     /// Parameter values as dictionary (CC -> value)
+    ///
+    /// Values from `currentValues` are merged when they can be represented as `Int`.
+    /// If the same CC exists in both sources, `currentValues` takes precedence.
     public var parameterValues: [Int: Int] {
-        guard let params = params else { return [:] }
-        return Dictionary(uniqueKeysWithValues: params.map { ($0.controlCC, $0.value) })
+        var result: [Int: Int] = [:]
+
+        if let params = params {
+            for p in params {
+                result[p.controlCC] = p.value
+            }
+        }
+
+        if let cv = currentValues {
+            for v in cv {
+                if let intValue = v.intValue {
+                    result[v.controlCC] = intValue
+                }
+            }
+        }
+
+        return result
     }
 
     /// Get value for a specific CC
     public func value(for cc: Int) -> Int? {
-        params?.first { $0.controlCC == cc }?.value
+        if let current = currentValues?.first(where: { $0.controlCC == cc })?.intValue {
+            return current
+        }
+        return params?.first { $0.controlCC == cc }?.value
+    }
+
+    /// Whether this payload contains any meaningful program content.
+    ///
+    /// `currentValues`-only payloads are treated as contentful.
+    public var hasContent: Bool {
+        if let name, !name.isEmpty { return true }
+        if let category, !category.isEmpty { return true }
+        if programNumber != nil || bankMSB != nil || bankLSB != nil { return true }
+        if let params, !params.isEmpty { return true }
+        if let currentValues, !currentValues.isEmpty { return true }
+        return false
     }
 
     /// All parameter values merged from params and currentValues
