@@ -450,6 +450,37 @@ struct PEXCurrentValueTests {
         #expect(value.intValue == nil)
     }
 
+    @Test("Decode legacy value key with display metadata")
+    func decodeLegacyValueAndMetadata() throws {
+        let json = """
+        {
+            "controlcc": 7,
+            "value": 100,
+            "name": "Volume",
+            "displayValue": "100",
+            "displayUnit": ""
+        }
+        """
+        let data = json.data(using: .utf8)!
+        let value = try JSONDecoder().decode(PEXCurrentValue.self, from: data)
+
+        #expect(value.controlCC == 7)
+        #expect(value.value == .int(100))
+        #expect(value.name == "Volume")
+        #expect(value.displayValue == "100")
+        #expect(value.displayUnit == "")
+    }
+
+    @Test("Decode prefers current when both current and value are present")
+    func decodePrefersCurrentOverLegacyValue() throws {
+        let json = """
+        {"controlcc": 11, "current": 64, "value": 99}
+        """
+        let data = json.data(using: .utf8)!
+        let value = try JSONDecoder().decode(PEXCurrentValue.self, from: data)
+        #expect(value.value == .int(64))
+    }
+
     @Test("Decode with boolean value")
     func decodeBoolValue() throws {
         let json = """
@@ -472,6 +503,26 @@ struct PEXCurrentValueTests {
 
         #expect(value.controlCC == 50)
         #expect(value.value == .null)
+    }
+
+    @Test("Encode and decode roundtrip with metadata")
+    func roundtripWithMetadata() throws {
+        let original = PEXCurrentValue(
+            controlCC: 74,
+            value: .int(32),
+            name: "Cutoff",
+            displayValue: "32",
+            displayUnit: "%"
+        )
+
+        let data = try JSONEncoder().encode(original)
+        let decoded = try JSONDecoder().decode(PEXCurrentValue.self, from: data)
+
+        #expect(decoded.controlCC == 74)
+        #expect(decoded.value == .int(32))
+        #expect(decoded.name == "Cutoff")
+        #expect(decoded.displayValue == "32")
+        #expect(decoded.displayUnit == "%")
     }
 
     @Test("Decode missing value defaults to null")
@@ -539,6 +590,33 @@ struct PEXProgramEditCurrentValuesTests {
         #expect(program.currentValues?.count == 2)
         #expect(program.currentValues?[0].value == .int(100))
         #expect(program.currentValues?[1].value == .string("High"))
+    }
+
+    @Test("Decode currentValues legacy value/display fields")
+    func decodeLegacyCurrentValuesFields() throws {
+        let json = """
+        {
+            "name": "Legacy Program",
+            "currentValues": [
+                {
+                    "controlcc": 7,
+                    "value": 100,
+                    "name": "Volume",
+                    "displayValue": "100",
+                    "displayUnit": ""
+                }
+            ]
+        }
+        """
+        let data = json.data(using: .utf8)!
+        let program = try JSONDecoder().decode(PEXProgramEdit.self, from: data)
+
+        #expect(program.currentValues?.count == 1)
+        #expect(program.currentValues?[0].controlCC == 7)
+        #expect(program.currentValues?[0].value == .int(100))
+        #expect(program.currentValues?[0].name == "Volume")
+        #expect(program.currentValues?[0].displayValue == "100")
+        #expect(program.currentValues?[0].displayUnit == "")
     }
 
     @Test("allValues merges params and currentValues")

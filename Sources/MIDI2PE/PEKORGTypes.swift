@@ -435,12 +435,25 @@ public struct PEXCurrentValue: Sendable, Codable, Identifiable, Hashable {
     /// CC number
     public let controlCC: Int
 
+    /// Parameter name (vendor-specific, optional)
+    public let name: String?
+
     /// Current value (may be Int, String, etc.)
     public let value: AnyCodableValue
+
+    /// Human-readable value text (vendor-specific, optional)
+    public let displayValue: String?
+
+    /// Human-readable unit text (vendor-specific, optional)
+    public let displayUnit: String?
 
     enum CodingKeys: String, CodingKey {
         case controlCC = "controlcc"
         case value = "current"
+        case legacyValue = "value"
+        case name
+        case displayValue
+        case displayUnit
     }
 
     // Alternative keys
@@ -469,8 +482,14 @@ public struct PEXCurrentValue: Sendable, Codable, Identifiable, Hashable {
             )
         }
 
+        name = try container.decodeIfPresent(String.self, forKey: .name)
+        displayValue = try container.decodeIfPresent(String.self, forKey: .displayValue)
+        displayUnit = try container.decodeIfPresent(String.self, forKey: .displayUnit)
+
         // Try different key names for value
         if let v = try? container.decode(AnyCodableValue.self, forKey: .value) {
+            value = v
+        } else if let v = try? container.decode(AnyCodableValue.self, forKey: .legacyValue) {
             value = v
         } else if let v = try? altContainer?.decode(AnyCodableValue.self, forKey: .val) {
             value = v
@@ -479,9 +498,27 @@ public struct PEXCurrentValue: Sendable, Codable, Identifiable, Hashable {
         }
     }
 
-    public init(controlCC: Int, value: AnyCodableValue) {
+    public init(
+        controlCC: Int,
+        value: AnyCodableValue,
+        name: String? = nil,
+        displayValue: String? = nil,
+        displayUnit: String? = nil
+    ) {
         self.controlCC = controlCC
+        self.name = name
         self.value = value
+        self.displayValue = displayValue
+        self.displayUnit = displayUnit
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(controlCC, forKey: .controlCC)
+        try container.encode(value, forKey: .value)
+        try container.encodeIfPresent(name, forKey: .name)
+        try container.encodeIfPresent(displayValue, forKey: .displayValue)
+        try container.encodeIfPresent(displayUnit, forKey: .displayUnit)
     }
 
     /// Value as Int (convenience)

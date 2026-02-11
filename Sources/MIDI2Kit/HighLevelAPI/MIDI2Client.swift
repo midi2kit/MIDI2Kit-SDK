@@ -685,15 +685,18 @@ public actor MIDI2Client {
         from muid: MUID,
         timeout: Duration? = nil
     ) async throws -> PEResponse {
-        try await executeWithDestinationFallback(
+        let baseTimeout = timeout ?? configuration.peTimeout
+        let adjustedTimeout = await effectiveTimeout(for: muid, base: baseTimeout)
+
+        return try await executeWithDestinationFallback(
             muid: muid,
             operation: .getProperty,
             resource: resource
-        ) { [peManager, configuration] handle in
+        ) { [peManager] handle in
             try await peManager.get(
                 resource,
                 from: handle,
-                timeout: timeout ?? configuration.peTimeout
+                timeout: adjustedTimeout
             )
         }
     }
@@ -705,16 +708,19 @@ public actor MIDI2Client {
         from muid: MUID,
         timeout: Duration? = nil
     ) async throws -> PEResponse {
-        try await executeWithDestinationFallback(
+        let baseTimeout = timeout ?? configuration.peTimeout
+        let adjustedTimeout = await effectiveTimeout(for: muid, base: baseTimeout)
+
+        return try await executeWithDestinationFallback(
             muid: muid,
             operation: .getProperty,
             resource: resource
-        ) { [peManager, configuration] handle in
+        ) { [peManager] handle in
             try await peManager.get(
                 resource,
                 channel: channel,
                 from: handle,
-                timeout: timeout ?? configuration.peTimeout
+                timeout: adjustedTimeout
             )
         }
     }
@@ -734,16 +740,19 @@ public actor MIDI2Client {
         to muid: MUID,
         timeout: Duration? = nil
     ) async throws -> PEResponse {
-        try await executeWithDestinationFallback(
+        let baseTimeout = timeout ?? configuration.peTimeout
+        let adjustedTimeout = await effectiveTimeout(for: muid, base: baseTimeout)
+
+        return try await executeWithDestinationFallback(
             muid: muid,
             operation: .setProperty,
             resource: resource
-        ) { [peManager, configuration] handle in
+        ) { [peManager] handle in
             try await peManager.set(
                 resource,
                 data: data,
                 to: handle,
-                timeout: timeout ?? configuration.peTimeout
+                timeout: adjustedTimeout
             )
         }
     }
