@@ -420,6 +420,25 @@ struct PEProgramDefEdgeCaseTests {
         #expect(program.programNumber == 200)
     }
 
+    @Test("Malformed bankPC falls back to explicit fields")
+    func malformedBankPCFallsBack() throws {
+        let json = """
+        {
+            "program": 12,
+            "bankPC": ["x", "y", "z"],
+            "bankCC": 9,
+            "name": "Fallback Test"
+        }
+        """.data(using: .utf8)!
+
+        let program = try JSONDecoder().decode(PEProgramDef.self, from: json)
+
+        #expect(program.programNumber == 12)
+        #expect(program.bankMSB == 0)
+        #expect(program.bankLSB == 9)
+        #expect(program.name == "Fallback Test")
+    }
+
     @Test("Missing all fields uses defaults")
     func missingAllFieldsUsesDefaults() throws {
         let json = """
@@ -487,5 +506,24 @@ struct PEChannelInfoEdgeCaseTests {
         #expect(channel.bankMSB == 255)
         #expect(channel.bankLSB == 255)
         #expect(channel.programNumber == 255)
+    }
+
+    @Test("Malformed bankPC falls back to explicit fields")
+    func malformedBankPCFallsBack() throws {
+        let json = """
+        {
+            "channel": 7,
+            "program": 12,
+            "bankPC": ["x", "y", "z"],
+            "bankCC": 9
+        }
+        """.data(using: .utf8)!
+
+        let channel = try JSONDecoder().decode(PEChannelInfo.self, from: json)
+
+        #expect(channel.channel == 7)
+        #expect(channel.programNumber == 12)
+        #expect(channel.bankMSB == nil)
+        #expect(channel.bankLSB == 9)
     }
 }

@@ -185,6 +185,110 @@ struct PEManagerTests {
         getTask.cancel()
         await manager.stopReceiving()
     }
+
+    @Test("getChannelList decodes KORG bankPC array format")
+    func getChannelListDecodesKORGFormat() async throws {
+        let transport = MockMIDITransport()
+        defer { Task { await transport.shutdown() } }
+        let manager = PEManager(
+            transport: transport,
+            sourceMUID: sourceMUID,
+            requestIDCooldownPeriod: 0,
+            sendStrategy: .single
+        )
+
+        await manager.startReceiving()
+
+        let task = Task {
+            try await manager.getChannelList(from: deviceHandle, timeout: .milliseconds(300))
+        }
+
+        try await Task.sleep(for: .milliseconds(50))
+        let sent = await transport.sentMessages
+        #expect(sent.count == 1)
+        let requestID: UInt8 = sent.first.map { $0.data.count > 14 ? $0.data[14] : 0 } ?? 0
+
+        let body = """
+        [
+            {"channel": 1, "title": "Channel 1", "bankPC": [0, 0, 1]},
+            {"channel": 2, "title": "Channel 2", "bankPC": [0, 1, 32]}
+        ]
+        """
+
+        let reply = buildPEReply(
+            sourceMUID: deviceMUID,
+            destinationMUID: sourceMUID,
+            requestID: requestID,
+            header: #"{"status":200}"#,
+            body: body
+        )
+        await transport.simulateReceive(reply, from: MIDISourceID(1))
+
+        let channels = try await task.value
+        #expect(channels.count == 2)
+        #expect(channels[0].channel == 1)
+        #expect(channels[0].bankMSB == 0)
+        #expect(channels[0].bankLSB == 0)
+        #expect(channels[0].programNumber == 1)
+        #expect(channels[1].channel == 2)
+        #expect(channels[1].bankMSB == 0)
+        #expect(channels[1].bankLSB == 1)
+        #expect(channels[1].programNumber == 32)
+
+        await manager.stopReceiving()
+    }
+
+    @Test("getProgramList decodes KORG bankPC array format")
+    func getProgramListDecodesKORGFormat() async throws {
+        let transport = MockMIDITransport()
+        defer { Task { await transport.shutdown() } }
+        let manager = PEManager(
+            transport: transport,
+            sourceMUID: sourceMUID,
+            requestIDCooldownPeriod: 0,
+            sendStrategy: .single
+        )
+
+        await manager.startReceiving()
+
+        let task = Task {
+            try await manager.getProgramList(channel: 0, from: deviceHandle, timeout: .milliseconds(300))
+        }
+
+        try await Task.sleep(for: .milliseconds(50))
+        let sent = await transport.sentMessages
+        #expect(sent.count == 1)
+        let requestID: UInt8 = sent.first.map { $0.data.count > 14 ? $0.data[14] : 0 } ?? 0
+
+        let body = """
+        [
+            {"title": "Grand Piano", "bankPC": [0, 0, 0]},
+            {"title": "Strings", "bankPC": [0, 1, 48]}
+        ]
+        """
+
+        let reply = buildPEReply(
+            sourceMUID: deviceMUID,
+            destinationMUID: sourceMUID,
+            requestID: requestID,
+            header: #"{"status":200}"#,
+            body: body
+        )
+        await transport.simulateReceive(reply, from: MIDISourceID(1))
+
+        let programs = try await task.value
+        #expect(programs.count == 2)
+        #expect(programs[0].name == "Grand Piano")
+        #expect(programs[0].bankMSB == 0)
+        #expect(programs[0].bankLSB == 0)
+        #expect(programs[0].programNumber == 0)
+        #expect(programs[1].name == "Strings")
+        #expect(programs[1].bankMSB == 0)
+        #expect(programs[1].bankLSB == 1)
+        #expect(programs[1].programNumber == 48)
+
+        await manager.stopReceiving()
+    }
     
     // MARK: - PERequest Tests
     
@@ -519,6 +623,60 @@ struct PEManagerTests {
         let diag = await manager.diagnostics
         #expect(diag.contains("Receiving: false"))
         #expect(diag.contains("Pending requests: 0"))
+    }
+
+    // MARK: - Helpers
+
+    /// Build a CI 1.2 PE GET Reply SysEx message used by PEManager tests.
+    private func buildPEReply(
+        sourceMUID: MUID,
+        destinationMUID: MUID,
+        requestID: UInt8,
+        header: String,
+        body: String
+    ) -> [UInt8] {
+        var data: [UInt8] = []
+
+        data.append(0xF0)
+        data.append(0x7E)
+        data.append(0x7F)
+        data.append(0x0D)
+        data.append(0x35)
+        data.append(0x02)
+
+        let sourceValue = sourceMUID.value
+        data.append(UInt8(sourceValue & 0x7F))
+        data.append(UInt8((sourceValue >> 7) & 0x7F))
+        data.append(UInt8((sourceValue >> 14) & 0x7F))
+        data.append(UInt8((sourceValue >> 21) & 0x7F))
+
+        let destinationValue = destinationMUID.value
+        data.append(UInt8(destinationValue & 0x7F))
+        data.append(UInt8((destinationValue >> 7) & 0x7F))
+        data.append(UInt8((destinationValue >> 14) & 0x7F))
+        data.append(UInt8((destinationValue >> 21) & 0x7F))
+
+        data.append(requestID)
+
+        let headerBytes = Array(header.utf8)
+        let bodyBytes = Array(body.utf8)
+
+        data.append(UInt8(headerBytes.count & 0x7F))
+        data.append(UInt8((headerBytes.count >> 7) & 0x7F))
+
+        data.append(0x01)
+        data.append(0x00)
+        data.append(0x01)
+        data.append(0x00)
+
+        data.append(UInt8(bodyBytes.count & 0x7F))
+        data.append(UInt8((bodyBytes.count >> 7) & 0x7F))
+
+        data.append(contentsOf: headerBytes)
+        data.append(contentsOf: bodyBytes)
+
+        data.append(0xF7)
+        return data
     }
 }
 
