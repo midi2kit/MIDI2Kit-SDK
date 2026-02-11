@@ -65,3 +65,48 @@
   - 技術的負債スコア: 1/10（極めて低い）
 次のTODO: オプション - build-xcframework.sh:17のコメント修正（Nice-to-have、優先度Low）
 ---
+
+---
+2026-02-11 01:25
+作業項目: GitHub CI エラーの調査と修正
+追加機能の説明: なし（CI修正）
+決定事項: CI失敗原因を調査し修正する
+次のTODO: CIログ確認、ci.yml確認、修正
+---
+
+---
+2026-02-11 01:25
+作業項目: GitHub CI エラー調査完了
+追加機能の説明: なし
+決定事項: CI失敗はコード起因ではなくGitHub Actionsの課金エラー（支払い失敗 or spending limit超過）。ci.yml設定は正常。ユーザーがBilling & plansで対処。
+次のTODO: なし（課金問題はユーザー側対応）
+---
+
+---
+2026-02-11 01:30
+作業項目: GitHub Actions CI を無効化
+追加機能の説明: なし
+決定事項: ci.ymlのトリガーをworkflow_dispatch（手動のみ）に変更し、push/PRでの自動実行を停止
+次のTODO: commit push
+---
+
+---
+2026-02-11 01:31
+作業項目: SDK v1.0.12 XCFramework パッケージング問題5件の一括修正
+追加機能の説明: なし（ビルドスクリプト修正・全モジュール再ビルド・SDKリリース更新）
+決定事項:
+  - 問題1: Package → Package.swift リネーム（SDK側）
+  - 問題2: CFBundleExecutable/CFBundleName/CFBundleIdentifier を全プラットフォームで修正
+  - 問題3: Versions/A内の旧バイナリ(*Dynamic)を確実に削除
+  - 問題4: zip -y または ditto でシンボリックリンク保持
+  - 問題5: 全5モジュール再ビルド・リリースアセット差し替え
+次のTODO: build-xcframework.sh修正 → 再ビルド → SDK更新 → タグ付け直し
+---
+
+---
+2026-02-11 01:50
+作業項目: SDK側のユーザー手動修正を確認
+追加機能の説明: なし
+決定事項: ユーザーがSDK側で cp Package Package.swift → amend → tag force push を実行。Packageファイルも残す方針。
+次のTODO: SDK側の状態確認
+---
