@@ -13,6 +13,7 @@ MIDI2Kit プロジェクトの開発ドキュメント集です。
 | ドキュメント | 説明 |
 |------------|------|
 | [API Reference](./API_Reference.md) | 全モジュールのAPI仕様書 |
+| [Local Release Smoke Test](./Local-Release-Smoke-Test.md) | GitHub Actionsなしでのローカル検証手順 |
 
 ## UIモックアップ
 
