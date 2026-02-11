@@ -289,6 +289,245 @@ struct PEManagerTests {
 
         await manager.stopReceiving()
     }
+
+    @Test("getChannelList prefers X-ChannelList when available")
+    func getChannelListPrefersExtendedResource() async throws {
+        let transport = MockMIDITransport()
+        defer { Task { await transport.shutdown() } }
+        let manager = PEManager(
+            transport: transport,
+            sourceMUID: sourceMUID,
+            requestIDCooldownPeriod: 0,
+            sendStrategy: .single
+        )
+
+        await manager.startReceiving()
+
+        let task = Task {
+            try await manager.getChannelListWithDiagnostics(
+                from: deviceHandle,
+                preferExtended: true,
+                timeout: .milliseconds(300)
+            )
+        }
+
+        try await Task.sleep(for: .milliseconds(50))
+        let sent = await transport.sentMessages
+        #expect(sent.count == 1)
+        let requestID: UInt8 = sent.first.map { $0.data.count > 14 ? $0.data[14] : 0 } ?? 0
+
+        let body = """
+        [{"channel": 1, "title": "X Channel", "bankPC": [0, 0, 7]}]
+        """
+        let reply = buildPEReply(
+            sourceMUID: deviceMUID,
+            destinationMUID: sourceMUID,
+            requestID: requestID,
+            header: #"{"status":200}"#,
+            body: body
+        )
+        await transport.simulateReceive(reply, from: MIDISourceID(1))
+
+        let result = try await task.value
+        #expect(result.channels.count == 1)
+        #expect(result.channels[0].programNumber == 7)
+        #expect(result.diagnostics.path == .extended)
+        #expect(result.diagnostics.selectedResource == "X-ChannelList")
+        #expect(result.diagnostics.attemptedResources == ["X-ChannelList"])
+
+        await manager.stopReceiving()
+    }
+
+    @Test("getChannelList falls back when X-ChannelList is empty")
+    func getChannelListFallsBackOnExtendedEmpty() async throws {
+        let transport = MockMIDITransport()
+        defer { Task { await transport.shutdown() } }
+        let manager = PEManager(
+            transport: transport,
+            sourceMUID: sourceMUID,
+            requestIDCooldownPeriod: 0,
+            sendStrategy: .single
+        )
+
+        await manager.startReceiving()
+
+        let task = Task {
+            try await manager.getChannelListWithDiagnostics(
+                from: deviceHandle,
+                preferExtended: true,
+                timeout: .milliseconds(300)
+            )
+        }
+
+        try await Task.sleep(for: .milliseconds(50))
+        var sent = await transport.sentMessages
+        #expect(sent.count == 1)
+        let xRequestID: UInt8 = sent[0].data.count > 14 ? sent[0].data[14] : 0
+
+        let xReply = buildPEReply(
+            sourceMUID: deviceMUID,
+            destinationMUID: sourceMUID,
+            requestID: xRequestID,
+            header: #"{"status":200}"#,
+            body: "[]"
+        )
+        await transport.simulateReceive(xReply, from: MIDISourceID(1))
+
+        try await Task.sleep(for: .milliseconds(50))
+        sent = await transport.sentMessages
+        #expect(sent.count == 2)
+        let standardRequestID: UInt8 = sent[1].data.count > 14 ? sent[1].data[14] : 0
+
+        let standardBody = """
+        [{"channel": 1, "title": "Std Channel", "bankPC": [0, 2, 10]}]
+        """
+        let standardReply = buildPEReply(
+            sourceMUID: deviceMUID,
+            destinationMUID: sourceMUID,
+            requestID: standardRequestID,
+            header: #"{"status":200}"#,
+            body: standardBody
+        )
+        await transport.simulateReceive(standardReply, from: MIDISourceID(1))
+
+        let result = try await task.value
+        #expect(result.channels.count == 1)
+        #expect(result.channels[0].bankLSB == 2)
+        #expect(result.channels[0].programNumber == 10)
+        #expect(result.diagnostics.path == .fallbackToStandard)
+        #expect(result.diagnostics.selectedResource == "ChannelList")
+        #expect(result.diagnostics.extendedWasEmpty == true)
+        #expect(result.diagnostics.attemptedResources == ["X-ChannelList", "ChannelList"])
+
+        await manager.stopReceiving()
+    }
+
+    @Test("getProgramList falls back when X-ProgramList fails")
+    func getProgramListFallsBackOnExtendedFailure() async throws {
+        let transport = MockMIDITransport()
+        defer { Task { await transport.shutdown() } }
+        let manager = PEManager(
+            transport: transport,
+            sourceMUID: sourceMUID,
+            requestIDCooldownPeriod: 0,
+            sendStrategy: .single
+        )
+
+        await manager.startReceiving()
+
+        let task = Task {
+            try await manager.getProgramListWithDiagnostics(
+                channel: 0,
+                from: deviceHandle,
+                preferExtended: true,
+                timeout: .milliseconds(300)
+            )
+        }
+
+        try await Task.sleep(for: .milliseconds(50))
+        var sent = await transport.sentMessages
+        #expect(sent.count == 1)
+        let xRequestID: UInt8 = sent[0].data.count > 14 ? sent[0].data[14] : 0
+
+        let xFailureReply = buildPEReply(
+            sourceMUID: deviceMUID,
+            destinationMUID: sourceMUID,
+            requestID: xRequestID,
+            header: #"{"status":404,"message":"X-ProgramList not supported"}"#,
+            body: "{}"
+        )
+        await transport.simulateReceive(xFailureReply, from: MIDISourceID(1))
+
+        try await Task.sleep(for: .milliseconds(50))
+        sent = await transport.sentMessages
+        #expect(sent.count == 2)
+        let standardRequestID: UInt8 = sent[1].data.count > 14 ? sent[1].data[14] : 0
+
+        let standardBody = """
+        [{"title":"Grand Piano","bankPC":[0,0,0]}]
+        """
+        let standardReply = buildPEReply(
+            sourceMUID: deviceMUID,
+            destinationMUID: sourceMUID,
+            requestID: standardRequestID,
+            header: #"{"status":200}"#,
+            body: standardBody
+        )
+        await transport.simulateReceive(standardReply, from: MIDISourceID(1))
+
+        let result = try await task.value
+        #expect(result.programs.count == 1)
+        #expect(result.programs[0].name == "Grand Piano")
+        #expect(result.diagnostics.path == .fallbackToStandard)
+        #expect(result.diagnostics.selectedResource == "ProgramList")
+        #expect(result.diagnostics.extendedError != nil)
+        #expect(result.diagnostics.attemptedResources == ["X-ProgramList", "ProgramList"])
+
+        await manager.stopReceiving()
+    }
+
+    @Test("getChannelList throws when both extended and standard resources fail")
+    func getChannelListThrowsWhenBothResourcesFail() async throws {
+        let transport = MockMIDITransport()
+        defer { Task { await transport.shutdown() } }
+        let manager = PEManager(
+            transport: transport,
+            sourceMUID: sourceMUID,
+            requestIDCooldownPeriod: 0,
+            sendStrategy: .single
+        )
+
+        await manager.startReceiving()
+
+        let task = Task {
+            try await manager.getChannelList(
+                from: deviceHandle,
+                preferExtended: true,
+                timeout: .milliseconds(300)
+            )
+        }
+
+        try await Task.sleep(for: .milliseconds(50))
+        var sent = await transport.sentMessages
+        #expect(sent.count == 1)
+        let xRequestID: UInt8 = sent[0].data.count > 14 ? sent[0].data[14] : 0
+
+        let xFailureReply = buildPEReply(
+            sourceMUID: deviceMUID,
+            destinationMUID: sourceMUID,
+            requestID: xRequestID,
+            header: #"{"status":404,"message":"X-ChannelList not supported"}"#,
+            body: "{}"
+        )
+        await transport.simulateReceive(xFailureReply, from: MIDISourceID(1))
+
+        try await Task.sleep(for: .milliseconds(50))
+        sent = await transport.sentMessages
+        #expect(sent.count == 2)
+        let standardRequestID: UInt8 = sent[1].data.count > 14 ? sent[1].data[14] : 0
+
+        let standardFailureReply = buildPEReply(
+            sourceMUID: deviceMUID,
+            destinationMUID: sourceMUID,
+            requestID: standardRequestID,
+            header: #"{"status":404,"message":"ChannelList not supported"}"#,
+            body: "{}"
+        )
+        await transport.simulateReceive(standardFailureReply, from: MIDISourceID(1))
+
+        do {
+            _ = try await task.value
+            Issue.record("Expected deviceError when both resources fail")
+        } catch let error as PEError {
+            if case .deviceError(let status, _) = error {
+                #expect(status == 404)
+            } else {
+                Issue.record("Expected deviceError(404), got \(error)")
+            }
+        }
+
+        await manager.stopReceiving()
+    }
     
     // MARK: - PERequest Tests
     

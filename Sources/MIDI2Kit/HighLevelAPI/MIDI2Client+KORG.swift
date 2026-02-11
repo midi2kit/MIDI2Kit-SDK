@@ -292,6 +292,7 @@ extension MIDI2Client {
     ///
     /// - Parameters:
     ///   - muid: The device MUID
+    ///   - preferExtended: Try `X-ChannelList` first and fallback to `ChannelList` (default: true)
     ///   - timeout: Optional custom timeout (default: 5 seconds)
     /// - Returns: Array of channel information
     /// - Throws: `MIDI2Error` on failure
@@ -306,24 +307,58 @@ extension MIDI2Client {
     /// ```
     public func getChannelList(
         from muid: MUID,
+        preferExtended: Bool = true,
         timeout: Duration = .seconds(5)
     ) async throws -> [PEChannelInfo] {
-        let response = try await getWithXFallback(
-            resource: "ChannelList",
+        try await getChannelListWithDiagnostics(
             from: muid,
+            preferExtended: preferExtended,
             timeout: timeout
-        )
-        return try decodeChannelList(from: response)
+        ).channels
     }
 
-    /// Get program list from device
+    /// Get channel list from device with fallback diagnostics.
+    public func getChannelListWithDiagnostics(
+        from muid: MUID,
+        preferExtended: Bool = true,
+        timeout: Duration = .seconds(5)
+    ) async throws -> (channels: [PEChannelInfo], diagnostics: PEResourceFallbackDiagnostics) {
+        let result = try await getWithExtendedFallback(
+            resource: "ChannelList",
+            from: muid,
+            preferExtended: preferExtended,
+            timeout: timeout,
+            decode: decodeChannelList,
+            isEmpty: { $0.isEmpty }
+        )
+        return (channels: result.value, diagnostics: result.diagnostics)
+    }
+
+    /// Get program list from device (compatibility overload for channel 0).
     ///
-    /// This method fetches the `ProgramList` resource and returns normalized program
-    /// definitions. KORG-specific formats (title, bankPC: [Int]) are automatically
-    /// converted to standard format.
+    /// Prefer using `getProgramList(channel:from:preferExtended:timeout:)` for explicit channel selection.
+    public func getProgramList(
+        from muid: MUID,
+        preferExtended: Bool = true,
+        timeout: Duration = .seconds(5)
+    ) async throws -> [PEProgramDef] {
+        try await getProgramList(
+            channel: 0,
+            from: muid,
+            preferExtended: preferExtended,
+            timeout: timeout
+        )
+    }
+
+    /// Get program list from device.
+    ///
+    /// When `preferExtended` is `true`, tries `X-ProgramList` first and falls back
+    /// to `ProgramList` if extended resource fails or is empty.
     ///
     /// - Parameters:
+    ///   - channel: MIDI channel (0-15)
     ///   - muid: The device MUID
+    ///   - preferExtended: Try `X-ProgramList` first and fallback to `ProgramList` (default: true)
     ///   - timeout: Optional custom timeout (default: 5 seconds)
     /// - Returns: Array of program definitions
     /// - Throws: `MIDI2Error` on failure
@@ -337,15 +372,36 @@ extension MIDI2Client {
     /// }
     /// ```
     public func getProgramList(
+        channel: Int,
         from muid: MUID,
+        preferExtended: Bool = true,
         timeout: Duration = .seconds(5)
     ) async throws -> [PEProgramDef] {
-        let response = try await getWithXFallback(
-            resource: "ProgramList",
+        try await getProgramListWithDiagnostics(
+            channel: channel,
             from: muid,
+            preferExtended: preferExtended,
             timeout: timeout
+        ).programs
+    }
+
+    /// Get program list from device with fallback diagnostics.
+    public func getProgramListWithDiagnostics(
+        channel: Int,
+        from muid: MUID,
+        preferExtended: Bool = true,
+        timeout: Duration = .seconds(5)
+    ) async throws -> (programs: [PEProgramDef], diagnostics: PEResourceFallbackDiagnostics) {
+        let result = try await getWithExtendedFallback(
+            resource: "ProgramList",
+            channel: channel,
+            from: muid,
+            preferExtended: preferExtended,
+            timeout: timeout,
+            decode: decodeProgramList,
+            isEmpty: { $0.isEmpty }
         )
-        return try decodeProgramList(from: response)
+        return (programs: result.value, diagnostics: result.diagnostics)
     }
 
     // MARK: - X-ProgramEdit
@@ -424,6 +480,87 @@ extension MIDI2Client {
         } else {
             return try await get(resource, from: muid, timeout: timeout)
         }
+    }
+
+    /// Fetch a resource with optional `X-*` fallback and return diagnostics.
+    ///
+    /// If `preferExtended` is true:
+    /// 1. Try `X-{resource}`
+    /// 2. If it fails OR decodes to empty array/object via `decode`, try `{resource}`
+    ///
+    /// If `preferExtended` is false:
+    /// - Fetch `{resource}` directly.
+    private func getWithExtendedFallback<T: Sendable>(
+        resource: String,
+        channel: Int? = nil,
+        from muid: MUID,
+        preferExtended: Bool,
+        timeout: Duration,
+        decode: (PEResponse) throws -> T,
+        isEmpty: (T) -> Bool = { _ in false }
+    ) async throws -> (value: T, diagnostics: PEResourceFallbackDiagnostics) {
+        let extendedResource = "X-\(resource)"
+        var attemptedResources: [String] = []
+        var extendedError: String?
+        var extendedWasEmpty = false
+
+        if preferExtended {
+            attemptedResources.append(extendedResource)
+            do {
+                let extendedResponse: PEResponse
+                if let channel {
+                    extendedResponse = try await get(extendedResource, channel: channel, from: muid, timeout: timeout)
+                } else {
+                    extendedResponse = try await get(extendedResource, from: muid, timeout: timeout)
+                }
+                let decoded = try decode(extendedResponse)
+                if !isEmpty(decoded) {
+                    return (
+                        value: decoded,
+                        diagnostics: PEResourceFallbackDiagnostics(
+                            baseResource: resource,
+                            selectedResource: extendedResource,
+                            attemptedResources: attemptedResources,
+                            path: .extended,
+                            extendedError: nil,
+                            extendedWasEmpty: false
+                        )
+                    )
+                }
+
+                extendedWasEmpty = true
+                MIDI2Logger.pe.midi2Debug("\(extendedResource) returned empty, falling back to \(resource)")
+            } catch let error as MIDI2Error {
+                if case .cancelled = error { throw error }
+                extendedError = error.localizedDescription
+                MIDI2Logger.pe.midi2Debug("\(extendedResource) failed, falling back to \(resource): \(error)")
+            } catch is CancellationError {
+                throw MIDI2Error.cancelled
+            } catch {
+                extendedError = error.localizedDescription
+                MIDI2Logger.pe.midi2Debug("\(extendedResource) failed, falling back to \(resource): \(error)")
+            }
+        }
+
+        attemptedResources.append(resource)
+        let standardResponse: PEResponse
+        if let channel {
+            standardResponse = try await get(resource, channel: channel, from: muid, timeout: timeout)
+        } else {
+            standardResponse = try await get(resource, from: muid, timeout: timeout)
+        }
+        let decoded = try decode(standardResponse)
+        return (
+            value: decoded,
+            diagnostics: PEResourceFallbackDiagnostics(
+                baseResource: resource,
+                selectedResource: resource,
+                attemptedResources: attemptedResources,
+                path: preferExtended ? .fallbackToStandard : .standardOnly,
+                extendedError: extendedError,
+                extendedWasEmpty: extendedWasEmpty
+            )
+        )
     }
 
     private func detectVendor(for muid: MUID) async -> MIDIVendor {

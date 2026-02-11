@@ -57,6 +57,9 @@ public enum PEResource: String, Sendable, CaseIterable {
     
     /// Extended program info
     case xProgramInfo = "X-ProgramInfo"
+
+    /// Extended program list (vendor-specific)
+    case xProgramList = "X-ProgramList"
     
     /// KORG X-ParameterList (CC name mappings)
     case xParameterList = "X-ParameterList"
