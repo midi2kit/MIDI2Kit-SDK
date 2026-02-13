@@ -11,6 +11,8 @@ A Swift library for MIDI 2.0 / MIDI-CI / Property Exchange on Apple platforms.
 - **Multi-Packet SysEx7 Reassembly** - Actor-based UMPSysEx7Assembler for fragmented messages
 - **RPN/NRPN → MIDI 1.0 CC Conversion** - UMP RPN/NRPN to MIDI 1.0 Control Change approximation
 - **High-Level API** - Simple `MIDI2Client` actor for common use cases
+- **Responder API** - `MIDI2ResponderClient` for creating MIDI-CI Responders with typed resources (v1.0.17+)
+- **Connection Policy** - `MIDI2ConnectionPolicy` for selective device filtering (v1.0.17+)
 - **KORG Optimization** - 99% faster PE operations with KORG devices (v1.0.8+)
 - **Adaptive Warm-Up** - Automatic connection optimization with device learning
 - **Swift Concurrency** - Built with async/await and Sendable types
@@ -315,6 +317,34 @@ If you're using `CIManager` or `PEManager` directly, see the [Migration Guide](d
 
 ## Recent Updates
 
+### v1.0.17 (2026-02-13)
+- **High-Level Responder API**: `MIDI2ResponderClient` actor for easy creation of MIDI-CI Responders
+- **Connection Policy**: `MIDI2ConnectionPolicy` with `MatchRule`-based filtering (`.contains()`, `.exact()`, `.prefix()`, `.suffix()`)
+- **Notification Throttling**: `PEResponder.minNotifyInterval` to prevent notification storms (default: 50ms)
+- **ListResource auto-totalCount**: Automatic `totalCount` header in list responses
+- **ComputedResource typed initializers**: Type-safe `getTyped`/`setTyped` Codable handlers
+- **602 Tests**: Comprehensive test coverage (+38 from v1.0.15)
+
+```swift
+// Create responder with typed resources
+let responder = try MIDI2ResponderClient(name: "MyResponder")
+await responder.addResource("Temperature") {
+    ComputedResource(getTyped: { _ in
+        TemperatureReading(celsius: getCurrentTemp())
+    })
+}
+
+// Filter connections
+var config = MIDI2ClientConfiguration()
+config.connectionPolicy = MIDI2ConnectionPolicy(
+    allowedNames: [.prefix("iPad"), .contains("Pro")]
+)
+try await responder.start()
+```
+
+### v1.0.16 (2026-02-12)
+- Superseded by v1.0.17 (rebase integration fix)
+
 ### v1.1.0 (2026-02-07)
 - **UMP SysEx7 Bidirectional Conversion**: MIDI 1.0 SysEx ↔ UMP Data 64 packet conversion with `UMPTranslator`
 - **Multi-Packet SysEx7 Reassembly**: Actor-based `UMPSysEx7Assembler` for fragmented SysEx messages with timeout handling
@@ -386,7 +416,7 @@ MIDI2Core (Foundation - no dependencies)
 | **MIDI2Transport** | CoreMIDI integration with connection management | `CoreMIDITransport`, `MIDITransport`, `SysExAssembler` |
 | **MIDI2CI** | MIDI Capability Inquiry protocol (device discovery) | `CIManager`, `DiscoveredDevice`, `CIMessageParser` |
 | **MIDI2PE** | Property Exchange (GET/SET device properties) | `PEManager`, `PETransactionManager`, `PESubscriptionManager` |
-| **MIDI2Kit** | High-Level API - unified client for common use cases | `MIDI2Client`, `MIDI2Device`, `MIDI2ClientConfiguration` |
+| **MIDI2Kit** | High-Level API - unified client for common use cases | `MIDI2Client`, `MIDI2ResponderClient`, `MIDI2Device`, `MIDI2ConnectionPolicy` |
 
 **Actor-Based Concurrency**: All managers are `actor` types for thread-safe isolation. All data types are `Sendable`. Swift Concurrency (async/await) is used throughout.
 
@@ -396,7 +426,7 @@ MIDI2Core (Foundation - no dependencies)
 
 MIDI2Kit includes comprehensive tests covering:
 
-- **Unit Tests**: 564 tests across 77 test suites for individual components
+- **Unit Tests**: 602 tests across 77+ test suites for individual components
 - **Integration Tests**: End-to-end workflow tests including discovery, PE operations, error recovery
 - **UMP Conversion Tests**: Bidirectional SysEx conversion, multi-packet reassembly, RPN/NRPN conversion
 - **Real Device Tests**: Verified with KORG Module Pro and BLE MIDI devices
