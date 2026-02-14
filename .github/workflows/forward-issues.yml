@@ -14,7 +14,7 @@ jobs:
       - name: Forward issue to MIDI2Kit repository
         uses: actions/github-script@v7
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ secrets.PAT_TOKEN }}
           script: |
             const issue = context.payload.issue;
 
