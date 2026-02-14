@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.18] - 2026-02-13
+
+### Changed
+- **Documentation**: Updated README with v1.0.17 Responder API, ConnectionPolicy, and test count
+
+## [1.0.17] - 2026-02-12
+
+### Changed
+- **Package**: P0 KORG Workaround Absorption & BLE Improvements
+  - Updated binary checksums and package metadata
+
+## [1.0.16] - 2026-02-12
+
+### Changed
+- **Package**: P0 KORG Workaround Absorption & BLE Improvements
+  - Updated binary checksums and package metadata
+
+## [1.0.15] - 2026-02-12
+
+### Changed
+- **Package**: P0 KORG Workaround Absorption & BLE Improvements
+  - Updated binary checksums and package metadata
+
+## [1.0.14] - 2026-02-11
+
+### Fixed
+- **P0 PE Compatibility Fixes**
+  - Use BLE effective timeout in high-level get/set operations
+  - Decode legacy `currentValues` value key and display metadata
+  - Added tests for legacy currentValues compatibility
+
+## [1.0.13] - 2026-02-11
+
+### Added
+- **X-Resource Fallback Diagnostics** for channel/program list
+  - Enhanced MIDI2Client+KORG.swift with fallback diagnostics
+  - PEManager+Resource.swift improvements
+  - 239 new tests in PEManagerTests.swift
+
 ## [1.0.12] - 2026-02-11
 
 ### Fixed
@@ -16,6 +55,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Fixed build-xcframework.sh to properly handle macOS versioned framework (Versions/A/) structure
   - Ensures binary name, symlink, Info.plist CFBundleExecutable, and install name are all consistent
   - Resolves xcodebuild link failures when using MIDI2Kit-SDK v1.0.12
+
+## [1.0.11] - 2026-02-06
+
+### Added
+- **Virtual MIDI Endpoint** (MIDI2Transport): Inter-app MIDI communication support (Issue #9)
+  - `VirtualEndpointCapable` protocol with 5 methods for creating/removing virtual endpoints
+  - `VirtualDevice` struct for paired source+destination
+  - `publishVirtualDevice(name:)` / `unpublishVirtualDevice(_:)` convenience API
+  - `sendFromVirtualSource(_:source:)` using `MIDIReceived()`
+  - `broadcast()` filtering to skip own virtual destinations (feedback prevention)
+  - `MIDITransportError`: 3 new virtual endpoint error cases
+  - `MIDITransport` protocol unchanged (100% backwards compatible)
+  - 18 new tests (527 total)
+
+## [1.0.10] - 2026-02-06
+
+### Added
+- **AnyCodableValue** (MIDI2Core): Type-safe container for heterogeneous JSON values
+  - Convenience accessors: `stringValue`, `intValue`, `doubleValue`, `boolValue`, `arrayValue`, `dictionaryValue`
+  - Coercion methods: `coercedIntValue`, `coercedStringValue`
+  - Full Codable, Hashable, Equatable, ExpressibleByLiteral support
+- **PEXCurrentValue** (MIDI2PE): Support for `currentValues` in X-ProgramEdit with mixed-type parameters
+  - Handles JSON like `{"controlcc": 11, "current": 100}` or `{"controlcc": 12, "current": "High"}`
+  - Convenience accessors: `intValue`, `stringValue`
+- **bankPC Array Support in PEXProgramEdit** (MIDI2PE): Automatic `[bankMSB, bankLSB, programNumber]` array conversion
+- **X-Resource Fallback** (MIDI2Kit): Auto-try X-prefixed resources before standard resources
+  - `getChannelList()`: X-ChannelList → ChannelList fallback
+  - `getProgramList()`: X-ProgramList → ProgramList fallback
+  - `getProgramEdit()`: X-ProgramEdit → ProgramEdit fallback (new API)
+- **BLE MIDI Timeout Optimization** (MIDI2Transport + MIDI2Kit)
+  - `MIDITransportType` enum: `.usb`, `.ble`, `.network`, `.virtual`, `.unknown`
+  - Auto-detect BLE transport via `kMIDIPropertyDriverOwner` and display name heuristics
+  - `autoAdjustBLETimeout` and `blePETimeout` configuration options
+  - Automatic PE timeout adjustment to 15s for BLE connections
+- **Empty Response Handling** (MIDI2PE)
+  - `PEEmptyResponseRepresentable` protocol for graceful 0-byte response handling
+  - `PEError.emptyResponse(resource:)` for non-array types
+
+### Fixed
+- Removed duplicate `AnyCodableValue` definition from `PEResource.swift` (unified to MIDI2Core version)
+
+### Tests
+- 509 tests passing (+51 new tests)
 
 ## [1.0.9] - 2026-02-06
 
