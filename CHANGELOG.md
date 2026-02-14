@@ -47,63 +47,63 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.0.8] - 2026-02-06
 
 ### Added
-- **KORG最適化機能** (`PEKORGTypes.swift`, `MIDI2Client+KORG.swift`)
-  - `PEXParameter`: KORG X-ParameterListエントリ（CC番号→パラメータ名マッピング）
-  - `PEXParameterValue`: X-ProgramEdit内のパラメータ値
-  - `PEXProgramEdit`: X-ProgramEdit（現在のプログラムデータ）
-  - `MIDIVendor`: ベンダー識別enum
-  - `VendorOptimization`: ベンダー別最適化オプション
-  - `VendorOptimizationConfig`: ベンダー最適化設定
+- **KORG Optimization Features** (`PEKORGTypes.swift`, `MIDI2Client+KORG.swift`)
+  - `PEXParameter`: KORG X-ParameterList entry (CC number → parameter name mapping)
+  - `PEXParameterValue`: Parameter value in X-ProgramEdit
+  - `PEXProgramEdit`: X-ProgramEdit (current program data)
+  - `MIDIVendor`: Vendor identification enum
+  - `VendorOptimization`: Vendor-specific optimization options
+  - `VendorOptimizationConfig`: Vendor optimization settings
 
-- **KORG拡張API** (`MIDI2Client+KORG.swift`)
-  - `getXParameterList(from:timeout:)`: X-ParameterList取得
-  - `getXParameterListWithResponse(from:timeout:)`: レスポンス付き取得
-  - `getXProgramEdit(from:timeout:)`: X-ProgramEdit取得
-  - `getXProgramEdit(channel:from:timeout:)`: チャンネル指定X-ProgramEdit取得
-  - `getOptimizedResources(from:preferVendorResources:)`: 最適化パス自動選択
-    - KORGデバイス: ResourceListをスキップしてX-ParameterList直接取得（99%高速化）
-    - 他のベンダー: 標準パスにフォールバック
+- **KORG Extended API** (`MIDI2Client+KORG.swift`)
+  - `getXParameterList(from:timeout:)`: Retrieve X-ParameterList
+  - `getXParameterListWithResponse(from:timeout:)`: Retrieve with response
+  - `getXProgramEdit(from:timeout:)`: Retrieve X-ProgramEdit
+  - `getXProgramEdit(channel:from:timeout:)`: Retrieve channel-specific X-ProgramEdit
+  - `getOptimizedResources(from:preferVendorResources:)`: Auto-select optimized path
+    - KORG devices: Skip ResourceList and directly retrieve X-ParameterList (99% faster)
+    - Other vendors: Fallback to standard path
 
 - **Adaptive WarmUp Strategy** (`WarmUpStrategy.swift`)
   - `WarmUpStrategy` enum: `.always`, `.never`, `.adaptive`, `.vendorBased`
-  - `WarmUpCache` actor: デバイスごとの成功/失敗記録（in-memory、TTL付き）
-  - `WarmUpCacheDiagnostics`: キャッシュ診断情報
+  - `WarmUpCache` actor: Per-device success/failure tracking (in-memory, with TTL)
+  - `WarmUpCacheDiagnostics`: Cache diagnostics information
 
 ### Changed
 - **MIDI2ClientConfiguration.swift**
-  - `warmUpBeforeResourceList: Bool` → `warmUpStrategy: WarmUpStrategy` (後方互換性維持)
-  - `vendorOptimizations: VendorOptimizationConfig` 追加
-  - デフォルト: `.adaptive` warmup strategy
+  - `warmUpBeforeResourceList: Bool` → `warmUpStrategy: WarmUpStrategy` (maintains backward compatibility)
+  - Added `vendorOptimizations: VendorOptimizationConfig`
+  - Default: `.adaptive` warmup strategy
 
 - **MIDI2Client.swift**
-  - WarmUpCache統合
-  - `getResourceList()`: adaptive戦略対応
-  - vendorBased戦略: KORG+useXParameterListAsWarmup時はX-ParameterListでwarmup
+  - Integrated WarmUpCache
+  - `getResourceList()`: Supports adaptive strategy
+  - vendorBased strategy: Uses X-ParameterList for warmup when KORG+useXParameterListAsWarmup
 
 - **MIDI2Error.swift**
-  - `.invalidResponse(muid:resource:details:)` ケース追加
+  - Added `.invalidResponse(muid:resource:details:)` case
 
 ### Performance
-- **KORG最適化**: PE操作が99.1%高速化（16.4秒 → 144ms）
-  - ResourceList (16.4秒) をスキップ
-  - X-ParameterList直接取得 (144ms)
+- **KORG Optimization**: PE operations 99.1% faster (16.4s → 144ms)
+  - Skip ResourceList (16.4s)
+  - Direct X-ParameterList retrieval (144ms)
 
 ### Testing
-- **PEKORGTypesTests.swift**: 25テスト追加
-  - PEXParameterTests: 9テスト
-  - PEXParameterValueTests: 3テスト
-  - PEXProgramEditTests: 5テスト
-  - MIDIVendorTests: 4テスト
-  - VendorOptimizationConfigTests: 4テスト
+- **PEKORGTypesTests.swift**: Added 25 tests
+  - PEXParameterTests: 9 tests
+  - PEXParameterValueTests: 3 tests
+  - PEXProgramEditTests: 5 tests
+  - MIDIVendorTests: 4 tests
+  - VendorOptimizationConfigTests: 4 tests
 
-- **WarmUpStrategyTests.swift**: 20テスト追加
-  - WarmUpStrategyTests: 4テスト
-  - WarmUpCacheTests: 12テスト
-  - WarmUpCacheDiagnosticsTests: 1テスト
-  - ConfigurationWarmUpStrategyTests: 3テスト
+- **WarmUpStrategyTests.swift**: Added 20 tests
+  - WarmUpStrategyTests: 4 tests
+  - WarmUpCacheTests: 12 tests
+  - WarmUpCacheDiagnosticsTests: 1 test
+  - ConfigurationWarmUpStrategyTests: 3 tests
 
 ### Documentation
-- **docs/KORG-Optimization.md**: KORG最適化ガイド（日本語）
+- **docs/KORG-Optimization.md**: KORG optimization guide (Japanese)
 
 ## [1.0.7] - 2026-02-06
 
@@ -140,29 +140,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.0.4] - 2026-02-05 (SDK Release)
 
 ### Changed
-- **MIDI2Kit-SDK**: `.explorer` プリセットで `peSendStrategy = .broadcast` を使用
-- **MIDI2Kit-SDK**: KORG BLE MIDI デバイスの PE タイムアウト問題を修正
+- **MIDI2Kit-SDK**: `.explorer` preset uses `peSendStrategy = .broadcast`
+- **MIDI2Kit-SDK**: Fixed PE timeout issues with KORG BLE MIDI devices
 
 ## [1.0.3] - 2026-02-05 (SDK Release)
 
 ### Changed
-- **MIDI2Kit-SDK**: `registerFromInquiry` のデフォルト値を `true` に変更（KORG互換性向上）
+- **MIDI2Kit-SDK**: Changed `registerFromInquiry` default value to `true` (improved KORG compatibility)
 
 ## [1.0.2] - 2026-02-05 (SDK Release)
 
 ### Fixed
-- **MIDI2Kit-SDK**: dyld Library not loaded エラーを修正（LC_ID_DYLIB 不一致解消）
+- **MIDI2Kit-SDK**: Fixed dyld "Library not loaded" error (resolved LC_ID_DYLIB mismatch)
 
 ## [1.0.1] - 2026-02-05 (SDK Release)
 
 ### Changed
-- **MIDI2Kit-SDK**: モジュール名を `MIDI2Client` から `MIDI2Kit` にリネーム（破壊的変更）
+- **MIDI2Kit-SDK**: Renamed module from `MIDI2Client` to `MIDI2Kit` (breaking change)
 
 ## [1.0.0] - 2026-02-04 (SDK Release)
 
 ### Added
-- **MIDI2Kit-SDK**: XCFramework バイナリ配布リポジトリ初回リリース
-- **MIDI2Kit-SDK**: 5つのモジュール（MIDI2Core, MIDI2Transport, MIDI2CI, MIDI2PE, MIDI2Kit）のバイナリ提供
+- **MIDI2Kit-SDK**: Initial XCFramework binary distribution repository release
+- **MIDI2Kit-SDK**: Binary distribution for 5 modules (MIDI2Core, MIDI2Transport, MIDI2CI, MIDI2PE, MIDI2Kit)
 
 ---
 
