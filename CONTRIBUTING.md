@@ -1,5 +1,6 @@
 # Contributing to MIDI2Kit
 
+
 Thank you for your interest in contributing to MIDI2Kit! This document provides guidelines and instructions for contributing.
 
 ## Code of Conduct
