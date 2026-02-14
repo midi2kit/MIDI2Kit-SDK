@@ -1,0 +1,40 @@
+name: Forward Issues to MIDI2Kit
+
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  forward-issue:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+
+    steps:
+      - name: Forward issue to MIDI2Kit repository
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const issue = context.payload.issue;
+
+            // Create issue in MIDI2Kit repository
+            const forwardedIssue = await github.rest.issues.create({
+              owner: 'hakaru',
+              repo: 'MIDI2Kit',
+              title: issue.title,
+              body: `${issue.body}\n\n---\nForwarded from midi2kit/MIDI2Kit-SDK#${issue.number}`,
+              labels: issue.labels.map(label => label.name)
+            });
+
+            // Add comment to original issue with link to forwarded issue
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issue.number,
+              body: `🔄 This issue has been automatically forwarded to [hakaru/MIDI2Kit#${forwardedIssue.data.number}](${forwardedIssue.data.html_url})
+
+This SDK repository is a binary distribution of the source repository. All issues should be tracked in the main MIDI2Kit repository.`
+            });
+
+            console.log(`Forwarded issue #${issue.number} to hakaru/MIDI2Kit#${forwardedIssue.data.number}`);
