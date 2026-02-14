@@ -1,5 +1,6 @@
 name: Forward Issues to MIDI2Kit
 
+# Automatically forwards issues to the main MIDI2Kit repository
 on:
   issues:
     types: [opened]
