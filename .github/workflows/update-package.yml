@@ -1,0 +1,93 @@
+name: Update Package.swift
+
+on:
+  repository_dispatch:
+    types: [update-package]
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract payload
+        id: payload
+        run: |
+          VERSION="${{ github.event.client_payload.version }}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          # Strip leading 'v' for semver
+          SEMVER="${VERSION#v}"
+          echo "semver=${SEMVER}" >> "$GITHUB_OUTPUT"
+          echo "Version: ${VERSION} (semver: ${SEMVER})"
+
+      - name: Update Package.swift URLs
+        run: |
+          VERSION="${{ steps.payload.outputs.version }}"
+          # Update all release download URLs to the new version
+          sed -i "s|releases/download/v[0-9.]*[0-9]/|releases/download/${VERSION}/|g" Package.swift
+          echo "Updated URLs to ${VERSION}"
+
+      - name: Update Package.swift checksums
+        run: |
+          CHECKSUMS='${{ toJSON(github.event.client_payload.checksums) }}'
+          for MODULE in MIDI2Core MIDI2Transport MIDI2CI MIDI2PE MIDI2Kit; do
+            CHECKSUM=$(echo "${CHECKSUMS}" | jq -r ".${MODULE}")
+            if [ "${CHECKSUM}" != "null" ] && [ -n "${CHECKSUM}" ]; then
+              # Match the checksum line following the module's binaryTarget name
+              sed -i "/${MODULE}.xcframework.zip/,/checksum:/{s/checksum: \"[a-f0-9]*\"/checksum: \"${CHECKSUM}\"/}" Package.swift
+              echo "Updated ${MODULE} checksum: ${CHECKSUM}"
+            else
+              echo "WARNING: No checksum found for ${MODULE}"
+            fi
+          done
+
+      - name: Verify Package.swift
+        run: |
+          VERSION="${{ steps.payload.outputs.version }}"
+          echo "=== Updated Package.swift ==="
+          cat Package.swift
+          echo ""
+          # Verify all URLs point to the new version
+          EXPECTED_COUNT=5
+          ACTUAL_COUNT=$(grep -c "releases/download/${VERSION}/" Package.swift || true)
+          if [ "${ACTUAL_COUNT}" -ne "${EXPECTED_COUNT}" ]; then
+            echo "ERROR: Expected ${EXPECTED_COUNT} URLs with ${VERSION}, found ${ACTUAL_COUNT}"
+            exit 1
+          fi
+          echo "OK: All ${EXPECTED_COUNT} URLs updated to ${VERSION}"
+
+      - name: Update CHANGELOG.md
+        run: |
+          VERSION="${{ steps.payload.outputs.version }}"
+          SEMVER="${{ steps.payload.outputs.semver }}"
+          DATE=$(date +%Y-%m-%d)
+
+          if [ -f CHANGELOG.md ]; then
+            # Prepend new entry after the first heading
+            sed -i "/^# /a\\
+\\
+## [${SEMVER}] - ${DATE}\\
+\\
+- Updated to MIDI2Kit ${VERSION}\\
+" CHANGELOG.md
+          else
+            cat > CHANGELOG.md << EOF
+# Changelog
+
+## [${SEMVER}] - ${DATE}
+
+- Updated to MIDI2Kit ${VERSION}
+EOF
+          fi
+          echo "Updated CHANGELOG.md"
+
+      - name: Commit and push
+        run: |
+          VERSION="${{ steps.payload.outputs.version }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Package.swift CHANGELOG.md
+          git commit -m "Update to MIDI2Kit ${VERSION}"
+          git push
