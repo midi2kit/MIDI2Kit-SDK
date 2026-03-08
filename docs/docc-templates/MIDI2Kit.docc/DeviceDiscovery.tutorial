@@ -1,0 +1,81 @@
+@Tutorial(time: 15) {
+    @Intro(title: "Discovering MIDI 2.0 Devices") {
+        Learn how to use MIDI2Kit to discover MIDI 2.0 capable devices on your system
+        using MIDI-CI (Capability Inquiry).
+
+        MIDI-CI Discovery broadcasts an inquiry message to all connected MIDI devices.
+        Devices that support MIDI 2.0 respond with their capabilities, including
+        manufacturer info, supported categories, and MUID.
+    }
+
+    @Section(title: "Setting Up the Client") {
+        @ContentAndMedia {
+            Create a MIDI2Client and configure discovery parameters.
+        }
+
+        @Steps {
+            @Step {
+                Import MIDI2Kit and create a client instance.
+
+                @Code(name: "DeviceDiscovery.swift", file: "DeviceDiscovery-01.swift")
+            }
+
+            @Step {
+                Configure discovery settings. The `discoveryInterval` controls how
+                often discovery inquiries are broadcast. The `deviceTimeout` determines
+                when a device is considered lost.
+
+                @Code(name: "DeviceDiscovery.swift", file: "DeviceDiscovery-02.swift")
+            }
+
+            @Step {
+                Start the client to begin discovery.
+
+                @Code(name: "DeviceDiscovery.swift", file: "DeviceDiscovery-03.swift")
+            }
+        }
+    }
+
+    @Section(title: "Handling Discovery Events") {
+        @ContentAndMedia {
+            Listen for device discovery, loss, and update events using AsyncStream.
+        }
+
+        @Steps {
+            @Step {
+                Create an event stream and handle discovery events.
+
+                @Code(name: "DeviceDiscovery.swift", file: "DeviceDiscovery-04.swift")
+            }
+
+            @Step {
+                Access device details from the ``MIDI2Device`` object. Each device
+                has a unique MUID, display name, manufacturer info, and capability flags.
+
+                @Code(name: "DeviceDiscovery.swift", file: "DeviceDiscovery-05.swift")
+            }
+
+            @Step {
+                Use ``MIDI2Device/deviceInfo`` for cached property access. The first
+                call fetches from the device; subsequent calls return the cached value.
+
+                @Code(name: "DeviceDiscovery.swift", file: "DeviceDiscovery-06.swift")
+            }
+        }
+    }
+
+    @Section(title: "Filtering Connections") {
+        @ContentAndMedia {
+            Use ``MIDI2ConnectionPolicy`` to selectively connect to specific devices.
+        }
+
+        @Steps {
+            @Step {
+                Create a connection policy with match rules. Only devices matching
+                the allowed names will trigger discovery events.
+
+                @Code(name: "DeviceDiscovery.swift", file: "DeviceDiscovery-07.swift")
+            }
+        }
+    }
+}

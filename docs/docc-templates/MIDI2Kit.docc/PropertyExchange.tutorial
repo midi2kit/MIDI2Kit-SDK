@@ -1,0 +1,78 @@
+@Tutorial(time: 20) {
+    @Intro(title: "Working with Property Exchange") {
+        Learn how to use MIDI2Kit's Property Exchange (PE) API to read and write
+        device properties, handle multi-chunk responses, and manage subscriptions.
+
+        Property Exchange is a MIDI-CI feature that allows hosts to GET and SET
+        structured data on MIDI 2.0 devices using JSON-like payloads over SysEx.
+    }
+
+    @Section(title: "Reading Device Properties") {
+        @ContentAndMedia {
+            Use the high-level API to read standard PE resources like DeviceInfo
+            and ResourceList.
+        }
+
+        @Steps {
+            @Step {
+                Start with a discovered device and check PE support.
+
+                @Code(name: "PropertyExchange.swift", file: "PE-01.swift")
+            }
+
+            @Step {
+                Get the device information using the convenience method.
+                This returns a typed ``PEDeviceInfo`` struct.
+
+                @Code(name: "PropertyExchange.swift", file: "PE-02.swift")
+            }
+
+            @Step {
+                List available resources. The ResourceList tells you which
+                properties the device exposes.
+
+                @Code(name: "PropertyExchange.swift", file: "PE-03.swift")
+            }
+
+            @Step {
+                Get a specific resource by name. The response contains
+                header and body data.
+
+                @Code(name: "PropertyExchange.swift", file: "PE-04.swift")
+            }
+        }
+    }
+
+    @Section(title: "Writing Device Properties") {
+        @ContentAndMedia {
+            Use PE SET operations to write data to device properties.
+        }
+
+        @Steps {
+            @Step {
+                Set a property value using the high-level API.
+
+                @Code(name: "PropertyExchange.swift", file: "PE-05.swift")
+            }
+        }
+    }
+
+    @Section(title: "Subscribing to Changes") {
+        @ContentAndMedia {
+            Subscribe to property changes to receive real-time notifications
+            when device properties are updated.
+
+            ``PESubscriptionManager`` handles auto-reconnection when devices
+            disconnect and reconnect.
+        }
+
+        @Steps {
+            @Step {
+                Subscribe to a resource and listen for notifications
+                through the event stream.
+
+                @Code(name: "PropertyExchange.swift", file: "PE-06.swift")
+            }
+        }
+    }
+}

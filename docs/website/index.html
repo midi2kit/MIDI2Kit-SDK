@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MIDI2Kit - MIDI 2.0 for Swift</title>
+  <meta name="description" content="The complete MIDI 2.0 library for Apple platforms. Device Discovery, Property Exchange, UMP conversion, and Responder API — all in async/await.">
+
+  <!-- OGP -->
+  <meta property="og:title" content="MIDI2Kit - MIDI 2.0 for Swift">
+  <meta property="og:description" content="The complete MIDI 2.0 library for Apple platforms. Device Discovery, Property Exchange, and UMP — all in async/await.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://midi2kit.dev">
+  <meta property="og:image" content="https://midi2kit.dev/images/og-image.jpg">
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="MIDI2Kit - MIDI 2.0 for Swift">
+  <meta name="twitter:description" content="The complete MIDI 2.0 library for Apple platforms.">
+
+  <!-- 構造化データ -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareSourceCode",
+    "name": "MIDI2Kit",
+    "description": "The complete MIDI 2.0 library for Apple platforms",
+    "programmingLanguage": "Swift",
+    "codeRepository": "https://github.com/midi2kit/MIDI2Kit-SDK",
+    "license": "https://opensource.org/licenses/MIT",
+    "operatingSystem": ["iOS", "macOS", "tvOS", "watchOS", "visionOS"],
+    "applicationCategory": "DeveloperApplication"
+  }
+  </script>
+
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="canonical" href="https://midi2kit.dev">
+</head>
+<body>
+
+  <!-- ナビゲーション -->
+  <header class="header" id="header">
+    <nav class="nav">
+      <a href="#" class="nav-logo">MIDI2Kit</a>
+      <button class="nav-toggle" id="nav-toggle" aria-label="Toggle navigation">
+        <span></span><span></span><span></span>
+      </button>
+      <ul class="nav-links" id="nav-links">
+        <li><a href="#features">Features</a></li>
+        <li><a href="#examples">Examples</a></li>
+        <li><a href="#architecture">Architecture</a></li>
+        <li><a href="#getting-started">Getting Started</a></li>
+        <li><a href="blog/">Blog</a></li>
+        <li><a href="https://github.com/midi2kit/MIDI2Kit-SDK" class="nav-github" target="_blank" rel="noopener">GitHub</a></li>
+      </ul>
+    </nav>
+  </header>
+
+  <!-- Hero セクション -->
+  <section class="hero">
+    <div class="container">
+      <div class="hero-content">
+        <div class="hero-text">
+          <h1 class="hero-title">The complete <span class="accent">MIDI 2.0</span> library for Apple platforms</h1>
+          <p class="hero-subtitle">Device Discovery, Property Exchange, and UMP &mdash; all in async/await</p>
+          <div class="hero-actions">
+            <a href="#getting-started" class="btn btn-primary">Get Started</a>
+            <a href="https://github.com/midi2kit/MIDI2Kit-SDK" class="btn btn-secondary" target="_blank" rel="noopener">View on GitHub</a>
+          </div>
+        </div>
+        <div class="hero-code">
+<pre><code><span class="kw">import</span> MIDI2Kit
+
+<span class="kw">let</span> client = <span class="kw">try</span> <span class="type">MIDI2Client</span>(name: <span class="str">"MyApp"</span>)
+<span class="kw">try await</span> client.<span class="fn">start</span>()
+
+<span class="kw">for await</span> event <span class="kw">in await</span> client.<span class="fn">makeEventStream</span>() {
+    <span class="kw">if case</span> .<span class="fn">deviceDiscovered</span>(<span class="kw">let</span> device) = event {
+        <span class="fn">print</span>(<span class="str">"Found: \(device.displayName)"</span>)
+    }
+}</code></pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features セクション -->
+  <section class="features" id="features">
+    <div class="container">
+      <h2 class="section-title">Features</h2>
+      <p class="section-subtitle">Everything you need to build MIDI 2.0 apps on Apple platforms</p>
+      <div class="feature-grid">
+
+        <div class="feature-card">
+          <div class="feature-icon">&#x1F50D;</div>
+          <h3>MIDI-CI Discovery</h3>
+          <p>Automatically discover MIDI 2.0 capable devices on the network. Real-time event stream with async/await.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">&#x1F4E6;</div>
+          <h3>Property Exchange</h3>
+          <p>Read and write device properties via the PE protocol. Full transaction management with timeout and retry.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">&#x1F504;</div>
+          <h3>UMP Conversion</h3>
+          <p>Bidirectional MIDI 1.0 &harr; 2.0 conversion. SysEx7, RPN/NRPN, and multi-packet reassembly built in.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">&#x1F4E1;</div>
+          <h3>Responder API</h3>
+          <p>Publish your own device on the MIDI-CI network with typed resources and connection policy filtering.</p>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- Code Examples セクション -->
+  <section class="examples" id="examples">
+    <div class="container">
+      <h2 class="section-title">Code Examples</h2>
+      <p class="section-subtitle">Clean, expressive APIs powered by Swift Concurrency</p>
+
+      <div class="tabs">
+        <button class="tab active" data-tab="discovery">Discovery</button>
+        <button class="tab" data-tab="property-exchange">Property Exchange</button>
+        <button class="tab" data-tab="responder">Responder</button>
+      </div>
+
+      <div class="tab-content active" id="tab-discovery">
+<pre><code><span class="cm">// デバイスの自動検出と情報取得</span>
+<span class="kw">import</span> MIDI2Kit
+
+<span class="kw">let</span> client = <span class="kw">try</span> <span class="type">MIDI2Client</span>(name: <span class="str">"MyApp"</span>)
+<span class="kw">try await</span> client.<span class="fn">start</span>()
+
+<span class="kw">for await</span> event <span class="kw">in await</span> client.<span class="fn">makeEventStream</span>() {
+    <span class="kw">switch</span> event {
+    <span class="kw">case</span> .<span class="fn">deviceDiscovered</span>(<span class="kw">let</span> device):
+        <span class="fn">print</span>(<span class="str">"Found: \(device.displayName)"</span>)
+
+        <span class="kw">if</span> device.supportsPropertyExchange {
+            <span class="kw">let</span> info = <span class="kw">try await</span> client.<span class="fn">getDeviceInfo</span>(from: device.muid)
+            <span class="fn">print</span>(<span class="str">"Product: \(info.productName ?? "Unknown")"</span>)
+        }
+
+    <span class="kw">case</span> .<span class="fn">deviceLost</span>(<span class="kw">let</span> muid):
+        <span class="fn">print</span>(<span class="str">"Lost: \(muid)"</span>)
+
+    <span class="kw">default</span>: <span class="kw">break</span>
+    }
+}</code></pre>
+      </div>
+
+      <div class="tab-content" id="tab-property-exchange">
+<pre><code><span class="cm">// Property Exchange: GET / SET</span>
+<span class="kw">import</span> MIDI2Kit
+
+<span class="kw">let</span> client = <span class="kw">try</span> <span class="type">MIDI2Client</span>(name: <span class="str">"MyApp"</span>)
+<span class="kw">try await</span> client.<span class="fn">start</span>()
+
+<span class="cm">// デバイスが見つかったら...</span>
+<span class="kw">let</span> device: <span class="type">MIDI2Device</span> = <span class="cm">/* discovered device */</span>
+
+<span class="cm">// GET: デバイス情報を取得</span>
+<span class="kw">let</span> info = <span class="kw">try await</span> client.<span class="fn">getDeviceInfo</span>(from: device.muid)
+<span class="fn">print</span>(<span class="str">"Manufacturer: \(info.manufacturerName ?? "")"</span>)
+<span class="fn">print</span>(<span class="str">"Product: \(info.productName ?? "")"</span>)
+
+<span class="cm">// GET: リソース一覧</span>
+<span class="kw">let</span> resources = <span class="kw">try await</span> client.<span class="fn">getResourceList</span>(from: device.muid)
+
+<span class="cm">// GET: 任意のリソースを取得</span>
+<span class="kw">let</span> response = <span class="kw">try await</span> client.<span class="fn">get</span>(<span class="str">"ChannelList"</span>, from: device.muid)
+
+<span class="cm">// SET: リソースを書き込み</span>
+<span class="kw">let</span> data = <span class="str">"{\"value\": 42}"</span>.<span class="fn">data</span>(using: .utf8)!
+<span class="kw">try await</span> client.<span class="fn">set</span>(<span class="str">"X-Custom"</span>, data: data, to: device.muid)</code></pre>
+      </div>
+
+      <div class="tab-content" id="tab-responder">
+<pre><code><span class="cm">// Responder: 自分のデバイスをネットワークに公開</span>
+<span class="kw">import</span> MIDI2Kit
+
+<span class="kw">let</span> responder = <span class="kw">try</span> <span class="type">MIDI2ResponderClient</span>(name: <span class="str">"MyResponder"</span>)
+
+<span class="cm">// 型安全なリソースを登録</span>
+<span class="kw">await</span> responder.<span class="fn">addResource</span>(<span class="str">"Temperature"</span>) {
+    <span class="type">ComputedResource</span>(getTyped: { _ <span class="kw">in</span>
+        <span class="type">TemperatureReading</span>(celsius: <span class="fn">getCurrentTemp</span>())
+    })
+}
+
+<span class="cm">// 接続フィルタリング</span>
+<span class="kw">var</span> config = <span class="type">MIDI2ClientConfiguration</span>()
+config.connectionPolicy = <span class="type">MIDI2ConnectionPolicy</span>(
+    allowedNames: [.<span class="fn">prefix</span>(<span class="str">"iPad"</span>), .<span class="fn">contains</span>(<span class="str">"Pro"</span>)]
+)
+
+<span class="cm">// 開始</span>
+<span class="kw">try await</span> responder.<span class="fn">start</span>()</code></pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- Architecture セクション -->
+  <section class="architecture" id="architecture">
+    <div class="container">
+      <h2 class="section-title">Architecture</h2>
+      <p class="section-subtitle">Modular design with clear dependency hierarchy</p>
+
+      <div class="arch-diagram">
+        <div class="arch-row">
+          <div class="arch-module arch-top">
+            <strong>MIDI2Kit</strong>
+            <span>High-Level API</span>
+            <small>MIDI2Client, MIDI2ResponderClient, MIDI2Device</small>
+          </div>
+        </div>
+        <div class="arch-arrow">&darr;</div>
+        <div class="arch-row arch-middle-row">
+          <div class="arch-module arch-mid">
+            <strong>MIDI2CI</strong>
+            <span>Discovery</span>
+            <small>CIManager, CIMessageParser</small>
+          </div>
+          <div class="arch-module arch-mid">
+            <strong>MIDI2PE</strong>
+            <span>Property Exchange</span>
+            <small>PEManager, PETransactionManager</small>
+          </div>
+          <div class="arch-module arch-mid">
+            <strong>MIDI2Transport</strong>
+            <span>CoreMIDI</span>
+            <small>CoreMIDITransport, SysExAssembler</small>
+          </div>
+        </div>
+        <div class="arch-arrow">&darr;</div>
+        <div class="arch-row">
+          <div class="arch-module arch-bottom">
+            <strong>MIDI2Core</strong>
+            <span>Foundation</span>
+            <small>MUID, DeviceIdentity, UMPBuilder, UMPParser, Mcoded7</small>
+          </div>
+        </div>
+      </div>
+
+      <div class="arch-highlights">
+        <div class="arch-highlight">
+          <h4>Actor-Based Concurrency</h4>
+          <p>All managers are Swift actors. All data types are Sendable. Full Swift 6 strict concurrency support.</p>
+        </div>
+        <div class="arch-highlight">
+          <h4>Testable by Design</h4>
+          <p>MockMIDITransport enables testing without hardware. 602+ tests across 77 test suites.</p>
+        </div>
+        <div class="arch-highlight">
+          <h4>Zero External Dependencies</h4>
+          <p>Only Apple frameworks (CoreMIDI, Foundation). No third-party packages required.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Compatibility セクション -->
+  <section class="compatibility" id="compatibility">
+    <div class="container">
+      <h2 class="section-title">Compatibility</h2>
+      <p class="section-subtitle">Built for the entire Apple ecosystem</p>
+
+      <div class="compat-table-wrapper">
+        <table class="compat-table">
+          <thead>
+            <tr>
+              <th>Platform</th>
+              <th>Minimum Version</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>iOS</td><td>17.0+</td></tr>
+            <tr><td>macOS</td><td>14.0+</td></tr>
+            <tr><td>tvOS</td><td>17.0+</td></tr>
+            <tr><td>watchOS</td><td>10.0+</td></tr>
+            <tr><td>visionOS</td><td>1.0+</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="compat-requirements">
+        <div class="compat-item">
+          <strong>Xcode</strong>
+          <span>16.0+</span>
+        </div>
+        <div class="compat-item">
+          <strong>Swift</strong>
+          <span>6.0+</span>
+        </div>
+        <div class="compat-item">
+          <strong>Concurrency</strong>
+          <span>Swift 6 Strict Mode</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Getting Started セクション -->
+  <section class="getting-started" id="getting-started">
+    <div class="container">
+      <h2 class="section-title">Getting Started</h2>
+      <p class="section-subtitle">Up and running in 3 steps</p>
+
+      <div class="steps">
+
+        <div class="step">
+          <div class="step-number">1</div>
+          <div class="step-content">
+            <h3>Add the Package</h3>
+            <p>In Xcode: <strong>File &rarr; Add Package Dependencies</strong> and enter the repository URL.</p>
+<pre><code><span class="cm">// Or add to Package.swift</span>
+dependencies: [
+    .<span class="fn">package</span>(
+        url: <span class="str">"https://github.com/midi2kit/MIDI2Kit-SDK.git"</span>,
+        from: <span class="str">"1.0.0"</span>
+    )
+]</code></pre>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-number">2</div>
+          <div class="step-content">
+            <h3>Import and Create a Client</h3>
+<pre><code><span class="kw">import</span> MIDI2Kit
+
+<span class="kw">let</span> client = <span class="kw">try</span> <span class="type">MIDI2Client</span>(name: <span class="str">"MyApp"</span>)
+<span class="kw">try await</span> client.<span class="fn">start</span>()</code></pre>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-number">3</div>
+          <div class="step-content">
+            <h3>Discover Devices</h3>
+<pre><code><span class="kw">for await</span> event <span class="kw">in await</span> client.<span class="fn">makeEventStream</span>() {
+    <span class="kw">if case</span> .<span class="fn">deviceDiscovered</span>(<span class="kw">let</span> device) = event {
+        <span class="fn">print</span>(<span class="str">"Found: \(device.displayName)"</span>)
+    }
+}</code></pre>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-content">
+        <div class="footer-brand">
+          <span class="footer-logo">MIDI2Kit</span>
+          <p>Made with &#9835; for the MIDI 2.0 community</p>
+        </div>
+        <div class="footer-links">
+          <a href="https://github.com/midi2kit/MIDI2Kit-SDK" target="_blank" rel="noopener">GitHub</a>
+          <a href="https://github.com/midi2kit/MIDI2Kit-SDK/blob/main/API.md" target="_blank" rel="noopener">Documentation</a>
+          <a href="https://github.com/midi2kit/MIDI2Kit-SDK/blob/main/LICENSE" target="_blank" rel="noopener">License (MIT)</a>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>&copy; 2025-2026 MIDI2Kit. MIT License.</p>
+      </div>
+    </div>
+  </footer>
+
+  <script src="js/main.js"></script>
+</body>
+</html>

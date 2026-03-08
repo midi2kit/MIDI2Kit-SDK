@@ -1,0 +1,327 @@
+/* ==========================================================================
+   MIDI2Kit Blog Styles
+   ========================================================================== */
+
+/* ブログ一覧ページ */
+.blog-hero {
+  padding: 140px 0 60px;
+  background: linear-gradient(180deg, var(--color-bg) 0%, var(--color-bg-elevated) 100%);
+  text-align: center;
+}
+
+.blog-hero h1 {
+  font-size: 2.5rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  margin-bottom: 12px;
+}
+
+.blog-hero p {
+  color: var(--color-text-muted);
+  font-size: 1.1rem;
+}
+
+/* 記事カード一覧 */
+.blog-list {
+  padding: 80px 0;
+  background: var(--color-bg);
+}
+
+.post-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.post-card {
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 32px;
+  text-decoration: none;
+  color: inherit;
+  display: block;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.post-card:hover {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 24px var(--color-accent-glow);
+}
+
+.post-card-meta {
+  display: flex;
+  gap: 16px;
+  font-size: 0.8rem;
+  color: var(--color-text-dim);
+  margin-bottom: 12px;
+}
+
+.post-card-tag {
+  color: var(--color-accent-light);
+  font-weight: 600;
+}
+
+.post-card h2 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin-bottom: 10px;
+  line-height: 1.3;
+}
+
+.post-card p {
+  color: var(--color-text-muted);
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+
+.post-card-read {
+  display: inline-block;
+  margin-top: 16px;
+  color: var(--color-accent-light);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+/* ==========================================================================
+   ブログ記事ページ
+   ========================================================================== */
+
+.post-header {
+  padding: 140px 0 40px;
+  background: linear-gradient(180deg, var(--color-bg) 0%, var(--color-bg-elevated) 100%);
+  position: relative;
+  overflow: hidden;
+}
+
+.post-header::before {
+  content: '';
+  position: absolute;
+  top: -200px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(circle, var(--color-accent-glow) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.post-header .container {
+  position: relative;
+  max-width: 800px;
+}
+
+.post-meta {
+  display: flex;
+  gap: 16px;
+  font-size: 0.85rem;
+  color: var(--color-text-dim);
+  margin-bottom: 16px;
+}
+
+.post-tag {
+  color: var(--color-accent-light);
+  font-weight: 600;
+}
+
+.post-header h1 {
+  font-size: 2.25rem;
+  font-weight: 800;
+  line-height: 1.2;
+  letter-spacing: -0.03em;
+  margin-bottom: 16px;
+}
+
+.post-subtitle {
+  font-size: 1.1rem;
+  color: var(--color-text-muted);
+  line-height: 1.5;
+}
+
+/* 記事本文 */
+.post-body {
+  padding: 60px 0 100px;
+  background: var(--color-bg);
+}
+
+.post-body .container {
+  max-width: 800px;
+}
+
+.post-content h2 {
+  font-size: 1.6rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin-top: 56px;
+  margin-bottom: 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.post-content h3 {
+  font-size: 1.2rem;
+  font-weight: 600;
+  margin-top: 40px;
+  margin-bottom: 12px;
+}
+
+.post-content p {
+  font-size: 1rem;
+  line-height: 1.8;
+  color: var(--color-text);
+  margin-bottom: 20px;
+}
+
+.post-content ul,
+.post-content ol {
+  margin-bottom: 20px;
+  padding-left: 24px;
+}
+
+.post-content li {
+  font-size: 1rem;
+  line-height: 1.8;
+  color: var(--color-text);
+  margin-bottom: 6px;
+}
+
+.post-content strong {
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+.post-content a {
+  color: var(--color-accent-light);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: border-color 0.2s;
+}
+
+.post-content a:hover {
+  border-bottom-color: var(--color-accent-light);
+}
+
+/* 記事内コードブロック */
+.post-content pre {
+  background: var(--color-bg-code);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 24px;
+  margin-bottom: 24px;
+  overflow-x: auto;
+}
+
+.post-content code {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  line-height: 1.7;
+}
+
+/* インラインコード */
+.post-content p code,
+.post-content li code {
+  background: var(--color-bg-code);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 0.85em;
+}
+
+/* 引用ブロック */
+.post-content blockquote {
+  border-left: 3px solid var(--color-accent);
+  padding: 16px 24px;
+  margin: 24px 0;
+  background: var(--color-accent-glow);
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+
+.post-content blockquote p {
+  margin-bottom: 0;
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+/* CTA セクション */
+.post-cta {
+  margin-top: 56px;
+  padding: 40px;
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  text-align: center;
+}
+
+.post-cta h3 {
+  font-size: 1.3rem;
+  font-weight: 700;
+  margin-top: 0;
+  margin-bottom: 12px;
+}
+
+.post-cta p {
+  color: var(--color-text-muted);
+  margin-bottom: 24px;
+}
+
+.post-cta-actions {
+  display: flex;
+  gap: 14px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+/* 記事ナビゲーション（前後記事） */
+.post-nav {
+  margin-top: 56px;
+  padding-top: 32px;
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  justify-content: space-between;
+}
+
+.post-nav a {
+  color: var(--color-accent-light);
+  text-decoration: none;
+  font-size: 0.9rem;
+  font-weight: 600;
+  transition: color 0.2s;
+}
+
+.post-nav a:hover {
+  color: var(--color-text);
+}
+
+/* ==========================================================================
+   レスポンシブ
+   ========================================================================== */
+
+@media (max-width: 768px) {
+  .blog-hero h1 {
+    font-size: 1.8rem;
+  }
+
+  .post-header h1 {
+    font-size: 1.7rem;
+  }
+
+  .post-content h2 {
+    font-size: 1.3rem;
+  }
+
+  .post-card {
+    padding: 24px;
+  }
+
+  .post-cta {
+    padding: 28px;
+  }
+
+  .post-cta-actions {
+    flex-direction: column;
+    align-items: center;
+  }
+}

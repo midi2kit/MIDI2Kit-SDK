@@ -1,0 +1,73 @@
+@Tutorial(time: 20) {
+    @Intro(title: "Creating a MIDI-CI Responder") {
+        Learn how to create a MIDI-CI Responder that exposes typed resources
+        to other MIDI 2.0 devices on the network.
+
+        A Responder is a device that answers MIDI-CI Discovery inquiries and
+        serves Property Exchange resources to Initiator devices.
+    }
+
+    @Section(title: "Setting Up a Responder") {
+        @ContentAndMedia {
+            Create a ``MIDI2ResponderClient`` and configure its identity.
+        }
+
+        @Steps {
+            @Step {
+                Import MIDI2Kit and create a responder client.
+
+                @Code(name: "Responder.swift", file: "Responder-01.swift")
+            }
+
+            @Step {
+                Add a computed resource with typed GET handler.
+                The resource is automatically serialized to JSON for PE responses.
+
+                @Code(name: "Responder.swift", file: "Responder-02.swift")
+            }
+
+            @Step {
+                Add a list resource that serves paginated data.
+
+                @Code(name: "Responder.swift", file: "Responder-03.swift")
+            }
+
+            @Step {
+                Start the responder to begin answering discovery inquiries.
+
+                @Code(name: "Responder.swift", file: "Responder-04.swift")
+            }
+        }
+    }
+
+    @Section(title: "Handling SET Requests") {
+        @ContentAndMedia {
+            Add write handlers to accept SET operations from Initiator devices.
+        }
+
+        @Steps {
+            @Step {
+                Create a resource with both GET and SET handlers.
+                The `setTyped` closure receives the decoded payload.
+
+                @Code(name: "Responder.swift", file: "Responder-05.swift")
+            }
+        }
+    }
+
+    @Section(title: "Sending Notifications") {
+        @ContentAndMedia {
+            Notify subscribed Initiators when resource values change.
+            ``PEResponder/minNotifyInterval`` prevents notification storms
+            (default: 50ms).
+        }
+
+        @Steps {
+            @Step {
+                Trigger a notification when a resource value changes.
+
+                @Code(name: "Responder.swift", file: "Responder-06.swift")
+            }
+        }
+    }
+}
